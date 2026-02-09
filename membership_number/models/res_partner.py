@@ -4,7 +4,7 @@ from odoo import models, fields, api
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
-    # company_dependent=True ensures this value is unique per company/association
+    # 1. This is the "Current Association" number (Editable)
     association_member_number = fields.Char(
         string='Membership Number',
         company_dependent=True,
@@ -12,11 +12,26 @@ class ResPartner(models.Model):
         help="Unique identifier for the member within this specific association (Company)."
     )
 
-    _sql_constraints = [
-        # Optional: Strict DB constraint to prevent duplicates within the same company
-        # Note: company_dependent fields are stored in ir_property, so SQL constraints
-        # on the main table won't work directly. Uniqueness must be checked in Python.
-    ]
+    # 2. This shows numbers from ALL associations (Read-only)
+    all_membership_numbers_display = fields.Char(
+        string='All Membership Numbers',
+        compute='_compute_all_membership_numbers',
+        help="Shows membership numbers from all regional and national branches."
+    )
+
+    @api.depends('association_member_number')  # Note: company_dependent triggers are tricky
+    def _compute_all_membership_numbers(self):
+        # We fetch all companies the user has access to
+        all_companies = self.env['res.company'].search([])
+        for partner in self:
+            found_numbers = []
+            for company in all_companies:
+                # We "peek" into the value for each specific company
+                val = partner.with_company(company).association_member_number
+                if val:
+                    found_numbers.append(f"{company.name}: {val}")
+            
+            partner.all_membership_numbers_display = " | ".join(found_numbers) if found_numbers else "No numbers assigned"
 
     @api.constrains('association_member_number')
     def _check_unique_member_number(self):
