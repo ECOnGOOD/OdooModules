@@ -1,0 +1,11 @@
+<odoo>
+    <data noupdate="1">
+        <record id="seq_association_membership" model="ir.sequence">
+            <field name="name">Association Membership Number</field>
+            <field name="code">association.membership.seq</field>
+            <field name="prefix">MEM/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="company_id" eval="True"/> 
+        </record>
+    </data>
+</odoo>
