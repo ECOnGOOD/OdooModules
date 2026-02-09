@@ -2,14 +2,11 @@
     <record id="view_partner_form_inherit_ngo_number" model="ir.ui.view">
         <field name="name">res.partner.form.inherit.ngo.number</field>
         <field name="model">res.partner</field>
-        <field name="inherit_id" ref="membership.view_partner_form_default_membership"/>
+        <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//group[@name='membership']" position="inside">
-                <group string="Association Identity" name="ngo_numbers">
-                    <field name="association_member_number"/>
-                    <field name="all_membership_numbers_display" readonly="1" decoration-bf="1"/>
-                </group>
-            </xpath>
+            <field name="vat" position="after">
+                <field name="association_member_number" placeholder="Leave empty for auto-generation"/>
+            </field>
         </field>
     </record>
 
