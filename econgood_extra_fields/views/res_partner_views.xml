@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
 
 
-            <!--hide personal information page since it is used in demographics-->
+            <!--Hide personal information page since its data is used in Demographics-->
             <xpath expr="//page[@name='personal_information_page']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
