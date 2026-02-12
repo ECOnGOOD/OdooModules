@@ -4,22 +4,33 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
+
+
+            <!--hide personal information page since it is used in demographics-->
+            <xpath expr="//page[@name='personal_information_page']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
             
             <xpath expr="//field[@name='partner_company_type_id']" position="after">
                 <field name="is_nonprofit" invisible="not is_company"/>
             </xpath>
 
             <xpath expr="//notebook" position="inside">
-                <page string="Compliance & Data">
+                <page string="Details &amp; Legal">
                     <group>
-                        <group string="Demographics" invisible="not is_company"/>>
+                        <group string="Demographics">
+                            <field name="gender" invisible="is_company"/>
+                            <field name="birthdate_date" invisible="is_company"/>
+                            <field name="age" invisible="not birthdate_date"/>
+
                             <field name="employee_count" invisible="not is_company"/>
                             <field name="inhabitant_count" invisible="not is_company"/>
                         </group>
-                        <group string="Legal Agreements & Account">
+                        
+                        <group string="Legal Agreements &amp; Account">
+                            <field name="email_econgood" widget="email"/>
                             <field name="code_of_conduct_signed_date"/>
                             <field name="privacy_agreement_signed_date"/>
-                            <field name="email_econgood" widget="email"/>
                         </group>
                     </group>
                 </page>
