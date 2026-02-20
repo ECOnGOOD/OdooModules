@@ -11,7 +11,7 @@
         <field name="target">new</field>
         <field
             name="context"
-        >{'default_partner_id': active_id, 'default_invoice_partner_id': active_id, 'default_contract_type': 'sale', 'default_is_membership_contract': True, 'create_membership_contract_from_partner': True}</field>
+        >{'default_partner_id': active_id, 'default_invoice_partner_id': active_id, 'default_contract_type': 'sale', 'default_is_membership_contract': True, 'create_membership_contract_from_partner': True, 'auto_invoice_membership_contract_on_save': True}</field>
     </record>
 
     <record id="view_partner_form_membership_contract_controls" model="ir.ui.view">
@@ -31,7 +31,7 @@
                         class="oe_highlight"
                     />
                     <field name="contract_ids" context="{'default_contract_type': 'sale'}">
-                        <list create="0" delete="0" edit="0">
+                        <list create="0" delete="0" edit="0" open_form_view="1">
                             <field name="name" />
                             <field name="is_membership_contract" optional="show" />
                             <field name="company_id" />

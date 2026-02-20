@@ -43,6 +43,37 @@ class ContractContract(models.Model):
             defaults["line_recurrence"] = False
             defaults["recurring_interval"] = 1
             defaults["recurring_rule_type"] = "yearly"
-            defaults["recurring_next_date"] = self._membership_next_jan_first()
 
         return defaults
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        if not self.env.context.get("auto_invoice_membership_contract_on_save"):
+            return records
+
+        for contract in records.filtered(
+            lambda rec: rec.is_membership_contract and rec.generation_type == "invoice"
+        ):
+            # Ensure there is a first invoicing date for contracts created
+            # without recurring_next_date in the form defaults.
+            if not contract.recurring_next_date:
+                contract.recurring_next_date = fields.Date.context_today(contract)
+            invoices = contract.recurring_create_invoice()
+            if (
+                invoices
+                and contract.company_id.membership_contract_yearly_defaults
+            ):
+                contract.recurring_next_date = contract._membership_next_jan_first()
+        return records
+
+    def action_open_contract_full_page(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "contract.contract",
+            "res_id": self.id,
+            "view_mode": "form",
+            "view_id": self.get_formview_id(),
+            "target": "current",
+        }

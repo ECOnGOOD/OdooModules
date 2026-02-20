@@ -1,5 +1,3 @@
-from datetime import date
-
 from odoo.tests.common import TransactionCase
 
 
@@ -38,7 +36,6 @@ class TestMembershipContractGlue(TransactionCase):
                 "line_recurrence",
                 "recurring_interval",
                 "recurring_rule_type",
-                "recurring_next_date",
             ]
         )
 
@@ -49,12 +46,6 @@ class TestMembershipContractGlue(TransactionCase):
         self.assertEqual(defaults["recurring_interval"], 1)
         self.assertEqual(defaults["recurring_rule_type"], "yearly")
         self.assertFalse(defaults["line_recurrence"])
-
-        today = date.today()
-        expected = date(today.year + 1, 1, 1)
-        if today == date(today.year, 1, 1):
-            expected = date(today.year, 1, 1)
-        self.assertEqual(defaults["recurring_next_date"], expected)
 
     def test_action_create_membership_contract_defaults_disabled(self):
         self.env.company.membership_contract_yearly_defaults = False
