@@ -1,0 +1,75 @@
+# Translation of Odoo Server.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"POT-Creation-Date: 2026-02-20 00:00+0000\n"
+"PO-Revision-Date: 2026-02-20 00:00+0000\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: membership_contract_glue
+msgid "Membership Administrator"
+msgstr "Mitgliedschaftsadministrator"
+
+#. module: membership_contract_glue
+msgid "Membership & Contract"
+msgstr "Mitgliedschaft & Vertrag"
+
+#. module: membership_contract_glue
+msgid "Membership Contract"
+msgstr "Mitgliedschaftsvertrag"
+
+#. module: membership_contract_glue
+msgid "Membership Contract Lines"
+msgstr "Zeilen des Mitgliedschaftsvertrags"
+
+#. module: membership_contract_glue
+msgid "Bank Accounts"
+msgstr "Bankkonten"
+
+#. module: membership_contract_glue
+msgid "Membership Contracts"
+msgstr "Mitgliedschaftsverträge"
+
+#. module: membership_contract_glue
+msgid "Default membership end date"
+msgstr "Standard-Enddatum der Mitgliedschaft"
+
+#. module: membership_contract_glue
+msgid "Default membership contracts to Dec 31"
+msgstr "Mitgliedschaftsverträge standardmäßig bis 31. Dezember"
+
+#. module: membership_contract_glue
+msgid "When enabled, new lines on membership contracts default their end date to December 31 of the start year."
+msgstr "Wenn aktiviert, wird bei neuen Zeilen in Mitgliedschaftsverträgen das Enddatum standardmäßig auf den 31. Dezember des Startjahres gesetzt."
+
+#. module: membership_contract_glue
+msgid "Default new membership contract lines to December 31 of the start year."
+msgstr "Neue Zeilen in Mitgliedschaftsverträgen standardmäßig auf den 31. Dezember des Startjahres setzen."
+
+#. module: membership_contract_glue
+msgid "Flag this contract as the recurring billing source for membership."
+msgstr "Kennzeichnet diesen Vertrag als Quelle für die wiederkehrende Abrechnung der Mitgliedschaft."
+
+#. module: membership_contract_glue
+msgid "Membership contracts require a company on the member (contact or commercial entity)."
+msgstr "Mitgliedschaftsverträge erfordern ein Unternehmen beim Mitglied (Kontakt oder kommerzielle Einheit)."
+
+#. module: membership_contract_glue
+msgid "Membership contract company '%(contract_company)s' must match member company '%(partner_company)s'."
+msgstr "Das Unternehmen des Mitgliedschaftsvertrags '%(contract_company)s' muss dem Unternehmensmitglied '%(partner_company)s' entsprechen."
+
+#. module: membership_contract_glue
+msgid "The selected contract is not marked as a membership contract."
+msgstr "Der ausgewählte Vertrag ist nicht als Mitgliedschaftsvertrag markiert."
+
+#. module: membership_contract_glue
+msgid "The membership contract partner '%(contract_partner)s' must match '%(partner)s'."
+msgstr "Der Partner des Mitgliedschaftsvertrags '%(contract_partner)s' muss '%(partner)s' entsprechen."
+
+#. module: membership_contract_glue
+msgid "Membership line company '%(line_company)s' must match membership contract company '%(contract_company)s'."
+msgstr "Das Unternehmen der Mitgliedschaftszeile '%(line_company)s' muss dem Unternehmen des Mitgliedschaftsvertrags '%(contract_company)s' entsprechen."

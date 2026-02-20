@@ -1,0 +1,75 @@
+# Translation of Odoo Server.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"POT-Creation-Date: 2026-02-20 00:00+0000\n"
+"PO-Revision-Date: 2026-02-20 00:00+0000\n"
+"Language: it\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: membership_contract_glue
+msgid "Membership Administrator"
+msgstr "Amministratore Iscrizioni"
+
+#. module: membership_contract_glue
+msgid "Membership & Contract"
+msgstr "Iscrizione e Contratto"
+
+#. module: membership_contract_glue
+msgid "Membership Contract"
+msgstr "Contratto di Iscrizione"
+
+#. module: membership_contract_glue
+msgid "Membership Contract Lines"
+msgstr "Righe del Contratto di Iscrizione"
+
+#. module: membership_contract_glue
+msgid "Bank Accounts"
+msgstr "Conti Bancari"
+
+#. module: membership_contract_glue
+msgid "Membership Contracts"
+msgstr "Contratti di Iscrizione"
+
+#. module: membership_contract_glue
+msgid "Default membership end date"
+msgstr "Data di fine iscrizione predefinita"
+
+#. module: membership_contract_glue
+msgid "Default membership contracts to Dec 31"
+msgstr "Contratti di iscrizione predefiniti al 31 dicembre"
+
+#. module: membership_contract_glue
+msgid "When enabled, new lines on membership contracts default their end date to December 31 of the start year."
+msgstr "Se abilitato, le nuove righe dei contratti di iscrizione impostano automaticamente la data di fine al 31 dicembre dell'anno di inizio."
+
+#. module: membership_contract_glue
+msgid "Default new membership contract lines to December 31 of the start year."
+msgstr "Imposta per default le nuove righe dei contratti di iscrizione al 31 dicembre dell'anno di inizio."
+
+#. module: membership_contract_glue
+msgid "Flag this contract as the recurring billing source for membership."
+msgstr "Contrassegna questo contratto come origine della fatturazione ricorrente per l'iscrizione."
+
+#. module: membership_contract_glue
+msgid "Membership contracts require a company on the member (contact or commercial entity)."
+msgstr "I contratti di iscrizione richiedono una società sul membro (contatto o entità commerciale)."
+
+#. module: membership_contract_glue
+msgid "Membership contract company '%(contract_company)s' must match member company '%(partner_company)s'."
+msgstr "La società del contratto di iscrizione '%(contract_company)s' deve corrispondere alla società del membro '%(partner_company)s'."
+
+#. module: membership_contract_glue
+msgid "The selected contract is not marked as a membership contract."
+msgstr "Il contratto selezionato non è contrassegnato come contratto di iscrizione."
+
+#. module: membership_contract_glue
+msgid "The membership contract partner '%(contract_partner)s' must match '%(partner)s'."
+msgstr "Il partner del contratto di iscrizione '%(contract_partner)s' deve corrispondere a '%(partner)s'."
+
+#. module: membership_contract_glue
+msgid "Membership line company '%(line_company)s' must match membership contract company '%(contract_company)s'."
+msgstr "La società della riga di iscrizione '%(line_company)s' deve corrispondere alla società del contratto di iscrizione '%(contract_company)s'."

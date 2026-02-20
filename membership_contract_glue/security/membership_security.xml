@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="group_membership_administrator" model="res.groups">
+        <field name="name">Membership Administrator</field>
+        <field name="category_id" ref="membership_extension.module_category_membership_management" />
+        <field
+            name="implied_ids"
+            eval="[
+                (4, ref('base.group_partner_manager')),
+                (4, ref('membership_extension.group_membership_manager'))
+            ]"
+        />
+    </record>
+</odoo>

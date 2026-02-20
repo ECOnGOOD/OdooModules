@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="contract_contract_form_view_membership_contract_glue" model="ir.ui.view">
+        <field name="name">contract.contract.form.membership.contract.glue</field>
+        <field name="model">contract.contract</field>
+        <field name="inherit_id" ref="contract.contract_contract_form_view" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='tag_ids']" position="after">
+                <field
+                    name="is_membership_contract"
+                    groups="membership_contract_glue.group_membership_administrator"
+                />
+            </xpath>
+        </field>
+    </record>
+</odoo>

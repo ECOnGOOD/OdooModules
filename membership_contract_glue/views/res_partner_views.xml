@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_partner_form_membership_contract_tab" model="ir.ui.view">
+        <field name="name">res.partner.form.membership.contract.tab</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page
+                    string="Membership &amp; Contract"
+                    name="membership_contract_tab"
+                    groups="membership_contract_glue.group_membership_administrator"
+                >
+                    <group>
+                        <group>
+                            <field
+                                name="membership_contract_id"
+                                domain="[('is_membership_contract', '=', True), ('partner_id', '=', id)]"
+                                context="{
+                                    'default_partner_id': id,
+                                    'default_invoice_partner_id': id,
+                                    'default_contract_type': 'sale',
+                                    'default_line_recurrence': True,
+                                    'default_is_membership_contract': True,
+                                    'default_company_id': company_id
+                                }"
+                            />
+                        </group>
+                        <group>
+                            <field name="membership_contract_company_id" readonly="1" />
+                            <field name="membership_contract_date_start" readonly="1" />
+                            <field name="membership_contract_date_end" readonly="1" />
+                            <field name="membership_contract_next_invoice_date" readonly="1" />
+                        </group>
+                    </group>
+                    <group string="Membership Contract Lines" invisible="not membership_contract_id">
+                        <field
+                            name="membership_contract_line_ids"
+                            context="{'default_contract_id': membership_contract_id}"
+                        >
+                            <list editable="bottom">
+                                <field name="sequence" widget="handle" />
+                                <field name="display_type" column_invisible="True" />
+                                <field
+                                    name="product_id"
+                                    domain="[('membership', '=', True), ('type', '=', 'service')]"
+                                />
+                                <field name="name" optional="show" />
+                                <field name="price_unit" />
+                                <field name="quantity" />
+                                <field name="date_start" />
+                                <field name="date_end" />
+                                <field name="recurring_next_date" optional="hide" />
+                                <field name="is_auto_renew" optional="show" />
+                            </list>
+                        </field>
+                    </group>
+                    <group string="Bank Accounts">
+                        <field name="bank_ids" context="{'default_partner_id': id}">
+                            <list editable="bottom">
+                                <field name="acc_number" />
+                                <field name="bank_id" />
+                                <field name="company_id" optional="show" />
+                            </list>
+                        </field>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_form_hide_membership_tab" model="ir.ui.view">
+        <field name="name">res.partner.form.hide.membership.tab.for.membership.admin</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="membership_extension.view_partner_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//page[.//field[@name='member_lines']]" position="attributes">
+                <attribute name="groups">!membership_contract_glue.group_membership_administrator</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
