@@ -5,10 +5,11 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <field name="free_member" position="before">
-                <field name="association_member_number" placeholder="Auto-generated"/>
-                <field name="all_membership_numbers_display" 
-                       readonly="1" 
-                       invisible="not all_membership_numbers_display"/>
+                <field name="member_number" placeholder="Auto-generated"/>
+                <field name="all_member_numbers_display"
+                       readonly="1"
+                       widget="html"
+                       invisible="not all_member_numbers_display"/>
             </field>
         </field>
     </record>
@@ -19,7 +20,7 @@
         <field name="inherit_id" ref="membership.membership_members_tree"/>
         <field name="arch" type="xml">
             <field name="name" position="before">
-                <field name="association_member_number" string="Member No." optional="show"/>
+                <field name="member_number" string="Member No." optional="show"/>
             </field>
         </field>
     </record>
