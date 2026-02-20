@@ -1,7 +1,7 @@
 # __manifest__.py
 {
     'name': 'ECOnGOOD Extra Fields',
-    'version': '18.0.1.0.3',
+    'version': '18.0.2.1.0',
     'category': 'ECOnGOOD',
     'summary': 'Adds extra required fields (incl. dependencies) to contacts.',
     'author': 'Gabriel Geck',
@@ -16,4 +16,6 @@
         'views/res_partner_views.xml',
     ],
     'installable': True,
+    'application': False,
+    'license': 'AGPL-3',
 }
