@@ -73,3 +73,23 @@ msgstr "El partner del contrato de membresía '%(contract_partner)s' debe coinci
 #. module: membership_contract_glue
 msgid "Membership line company '%(line_company)s' must match membership contract company '%(contract_company)s'."
 msgstr "La compañía de la línea de membresía '%(line_company)s' debe coincidir con la compañía del contrato de membresía '%(contract_company)s'."
+
+#. module: membership_contract_glue
+msgid "Create Membership Contract"
+msgstr "Crear Contrato de Membresía"
+
+#. module: membership_contract_glue
+msgid "Default annual cycle for membership contracts"
+msgstr "Ciclo anual por defecto para contratos de membresía"
+
+#. module: membership_contract_glue
+msgid "When enabled, new membership contracts created from a partner default to yearly recurrence and next invoice date on next January 1."
+msgstr "Cuando está activado, los nuevos contratos de membresía creados desde un partner se configuran por defecto con recurrencia anual y próxima fecha de factura el siguiente 1 de enero."
+
+#. module: membership_contract_glue
+msgid "Default annual membership contract cycle"
+msgstr "Ciclo anual por defecto del contrato de membresía"
+
+#. module: membership_contract_glue
+msgid "Default new membership contracts to yearly recurrence with next invoice date on the next January 1st."
+msgstr "Configurar por defecto los nuevos contratos de membresía con recurrencia anual y próxima fecha de factura el siguiente 1 de enero."

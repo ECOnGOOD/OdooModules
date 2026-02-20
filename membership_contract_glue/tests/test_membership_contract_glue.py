@@ -1,7 +1,5 @@
-from datetime import date, timedelta
+from datetime import date
 
-from odoo import fields
-from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
 
@@ -9,97 +7,73 @@ class TestMembershipContractGlue(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.company = cls.env.company
-        cls.company_b = cls.env["res.company"].create({"name": "Company B"})
+        cls.partner = cls.env["res.partner"].create({"name": "Member A"})
 
-        cls.partner = cls.env["res.partner"].create(
-            {
-                "name": "Member A",
-                "company_id": cls.company.id,
-            }
+    def test_action_create_membership_contract_defaults_enabled(self):
+        self.env.company.membership_contract_yearly_defaults = True
+        action = self.env.ref(
+            "membership_contract_glue.action_create_membership_contract_from_partner"
+        ).read()[0]
+        ctx = action["context"]
+
+        self.assertEqual(action["res_model"], "contract.contract")
+        self.assertEqual(action["target"], "new")
+        self.assertTrue(ctx["default_is_membership_contract"])
+        self.assertEqual(ctx["default_contract_type"], "sale")
+        self.assertTrue(ctx["create_membership_contract_from_partner"])
+
+        contract_model = self.env["contract.contract"].with_context(
+            default_partner_id=self.partner.id,
+            default_invoice_partner_id=self.partner.id,
+            create_membership_contract_from_partner=True,
         )
-        cls.membership_product = cls.env["product.product"].create(
-            {
-                "name": "Membership Product",
-                "type": "service",
-                "membership": True,
-                "membership_date_from": fields.Date.today(),
-                "membership_date_to": fields.Date.today() + timedelta(days=365),
-                "list_price": 99.0,
-            }
+        defaults = contract_model.default_get(
+            [
+                "name",
+                "company_id",
+                "partner_id",
+                "invoice_partner_id",
+                "contract_type",
+                "is_membership_contract",
+                "line_recurrence",
+                "recurring_interval",
+                "recurring_rule_type",
+                "recurring_next_date",
+            ]
         )
 
-    def _create_membership_contract(self, partner=None, company=None):
-        partner = partner or self.partner
-        company = company or self.company
-        return self.env["contract.contract"].create(
-            {
-                "name": f"Membership Contract {partner.display_name}",
-                "partner_id": partner.id,
-                "company_id": company.id,
-                "contract_type": "sale",
-                "is_membership_contract": True,
-            }
-        )
+        self.assertEqual(defaults["name"], f"{self.partner.display_name} - {self.env.company.display_name}")
+        self.assertEqual(defaults["company_id"], self.env.company.id)
+        self.assertEqual(defaults["contract_type"], "sale")
+        self.assertTrue(defaults["is_membership_contract"])
+        self.assertEqual(defaults["recurring_interval"], 1)
+        self.assertEqual(defaults["recurring_rule_type"], "yearly")
+        self.assertFalse(defaults["line_recurrence"])
 
-    def test_dec31_default_enabled(self):
-        contract = self._create_membership_contract()
-        line = self.env["contract.line"].create(
-            {
-                "contract_id": contract.id,
-                "name": "Membership 2026",
-                "product_id": self.membership_product.id,
-                "quantity": 1.0,
-                "date_start": date(2026, 5, 10),
-            }
-        )
-        self.assertEqual(line.date_end, date(2026, 12, 31))
+        today = date.today()
+        expected = date(today.year + 1, 1, 1)
+        if today == date(today.year, 1, 1):
+            expected = date(today.year, 1, 1)
+        self.assertEqual(defaults["recurring_next_date"], expected)
 
-    def test_dec31_default_disabled(self):
-        self.company.membership_contract_dec31_default = False
-        contract = self._create_membership_contract()
-        line = self.env["contract.line"].create(
-            {
-                "contract_id": contract.id,
-                "name": "Membership 2026",
-                "product_id": self.membership_product.id,
-                "quantity": 1.0,
-                "date_start": date(2026, 5, 10),
-            }
-        )
-        self.assertFalse(line.date_end)
-
-    def test_membership_contract_company_must_match_partner(self):
-        with self.assertRaises(ValidationError):
-            self._create_membership_contract(company=self.company_b)
-
-    def test_membership_line_company_defaults_and_must_match_contract(self):
-        contract = self._create_membership_contract()
-        self.partner.membership_contract_id = contract
-
-        line = self.env["membership.membership_line"].create(
-            {
-                "membership_id": self.membership_product.id,
-                "member_price": 99.0,
-                "date": fields.Date.today(),
-                "date_from": fields.Date.today(),
-                "date_to": fields.Date.today() + timedelta(days=365),
-                "partner": self.partner.id,
-                "state": "invoiced",
-            }
-        )
-        self.assertEqual(line.company_id, contract.company_id)
-
-        with self.assertRaises(ValidationError):
-            self.env["membership.membership_line"].create(
-                {
-                    "membership_id": self.membership_product.id,
-                    "member_price": 99.0,
-                    "date": fields.Date.today(),
-                    "date_from": fields.Date.today(),
-                    "date_to": fields.Date.today() + timedelta(days=365),
-                    "partner": self.partner.id,
-                    "state": "invoiced",
-                    "company_id": self.company_b.id,
-                }
+    def test_action_create_membership_contract_defaults_disabled(self):
+        self.env.company.membership_contract_yearly_defaults = False
+        defaults = (
+            self.env["contract.contract"]
+            .with_context(
+                default_partner_id=self.partner.id,
+                default_invoice_partner_id=self.partner.id,
+                create_membership_contract_from_partner=True,
             )
+            .default_get(
+                [
+                    "recurring_interval",
+                    "recurring_rule_type",
+                    "recurring_next_date",
+                ]
+            )
+        )
+
+        self.assertNotIn("recurring_interval", defaults)
+        self.assertNotIn("recurring_rule_type", defaults)
+        self.assertNotIn("recurring_next_date", defaults)

@@ -1,78 +1,48 @@
-from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from datetime import date
+
+from odoo import fields, models
 
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    membership_contract_id = fields.Many2one(
-        comodel_name="contract.contract",
-        string="Membership Contract",
-        copy=False,
-    )
-    membership_contract_line_ids = fields.One2many(
-        related="membership_contract_id.contract_line_ids",
-        readonly=False,
-        string="Membership Contract Lines",
-    )
-    membership_contract_company_id = fields.Many2one(
-        related="membership_contract_id.company_id",
-        readonly=True,
-    )
-    membership_contract_date_start = fields.Date(
-        related="membership_contract_id.date_start",
-        readonly=True,
-    )
-    membership_contract_date_end = fields.Date(
-        related="membership_contract_id.date_end",
-        readonly=True,
-    )
-    membership_contract_next_invoice_date = fields.Date(
-        related="membership_contract_id.recurring_next_date",
-        readonly=True,
-    )
-
-    def _get_membership_company(self):
+    def _get_next_january_first(self):
         self.ensure_one()
-        return self.company_id or self.commercial_partner_id.company_id
+        today = fields.Date.to_date(fields.Date.context_today(self))
+        jan_first_this_year = date(today.year, 1, 1)
+        if today <= jan_first_this_year:
+            return jan_first_this_year
+        return date(today.year + 1, 1, 1)
 
-    @api.constrains("membership_contract_id", "company_id")
-    def _check_membership_contract_link(self):
-        for partner in self.filtered("membership_contract_id"):
-            contract = partner.membership_contract_id
-            if not contract.is_membership_contract:
-                raise ValidationError(
-                    self.env._(
-                        "The selected contract is not marked as a membership contract."
-                    )
-                )
-            if contract.partner_id != partner:
-                raise ValidationError(
-                    self.env._(
-                        "The membership contract partner '%(contract_partner)s' must "
-                        "match '%(partner)s'."
-                    )
-                    % {
-                        "contract_partner": contract.partner_id.display_name,
-                        "partner": partner.display_name,
-                    }
-                )
-            partner_company = partner._get_membership_company()
-            if not partner_company:
-                raise ValidationError(
-                    self.env._(
-                        "Membership contracts require a company on the member "
-                        "(contact or commercial entity)."
-                    )
-                )
-            if contract.company_id != partner_company:
-                raise ValidationError(
-                    self.env._(
-                        "Membership contract company '%(contract_company)s' must "
-                        "match member company '%(partner_company)s'."
-                    )
-                    % {
-                        "contract_company": contract.company_id.display_name,
-                        "partner_company": partner_company.display_name,
-                    }
-                )
+    def action_open_create_membership_contract(self):
+        self.ensure_one()
+        current_company = self.env.company
+
+        action = {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Create Membership Contract"),
+            "res_model": "contract.contract",
+            "view_mode": "form",
+            "view_id": self.env.ref("contract.contract_contract_customer_form_view").id,
+            "target": "new",
+            "context": {
+                "default_name": f"{self.display_name} - {current_company.display_name}",
+                "default_partner_id": self.id,
+                "default_invoice_partner_id": self.id,
+                "default_company_id": current_company.id,
+                "default_contract_type": "sale",
+                "default_is_membership_contract": True,
+            },
+        }
+
+        if current_company.membership_contract_yearly_defaults:
+            action["context"].update(
+                {
+                    "default_line_recurrence": False,
+                    "default_recurring_interval": 1,
+                    "default_recurring_rule_type": "yearly",
+                    "default_recurring_next_date": self._get_next_january_first(),
+                }
+            )
+
+        return action

@@ -4,11 +4,12 @@ from odoo import fields, models
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    membership_contract_dec31_default = fields.Boolean(
-        string="Default membership contracts to Dec 31",
+    membership_contract_yearly_defaults = fields.Boolean(
+        string="Default annual cycle for membership contracts",
+        oldname="membership_contract_dec31_default",
         default=True,
         help=(
-            "When enabled, new lines on membership contracts default their end date "
-            "to December 31 of the start year."
+            "When enabled, new membership contracts created from a partner "
+            "default to yearly recurrence and next invoice date on next January 1."
         ),
     )
