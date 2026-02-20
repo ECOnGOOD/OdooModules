@@ -60,20 +60,6 @@ class ContractContract(models.Model):
             if not contract.recurring_next_date:
                 contract.recurring_next_date = fields.Date.context_today(contract)
             invoices = contract.recurring_create_invoice()
-            if (
-                invoices
-                and contract.company_id.membership_contract_yearly_defaults
-            ):
+            if invoices and contract.company_id.membership_contract_yearly_defaults:
                 contract.recurring_next_date = contract._membership_next_jan_first()
         return records
-
-    def action_open_contract_full_page(self):
-        self.ensure_one()
-        return {
-            "type": "ir.actions.act_window",
-            "res_model": "contract.contract",
-            "res_id": self.id,
-            "view_mode": "form",
-            "view_id": self.get_formview_id(),
-            "target": "current",
-        }

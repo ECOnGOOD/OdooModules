@@ -1,6 +1,6 @@
 {
     "name": "Membership Contract Glue",
-    "version": "18.0.1.0.5",
+    "version": "18.0.1.0.6",
     "category": "Membership",
     "summary": "Bridge membership management with recurring contracts",
     "author": "ECOnGOOD",
