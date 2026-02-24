@@ -12,8 +12,28 @@
             </xpath>
             
             <xpath expr="//field[@name='partner_company_type_id']" position="after">
-                <field name="is_nonprofit" invisible="not is_company"/>
+                <field name="x_is_nonprofit" invisible="not is_company"/>
             </xpath>
+
+            <xpath expr="//field[@name='website']" position="after">
+                <field name="x_socials"/>
+            </xpath>
+
+            <xpath expr="//field[@name='title']" position="after">
+                <field name="x_letter_salutation"/>
+            </xpath>
+
+            <page name="internal_notes" position="inside">
+                <group>
+                    <group
+                        name="import_notes"
+                        string="Import Notes"
+                    >
+                        <field name="x_legacy_id_smartwe"/>
+                        <field name="x_legacy_id_formidable"/>
+                    </group>
+                </group>
+            </page>
 
             <xpath expr="//notebook" position="inside">
                 <page string="Details &amp; Legal">
@@ -23,14 +43,14 @@
                             <field name="birthdate_date" invisible="is_company"/>
                             <field name="age" invisible="not birthdate_date"/>
 
-                            <field name="employee_count" invisible="not is_company"/>
-                            <field name="inhabitant_count" invisible="not is_company"/>
+                            <field name="x_employee_count" invisible="not is_company"/>
+                            <field name="x_inhabitant_count" invisible="not is_company"/>
                         </group>
                         
                         <group string="Legal Agreements &amp; Account">
-                            <field name="email_econgood" widget="email"/>
-                            <field name="code_of_conduct_signed_date"/>
-                            <field name="privacy_agreement_signed_date"/>
+                            <field name="x_email_econgood" widget="email"/>
+                            <field name="x_code_of_conduct_signed_date"/>
+                            <field name="x_privacy_agreement_signed_date"/>
                         </group>
                     </group>
                 </page>
