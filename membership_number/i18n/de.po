@@ -1,0 +1,72 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* membership_number
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"POT-Creation-Date: 2026-02-20 00:00+0000\n"
+"PO-Revision-Date: 2026-02-20 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: membership_number
+#: model:ir.model.fields,field_description:membership_number.field_res_partner__association_member_number
+#: model:ir.model.fields,field_description:membership_number.field_res_partner__member_number
+msgid "Member Number"
+msgstr "Mitgliedsnummer"
+
+#. module: membership_number
+#: model:ir.model.fields,field_description:membership_number.field_res_partner__all_member_numbers_display
+msgid "Member Numbers"
+msgstr "Mitgliedsnummern"
+
+#. module: membership_number
+#: model:ir.model.fields,help:membership_number.field_res_partner__association_member_number
+msgid "Unique identifier for the member in this company."
+msgstr "Eindeutige Kennung für das Mitglied in diesem Unternehmen."
+
+#. module: membership_number
+#: model:ir.model.fields,help:membership_number.field_res_partner__all_member_numbers_display
+msgid "Displays member numbers across all companies the user can access."
+msgstr "Zeigt Mitgliedsnummern über alle Unternehmen an, auf die der Benutzer Zugriff hat."
+
+#. module: membership_number
+#: model:ir.model.fields,help:membership_number.field_res_partner__all_membership_numbers_display
+msgid "Legacy plain-text display of member numbers across companies."
+msgstr "Legacy-Klartextanzeige von Mitgliedsnummern über Unternehmen hinweg."
+
+#. module: membership_number
+#: code:addons/addons_folder/membership_number/models/res_partner.py:0
+#, python-format
+msgid ""
+"This contact already has Member Number '%(number)s' in company '%(company)s'. "
+"Member Numbers must be globally unique."
+msgstr ""
+"Dieser Kontakt hat bereits die Mitgliedsnummer '%(number)s' im Unternehmen "
+"'%(company)s'. Mitgliedsnummern müssen global eindeutig sein."
+
+#. module: membership_number
+#: code:addons/addons_folder/membership_number/models/res_partner.py:0
+#, python-format
+msgid ""
+"Member Number '%(number)s' is already assigned to '%(partner)s' in company "
+"'%(company)s'. Member Numbers must be globally unique."
+msgstr ""
+"Die Mitgliedsnummer '%(number)s' ist bereits '%(partner)s' im Unternehmen "
+"'%(company)s' zugewiesen. Mitgliedsnummern müssen global eindeutig sein."
+
+#. module: membership_number
+#: model_terms:ir.ui.view,arch_db:membership_number.view_membership_members_tree_inherit_ngo
+msgid "Member No."
+msgstr "Mitgl.-Nr."
+
+#. module: membership_number
+#: model_terms:ir.ui.view,arch_db:membership_number.view_partner_form_inherit_ngo_clean
+msgid "Auto-generated"
+msgstr "Automatisch erzeugt"

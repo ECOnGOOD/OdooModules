@@ -1,0 +1,116 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* econgood_extra_fields
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"POT-Creation-Date: 2026-02-20 00:00+0000\n"
+"PO-Revision-Date: 2026-02-20 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_employee_count
+msgid "Number of Employees"
+msgstr "Anzahl der Mitarbeitenden"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_inhabitant_count
+msgid "Number of Inhabitants"
+msgstr "Anzahl der Einwohner"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_is_nonprofit
+msgid "Nonprofit Organization"
+msgstr "Gemeinnützige Organisation"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_code_of_conduct_signed_date
+msgid "Code of Conduct Signed On"
+msgstr "Verhaltenskodex unterzeichnet am"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_privacy_agreement_signed_date
+msgid "Privacy Agreement Signed On"
+msgstr "Datenschutzvereinbarung unterzeichnet am"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_email_econgood
+msgid "ECOnGOOD Email Address"
+msgstr "ECOnGOOD-E-Mail-Adresse"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_legacy_id_smartwe
+msgid "Legacy ID SmartWe"
+msgstr "Legacy-ID SmartWe"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_legacy_id_formidable
+msgid "Legacy ID Formidable"
+msgstr "Legacy-ID Formidable"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_letter_salutation
+msgid "Letter Salutation"
+msgstr "Briefanrede"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_socials
+msgid "Socials"
+msgstr "Soziale Netzwerke"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,help:econgood_extra_fields.field_res_partner__x_employee_count
+msgid "Employee count (FTE)."
+msgstr "Anzahl der Mitarbeitenden (VZÄ)."
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,help:econgood_extra_fields.field_res_partner__x_inhabitant_count
+msgid "Population count if this partner represents a region or commune."
+msgstr "Einwohnerzahl, falls dieser Kontakt eine Region oder Gemeinde darstellt."
+
+#. module: econgood_extra_fields
+#: code:addons/addons_folder/econgood_extra_fields/models/res_partner.py:0
+msgid "Number of Employees cannot be negative."
+msgstr "Die Anzahl der Mitarbeitenden darf nicht negativ sein."
+
+#. module: econgood_extra_fields
+#: code:addons/addons_folder/econgood_extra_fields/models/res_partner.py:0
+msgid "Number of Inhabitants cannot be negative."
+msgstr "Die Anzahl der Einwohner darf nicht negativ sein."
+
+#. module: econgood_extra_fields
+#: code:addons/addons_folder/econgood_extra_fields/models/res_partner.py:0
+msgid "Code of Conduct Signed On cannot be in the future."
+msgstr "Das Datum „Verhaltenskodex unterzeichnet am“ darf nicht in der Zukunft liegen."
+
+#. module: econgood_extra_fields
+#: code:addons/addons_folder/econgood_extra_fields/models/res_partner.py:0
+msgid "Privacy Agreement Signed On cannot be in the future."
+msgstr "Das Datum „Datenschutzvereinbarung unterzeichnet am“ darf nicht in der Zukunft liegen."
+
+#. module: econgood_extra_fields
+#: code:addons/addons_folder/econgood_extra_fields/models/res_partner.py:0
+msgid "ECOnGOOD Email Address is not a valid email."
+msgstr "Die ECOnGOOD-E-Mail-Adresse ist keine gültige E-Mail."
+
+#. module: econgood_extra_fields
+#: model_terms:ir.ui.view,arch_db:econgood_extra_fields.view_partner_form_econgood_inherit
+msgid "Details &amp; Legal"
+msgstr "Details &amp; Rechtliches"
+
+#. module: econgood_extra_fields
+#: model_terms:ir.ui.view,arch_db:econgood_extra_fields.view_partner_form_econgood_inherit
+msgid "Demographics"
+msgstr "Demografie"
+
+#. module: econgood_extra_fields
+#: model_terms:ir.ui.view,arch_db:econgood_extra_fields.view_partner_form_econgood_inherit
+msgid "Legal Agreements &amp; Account"
+msgstr "Rechtliche Vereinbarungen &amp; Konto"

@@ -1,0 +1,76 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* econgood_extra_fields
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"POT-Creation-Date: 2026-02-24 00:00+0000\n"
+"PO-Revision-Date: 2026-02-24 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_employee_count
+msgid "Number of Employees"
+msgstr "Nombre d'employes"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_inhabitant_count
+msgid "Number of Inhabitants"
+msgstr "Nombre d'habitants"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_is_nonprofit
+msgid "Nonprofit Organization"
+msgstr "Organisation a but non lucratif"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_code_of_conduct_signed_date
+msgid "Code of Conduct Signed On"
+msgstr "Code de conduite signe le"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_privacy_agreement_signed_date
+msgid "Privacy Agreement Signed On"
+msgstr "Accord de confidentialite signe le"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_email_econgood
+msgid "ECOnGOOD Email Address"
+msgstr "Adresse e-mail ECOnGOOD"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_legacy_id_smartwe
+msgid "Legacy ID SmartWe"
+msgstr "ID heritage SmartWe"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_legacy_id_formidable
+msgid "Legacy ID Formidable"
+msgstr "ID heritage Formidable"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_letter_salutation
+msgid "Letter Salutation"
+msgstr "Formule d'appel"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,field_description:econgood_extra_fields.field_res_partner__x_socials
+msgid "Socials"
+msgstr "Reseaux sociaux"
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,help:econgood_extra_fields.field_res_partner__x_employee_count
+msgid "Employee count (FTE)."
+msgstr "Nombre d'employes (ETP)."
+
+#. module: econgood_extra_fields
+#: model:ir.model.fields,help:econgood_extra_fields.field_res_partner__x_inhabitant_count
+msgid "Population count if this partner represents a region or commune."
+msgstr "Population si ce partenaire represente une region ou une commune."
