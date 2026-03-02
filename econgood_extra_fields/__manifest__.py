@@ -4,7 +4,7 @@
     'version': '18.0.2.3.0',
     'category': 'ECOnGOOD',
     'summary': 'Adds extra required fields (incl. dependencies) to contacts.',
-    'author': 'Gabriel Geck',
+    'author': 'ECOnGOOD',
     'depends': [
         'base', 
         'contacts',

@@ -4,7 +4,7 @@
     'version': '18.0.2.0.0',
     'category': 'Association',
     'summary': 'Adds auto-sequenced member numbers to membership lines and displays them on contacts.',
-    'author': 'Gabriel Geck',
+    'author': 'ECOnGOOD',
     'depends': ['membership', 'base'],
     'data': [
         'data/ir_sequence_data.xml',
