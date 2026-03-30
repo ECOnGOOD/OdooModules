@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_partner_form_membership" model="ir.ui.view">
+        <field name="name">res.partner.form.membership</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Memberships">
+                    <div class="oe_button_box" name="membership_partner_button_box">
+                        <button
+                            name="action_create_membership"
+                            string="Create Membership"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-plus"
+                            groups="association_membership.group_membership_manager"
+                        />
+                    </div>
+                    <group string="Current Memberships">
+                        <field name="current_membership_ids" readonly="1">
+                            <list create="0" edit="0" delete="0">
+                                <field name="product_id" />
+                                <field name="company_id" />
+                                <field name="state" />
+                                <field name="date_start" />
+                                <field name="date_end" />
+                                <field name="last_billing_status" />
+                            </list>
+                        </field>
+                    </group>
+                    <group string="Ended Memberships">
+                        <field name="ended_membership_ids" readonly="1">
+                            <list create="0" edit="0" delete="0">
+                                <field name="product_id" />
+                                <field name="company_id" />
+                                <field name="date_start" />
+                                <field name="date_end" />
+                                <field name="cancel_reason" />
+                            </list>
+                        </field>
+                    </group>
+                    <group string="Contributions">
+                        <field name="membership_contribution_ids" readonly="1">
+                            <list create="0" edit="0" delete="0">
+                                <field name="membership_id" />
+                                <field name="membership_year" />
+                                <field name="billing_status" />
+                                <field name="amount_expected" />
+                                <field name="amount_paid" />
+                                <field name="invoice_id" />
+                            </list>
+                        </field>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_members_overview_search" model="ir.ui.view">
+        <field name="name">res.partner.members.overview.search</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="membership_company_names" />
+                <filter
+                    name="current_memberships"
+                    string="Waiting + Active"
+                    domain="[('membership_ids.state', 'in', ('waiting', 'active'))]"
+                />
+                <filter
+                    name="historical_memberships"
+                    string="Historical Only"
+                    domain="[('membership_ids.state', '=', 'cancelled')]"
+                />
+            </search>
+        </field>
+    </record>
+
+    <record id="view_partner_members_overview_kanban" model="ir.ui.view">
+        <field name="name">res.partner.members.overview.kanban</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_small_column">
+                <field name="name" />
+                <field name="membership_company_names" />
+                <field name="current_membership_count" />
+                <field name="ended_membership_count" />
+                <field name="membership_latest_contribution_year" />
+                <field name="membership_latest_billing_status" />
+                <templates>
+                    <t t-name="card">
+                        <div class="o_kanban_record">
+                            <div class="o_kanban_primary_left">
+                                <strong><field name="name" /></strong>
+                                <div t-if="record.membership_company_names.value">
+                                    <span>Companies: </span>
+                                    <field name="membership_company_names" />
+                                </div>
+                                <div>
+                                    <span>Current: </span>
+                                    <field name="current_membership_count" />
+                                    <span> | Ended: </span>
+                                    <field name="ended_membership_count" />
+                                </div>
+                                <div t-if="record.membership_latest_contribution_year.value">
+                                    <span>Latest Contribution: </span>
+                                    <field name="membership_latest_contribution_year" />
+                                    <span> (</span>
+                                    <field name="membership_latest_billing_status" />
+                                    <span>)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="action_members_overview" model="ir.actions.act_window">
+        <field name="name">Members Overview</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,form</field>
+        <field name="view_id" ref="association_membership.view_partner_members_overview_kanban" />
+        <field name="search_view_id" ref="association_membership.view_partner_members_overview_search" />
+        <field name="domain">[('membership_ids', '!=', False)]</field>
+        <field name="context">{'search_default_current_memberships': 1}</field>
+    </record>
+</odoo>

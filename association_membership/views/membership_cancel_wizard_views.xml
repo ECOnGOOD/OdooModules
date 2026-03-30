@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_membership_cancel_wizard_form" model="ir.ui.view">
+        <field name="name">membership.cancel.wizard.form</field>
+        <field name="model">membership.cancel.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Cancel Membership">
+                <group>
+                    <field name="membership_id" />
+                    <field name="date_cancelled" />
+                    <field name="date_end" />
+                    <field name="cancel_reason" />
+                </group>
+                <footer>
+                    <button name="action_confirm" string="Confirm" type="object" class="btn-primary" />
+                    <button string="Discard" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

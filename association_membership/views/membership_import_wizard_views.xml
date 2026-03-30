@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_membership_import_wizard_form" model="ir.ui.view">
+        <field name="name">membership.import.wizard.form</field>
+        <field name="model">membership.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Memberships">
+                <group>
+                    <group>
+                        <field name="file" filename="filename" />
+                        <field name="filename" invisible="1" />
+                        <field name="delimiter" />
+                    </group>
+                    <group>
+                        <field name="company_id" />
+                        <field name="dry_run" />
+                    </group>
+                </group>
+                <field name="result_line_ids" readonly="1">
+                    <list create="0" edit="0" delete="0">
+                        <field name="row_number" />
+                        <field name="status" />
+                        <field name="external_ref" />
+                        <field name="partner_name" />
+                        <field name="message" />
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_run" string="Run Import" type="object" class="btn-primary" />
+                    <button string="Close" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_membership_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import</field>
+        <field name="res_model">membership.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="association_membership.view_membership_import_wizard_form" />
+        <field name="target">new</field>
+    </record>
+</odoo>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="membership_rule_company_user" model="ir.rule">
+        <field name="name">Membership company access</field>
+        <field name="model_id" ref="model_membership_membership" />
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="membership_contribution_rule_company_user" model="ir.rule">
+        <field name="name">Membership contribution company access</field>
+        <field name="model_id" ref="model_membership_contribution" />
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

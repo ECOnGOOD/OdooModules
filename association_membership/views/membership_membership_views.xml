@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_membership_membership_list" model="ir.ui.view">
+        <field name="name">membership.membership.list</field>
+        <field name="model">membership.membership</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="partner_id" />
+                <field name="invoice_partner_id" />
+                <field name="company_id" />
+                <field name="product_id" />
+                <field name="state" />
+                <field name="date_start" />
+                <field name="date_end" />
+                <field name="last_contribution_year" />
+                <field name="last_billing_status" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_membership_membership_search" model="ir.ui.view">
+        <field name="name">membership.membership.search</field>
+        <field name="model">membership.membership</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id" />
+                <field name="invoice_partner_id" />
+                <field name="product_id" />
+                <field name="company_id" />
+                <field name="state" />
+                <field name="date_start" />
+                <field name="date_end" />
+                <filter
+                    name="open_memberships"
+                    string="Waiting + Active"
+                    domain="[('state', 'in', ('waiting', 'active'))]"
+                />
+                <filter
+                    name="active_memberships"
+                    string="Active"
+                    domain="[('state', '=', 'active')]"
+                />
+                <filter
+                    name="ended_memberships"
+                    string="Ended"
+                    domain="[('state', '=', 'cancelled')]"
+                />
+                <group expand="0" string="Group By">
+                    <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />
+                    <filter string="Product" name="group_by_product" context="{'group_by': 'product_id'}" />
+                    <filter string="State" name="group_by_state" context="{'group_by': 'state'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_membership_membership_form" model="ir.ui.view">
+        <field name="name">membership.membership.form</field>
+        <field name="model">membership.membership</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button
+                        name="action_submit"
+                        string="Submit"
+                        type="object"
+                        class="oe_highlight"
+                        groups="association_membership.group_membership_manager"
+                        invisible="state != 'draft'"
+                    />
+                    <button
+                        name="action_activate"
+                        string="Activate"
+                        type="object"
+                        class="oe_highlight"
+                        groups="association_membership.group_membership_manager"
+                        invisible="state not in ('draft', 'waiting', 'cancelled')"
+                    />
+                    <button
+                        name="action_cancel"
+                        string="Cancel"
+                        type="object"
+                        groups="association_membership.group_membership_manager"
+                        invisible="state == 'cancelled'"
+                    />
+                    <button
+                        name="action_revert_to_draft"
+                        string="Revert to Draft"
+                        type="object"
+                        groups="association_membership.group_membership_manager"
+                        invisible="state != 'waiting'"
+                    />
+                    <button
+                        name="action_reopen_waiting"
+                        string="Reopen to Waiting"
+                        type="object"
+                        groups="association_membership.group_membership_manager"
+                        invisible="state != 'cancelled'"
+                    />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="draft,waiting,active,cancelled"
+                    />
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_view_contributions"
+                            string="Contributions"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-money"
+                        >
+                            <field name="contribution_count" widget="statinfo" />
+                        </button>
+                        <button
+                            name="action_view_invoices"
+                            string="Invoices"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-file-text-o"
+                        />
+                    </div>
+                    <group>
+                        <group>
+                            <field name="partner_id" />
+                            <field name="invoice_partner_id" />
+                            <field name="company_id" />
+                            <field
+                                name="membership_category_id"
+                                invisible="1"
+                            />
+                            <field
+                                name="product_id"
+                                domain="[('active', '=', True), ('categ_id', 'child_of', membership_category_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+                            />
+                            <field name="external_ref" groups="association_membership.group_membership_manager" />
+                        </group>
+                        <group>
+                            <field name="date_start" />
+                            <field name="date_end" />
+                            <field name="date_cancelled" />
+                            <field name="amount_override" groups="association_membership.group_membership_manager" />
+                            <field name="is_free_override" groups="association_membership.group_membership_manager" />
+                            <field name="active" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Contributions">
+                            <button
+                                name="action_create_contribution"
+                                string="Create Contribution"
+                                type="object"
+                                class="oe_highlight"
+                                groups="association_membership.group_membership_manager"
+                            />
+                            <field name="contribution_ids" readonly="1">
+                                <list create="0" edit="0" delete="0">
+                                    <field name="membership_year" />
+                                    <field name="is_free" />
+                                    <field name="amount_expected" />
+                                    <field name="billing_status" />
+                                    <field name="invoice_id" />
+                                    <field name="refund_move_id" />
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Cancellation" invisible="state != 'cancelled'">
+                            <field name="cancel_reason" readonly="1" />
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <record id="action_membership_membership" model="ir.actions.act_window">
+        <field name="name">Memberships</field>
+        <field name="res_model">membership.membership</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
+        <field name="context">{'search_default_open_memberships': 1}</field>
+    </record>
+</odoo>

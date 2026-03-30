@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_product_membership_search" model="ir.ui.view">
+        <field name="name">product.product.membership.search</field>
+        <field name="model">product.product</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="default_code" />
+                <field name="categ_id" />
+                <field name="company_id" />
+                <filter
+                    name="membership_products"
+                    string="Membership Products"
+                    domain="[('is_membership_product', '=', True)]"
+                />
+                <filter
+                    name="inactive_products"
+                    string="Archived"
+                    domain="[('active', '=', False)]"
+                />
+                <group expand="0" string="Group By">
+                    <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />
+                    <filter string="Category" name="group_by_category" context="{'group_by': 'categ_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_membership_products" model="ir.actions.act_window">
+        <field name="name">Membership Products</field>
+        <field name="res_model">product.product</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('is_membership_product', '=', True)]</field>
+        <field name="search_view_id" ref="association_membership.view_product_membership_search" />
+        <field name="context">{'search_default_membership_products': 1}</field>
+    </record>
+</odoo>

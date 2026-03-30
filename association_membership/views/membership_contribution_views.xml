@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_membership_contribution_list" model="ir.ui.view">
+        <field name="name">membership.contribution.list</field>
+        <field name="model">membership.contribution</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="membership_id" />
+                <field name="partner_id" />
+                <field name="company_id" />
+                <field name="product_id" />
+                <field name="membership_year" />
+                <field name="is_free" />
+                <field name="amount_expected" />
+                <field name="amount_paid" />
+                <field name="billing_status" />
+                <field name="invoice_id" />
+                <field name="refund_move_id" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_membership_contribution_search" model="ir.ui.view">
+        <field name="name">membership.contribution.search</field>
+        <field name="model">membership.contribution</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="membership_id" />
+                <field name="partner_id" />
+                <field name="company_id" />
+                <field name="product_id" />
+                <field name="membership_year" />
+                <field name="billing_status" />
+                <filter
+                    name="unpaid_contributions"
+                    string="Unpaid"
+                    domain="[('billing_status', 'in', ('to_invoice', 'invoiced', 'partial'))]"
+                />
+                <filter
+                    name="invoiced_only"
+                    string="Invoiced"
+                    domain="[('invoice_id', '!=', False)]"
+                />
+                <filter
+                    name="refunded_only"
+                    string="Refunded"
+                    domain="[('billing_status', '=', 'refunded')]"
+                />
+                <filter
+                    name="free_only"
+                    string="Free"
+                    domain="[('is_free', '=', True)]"
+                />
+                <group expand="0" string="Group By">
+                    <filter string="Year" name="group_by_year" context="{'group_by': 'membership_year'}" />
+                    <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />
+                    <filter string="Product" name="group_by_product" context="{'group_by': 'product_id'}" />
+                    <filter string="Status" name="group_by_status" context="{'group_by': 'billing_status'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_membership_contribution_form" model="ir.ui.view">
+        <field name="name">membership.contribution.form</field>
+        <field name="model">membership.contribution</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="membership_id" />
+                            <field name="membership_year" />
+                            <field name="company_id" readonly="1" />
+                            <field name="partner_id" readonly="1" />
+                            <field name="product_id" readonly="1" />
+                        </group>
+                        <group>
+                            <field name="is_free" />
+                            <field name="amount_expected" />
+                            <field name="amount_invoiced" readonly="1" />
+                            <field name="amount_paid" readonly="1" />
+                            <field name="billing_status" readonly="1" />
+                        </group>
+                    </group>
+                    <group>
+                        <group>
+                            <field name="invoice_partner_id" />
+                            <field name="invoice_id" />
+                            <field name="invoice_line_id" />
+                            <field name="date_invoice" readonly="1" />
+                        </group>
+                        <group>
+                            <field name="refund_move_id" />
+                            <field name="date_refund" readonly="1" />
+                            <field name="note" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_membership_contribution_pivot" model="ir.ui.view">
+        <field name="name">membership.contribution.pivot</field>
+        <field name="model">membership.contribution</field>
+        <field name="arch" type="xml">
+            <pivot string="Contribution Analysis">
+                <field name="membership_year" type="row" />
+                <field name="company_id" type="row" />
+                <field name="product_id" type="col" />
+                <field name="amount_expected" type="measure" />
+                <field name="amount_paid" type="measure" />
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_membership_contribution" model="ir.actions.act_window">
+        <field name="name">Contributions</field>
+        <field name="res_model">membership.contribution</field>
+        <field name="view_mode">list,form,pivot</field>
+        <field name="view_id" ref="association_membership.view_membership_contribution_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_contribution_search" />
+    </record>
+</odoo>

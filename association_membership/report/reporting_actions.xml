@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="action_report_current_memberships" model="ir.actions.act_window">
+        <field name="name">Current Memberships</field>
+        <field name="res_model">membership.membership</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
+        <field name="domain">[('state', '=', 'active')]</field>
+    </record>
+
+    <record id="action_report_unpaid_memberships" model="ir.actions.act_window">
+        <field name="name">Unpaid Memberships</field>
+        <field name="res_model">membership.contribution</field>
+        <field name="view_mode">list,form,pivot</field>
+        <field name="view_id" ref="association_membership.view_membership_contribution_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_contribution_search" />
+        <field name="domain">[('billing_status', 'in', ('to_invoice', 'invoiced', 'partial'))]</field>
+    </record>
+
+    <record id="action_report_contribution_history" model="ir.actions.act_window">
+        <field name="name">Contribution History</field>
+        <field name="res_model">membership.contribution</field>
+        <field name="view_mode">list,form,pivot</field>
+        <field name="view_id" ref="association_membership.view_membership_contribution_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_contribution_search" />
+    </record>
+
+    <record id="action_report_renewal_candidates" model="ir.actions.act_window">
+        <field name="name">Renewal Candidates</field>
+        <field name="res_model">membership.membership</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
+        <field name="domain">[('state', '=', 'active')]</field>
+    </record>
+
+    <record id="action_report_cancellations" model="ir.actions.act_window">
+        <field name="name">Cancellations</field>
+        <field name="res_model">membership.membership</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
+        <field name="domain">[('state', '=', 'cancelled')]</field>
+    </record>
+
+    <record id="action_report_new_members" model="ir.actions.act_window">
+        <field name="name">New Members</field>
+        <field name="res_model">membership.membership</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
+    </record>
+
+    <record id="action_report_company_member_list" model="ir.actions.act_window">
+        <field name="name">Per-company Member List</field>
+        <field name="res_model">membership.membership</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
+        <field name="domain">[('state', 'in', ('waiting', 'active'))]</field>
+        <field name="context">{'group_by': 'company_id'}</field>
+    </record>
+</odoo>

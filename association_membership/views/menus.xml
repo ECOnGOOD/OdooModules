@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <menuitem
+        id="menu_membership_root"
+        name="Memberships"
+        sequence="40"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_memberships"
+        name="Memberships"
+        parent="association_membership.menu_membership_root"
+        action="association_membership.action_membership_membership"
+        sequence="10"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_members_overview"
+        name="Members Overview"
+        parent="association_membership.menu_membership_root"
+        action="association_membership.action_members_overview"
+        sequence="20"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_contributions"
+        name="Contributions"
+        parent="association_membership.menu_membership_root"
+        action="association_membership.action_membership_contribution"
+        sequence="30"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_renewal"
+        name="Renewal"
+        parent="association_membership.menu_membership_root"
+        action="association_membership.action_membership_renewal_wizard"
+        sequence="40"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_import"
+        name="Import"
+        parent="association_membership.menu_membership_root"
+        action="association_membership.action_membership_import_wizard"
+        sequence="50"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_reporting"
+        name="Reporting"
+        parent="association_membership.menu_membership_root"
+        sequence="60"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_report_current"
+        name="Current Memberships"
+        parent="association_membership.menu_membership_reporting"
+        action="association_membership.action_report_current_memberships"
+        sequence="10"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_report_unpaid"
+        name="Unpaid Memberships"
+        parent="association_membership.menu_membership_reporting"
+        action="association_membership.action_report_unpaid_memberships"
+        sequence="20"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_report_history"
+        name="Contribution History"
+        parent="association_membership.menu_membership_reporting"
+        action="association_membership.action_report_contribution_history"
+        sequence="30"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_report_candidates"
+        name="Renewal Candidates"
+        parent="association_membership.menu_membership_reporting"
+        action="association_membership.action_report_renewal_candidates"
+        sequence="40"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_report_cancellations"
+        name="Cancellations"
+        parent="association_membership.menu_membership_reporting"
+        action="association_membership.action_report_cancellations"
+        sequence="50"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_report_new_members"
+        name="New Members"
+        parent="association_membership.menu_membership_reporting"
+        action="association_membership.action_report_new_members"
+        sequence="60"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_report_company_member_list"
+        name="Per-company Member List"
+        parent="association_membership.menu_membership_reporting"
+        action="association_membership.action_report_company_member_list"
+        sequence="70"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_configuration"
+        name="Configuration"
+        parent="association_membership.menu_membership_root"
+        sequence="70"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_settings"
+        name="Settings"
+        parent="association_membership.menu_membership_configuration"
+        action="association_membership.action_membership_settings"
+        sequence="10"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_products"
+        name="Membership Products"
+        parent="association_membership.menu_membership_configuration"
+        action="association_membership.action_membership_products"
+        sequence="20"
+        groups="association_membership.group_membership_manager"
+    />
+</odoo>
