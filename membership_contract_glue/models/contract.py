@@ -22,6 +22,10 @@ class ContractContract(models.Model):
         return date(today.year + 1, 1, 1)
 
     @api.model
+    def _use_silent_membership_import(self):
+        return bool(self.env.context.get("silent_membership_contract_import"))
+
+    @api.model
     def default_get(self, fields_list):
         defaults = super().default_get(fields_list)
         if not self.env.context.get("create_membership_contract_from_partner"):
@@ -52,6 +56,7 @@ class ContractContract(models.Model):
         if not self.env.context.get("auto_invoice_membership_contract_on_save"):
             return records
 
+        silent_import = records._use_silent_membership_import()
         for contract in records.filtered(
             lambda rec: rec.is_membership_contract and rec.generation_type == "invoice"
         ):
@@ -59,7 +64,39 @@ class ContractContract(models.Model):
             # without recurring_next_date in the form defaults.
             if not contract.recurring_next_date:
                 contract.recurring_next_date = fields.Date.context_today(contract)
-            invoices = contract.recurring_create_invoice()
+            if silent_import:
+                invoices = contract._recurring_create_invoice()
+            else:
+                invoices = contract.recurring_create_invoice()
             if invoices and contract.company_id.membership_contract_yearly_defaults:
                 contract.recurring_next_date = contract._membership_next_jan_first()
         return records
+
+    @api.model
+    def _invoice_followers(self, invoices):
+        if self._use_silent_membership_import():
+            return None
+        return super()._invoice_followers(invoices)
+
+    @api.model
+    def _add_contract_origin(self, invoices):
+        if self._use_silent_membership_import():
+            return None
+        return super()._add_contract_origin(invoices)
+
+    def _prepare_invoice(self, date_invoice, journal=None):
+        invoice_vals = super()._prepare_invoice(date_invoice, journal=journal)
+        if not self.is_membership_contract:
+            return invoice_vals
+
+        commercial_partner = self.partner_id.commercial_partner_id
+        invoice_partner = self.invoice_partner_id
+        if (
+            invoice_partner
+            and invoice_partner != commercial_partner
+            and invoice_partner.type == "invoice"
+            and invoice_partner.commercial_partner_id == commercial_partner
+        ):
+            invoice_vals["delegated_member_id"] = commercial_partner.id
+
+        return invoice_vals

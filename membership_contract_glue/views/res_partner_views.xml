@@ -43,6 +43,17 @@
                         </list>
                     </field>
                 </group>
+                <group
+                    string="Membership Timeline"
+                    groups="membership_contract_glue.group_membership_administrator"
+                >
+                    <field name="membership_timeline_html" nolabel="1" readonly="1" widget="html" />
+                </group>
+                <group
+                    string="Relationships"
+                >
+                    <field name="relationship_summary_html" nolabel="1" readonly="1" widget="html" />
+                </group>
             </xpath>
         </field>
     </record>
