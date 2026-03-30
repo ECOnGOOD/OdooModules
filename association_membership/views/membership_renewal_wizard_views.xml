@@ -7,7 +7,7 @@
             <form string="Run Renewal">
                 <group>
                     <group>
-                        <field name="target_year" />
+                        <field name="target_year" options="{'format': false}" />
                         <field name="company_ids" widget="many2many_tags" />
                         <field
                             name="product_ids"

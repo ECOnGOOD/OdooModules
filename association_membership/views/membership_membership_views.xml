@@ -12,7 +12,7 @@
                 <field name="state" />
                 <field name="date_start" />
                 <field name="date_end" />
-                <field name="last_contribution_year" />
+                <field name="last_contribution_year" options="{'format': false}" />
                 <field name="last_billing_status" />
             </list>
         </field>
@@ -81,7 +81,7 @@
                         string="Cancel"
                         type="object"
                         groups="association_membership.group_membership_manager"
-                        invisible="state == 'cancelled'"
+                        invisible="not id or state == 'cancelled'"
                     />
                     <button
                         name="action_revert_to_draft"
@@ -133,7 +133,7 @@
                             />
                             <field
                                 name="product_id"
-                                domain="[('active', '=', True), ('categ_id', 'child_of', membership_category_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+                                domain="[('active', '=', True), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"
                             />
                             <field name="external_ref" groups="association_membership.group_membership_manager" />
                         </group>
@@ -157,7 +157,7 @@
                             />
                             <field name="contribution_ids" readonly="1">
                                 <list create="0" edit="0" delete="0">
-                                    <field name="membership_year" />
+                                    <field name="membership_year" options="{'format': false}" />
                                     <field name="is_free" />
                                     <field name="amount_expected" />
                                     <field name="billing_status" />

@@ -122,6 +122,7 @@ class MembershipMembership(models.Model):
             record.last_contribution_year = latest.membership_year if latest else 0
             record.last_billing_status = latest.billing_status if latest else False
 
+    @api.depends("company_id")
     def _compute_membership_category_id(self):
         for record in self:
             record.membership_category_id = self._get_membership_category(company=record.company_id)
@@ -136,10 +137,35 @@ class MembershipMembership(models.Model):
         company = company or self.env.company
         return bool(company.membership_auto_activate_on_payment)
 
+
     @api.onchange("partner_id")
     def _onchange_partner_id(self):
         if self.partner_id and not self.invoice_partner_id:
             self.invoice_partner_id = self.partner_id
+
+    @api.model
+    def _membership_product_domain(self, company=False):
+        company = company or self.env.company
+        category = self._get_membership_category(company=company)
+        if not category:
+            return [("id", "=", 0)]
+        return [
+            ("active", "=", True),
+            ("categ_id", "child_of", category.id),
+            "|",
+            ("company_id", "=", False),
+            ("company_id", "=", company.id),
+        ]
+
+    @api.onchange("company_id")
+    def _onchange_company_id(self):
+        company = self.company_id or self.env.company
+        domain = self._membership_product_domain(company=company)
+        if self.product_id and not self.env["product.product"].search_count(
+            domain + [("id", "=", self.product_id.id)]
+        ):
+            self.product_id = False
+        return {"domain": {"product_id": domain}}
 
     @api.constrains("date_start", "date_end")
     def _check_dates(self):

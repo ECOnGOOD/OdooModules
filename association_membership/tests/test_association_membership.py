@@ -539,6 +539,35 @@ class TestAssociationMembership(TransactionCase):
                 invoice_partner=self.billing_partner,
             )
 
+    def test_membership_product_domain_follows_selected_company(self):
+        other_category = self.env["product.category"].create({"name": "Other Membership Category 2"})
+        other_company = self.env["res.company"].create(
+            {
+                "name": "Domain Membership Company",
+                "membership_product_category_id": other_category.id,
+            }
+        )
+        other_product = self._create_product(
+            "Other Domain Membership",
+            45.0,
+            "MT-DOMAIN",
+            company=other_company,
+            category=other_category,
+        )
+
+        membership = self.env["membership.membership"].new({"company_id": other_company.id})
+        onchange_result = membership._onchange_company_id()
+
+        self.assertEqual(membership.membership_category_id, other_category)
+        self.assertIn(("categ_id", "child_of", other_category.id), onchange_result["domain"]["product_id"])
+        self.assertIn(("company_id", "=", other_company.id), onchange_result["domain"]["product_id"])
+        self.assertTrue(
+            self.env["product.product"].search_count(
+                onchange_result["domain"]["product_id"] + [("id", "=", other_product.id)]
+            )
+        )
+
+
     def test_paid_contribution_create_rolls_back_without_sale_journal(self):
         other_company = self.env["res.company"].create(
             {

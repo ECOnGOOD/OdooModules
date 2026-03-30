@@ -17,34 +17,38 @@
                             groups="association_membership.group_membership_manager"
                         />
                     </div>
-                    <group string="Current Memberships">
-                        <field name="current_membership_ids" readonly="1">
+                    <group>
+                        <field name="current_membership_ids" readonly="1" nolabel="1">
                             <list create="0" edit="0" delete="0">
                                 <field name="product_id" />
                                 <field name="company_id" />
                                 <field name="state" />
                                 <field name="date_start" />
                                 <field name="date_end" />
+                                <field name="amount_override" />
+                                <field name="external_ref" />
                                 <field name="last_billing_status" />
                             </list>
                         </field>
                     </group>
-                    <group string="Ended Memberships">
-                        <field name="ended_membership_ids" readonly="1">
+                    <group>
+                        <field name="ended_membership_ids" readonly="1" nolabel="1">
                             <list create="0" edit="0" delete="0">
                                 <field name="product_id" />
                                 <field name="company_id" />
                                 <field name="date_start" />
                                 <field name="date_end" />
+                                <field name="amount_override" />
+                                <field name="external_ref" />
                                 <field name="cancel_reason" />
                             </list>
                         </field>
                     </group>
-                    <group string="Contributions">
-                        <field name="membership_contribution_ids" readonly="1">
+                    <group>
+                        <field name="membership_contribution_ids" readonly="1" nolabel="1">
                             <list create="0" edit="0" delete="0">
                                 <field name="membership_id" />
-                                <field name="membership_year" />
+                                <field name="membership_year" options="{'format': false}" />
                                 <field name="billing_status" />
                                 <field name="amount_expected" />
                                 <field name="amount_paid" />
