@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="action_partner_relation_graph" model="ir.actions.client">
+        <field name="name">Relationship Graph</field>
+        <field name="tag">partner_relation_graph.client_action</field>
+        <field name="context">{}</field>
+    </record>
+
+    <menuitem
+        id="menu_partner_relation_graph"
+        name="Relationship Graph"
+        parent="partner_multi_relation.menu_res_partner_relation"
+        action="partner_relation_graph.action_partner_relation_graph"
+        sequence="20"
+    />
+</odoo>

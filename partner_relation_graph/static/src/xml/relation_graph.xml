@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-name="partner_relation_graph.RelationGraphCanvas">
+        <div class="prg-graph-canvas" t-ref="canvas"></div>
+    </t>
+
+    <t t-name="partner_relation_graph.RelationGraphExplorer">
+        <div class="prg-explorer">
+            <div class="prg-toolbar">
+                <div class="prg-toolbar-section" t-if="props.standalone">
+                    <label class="form-label">Partner</label>
+                    <RecordAutocomplete
+                        resModel="'res.partner'"
+                        update.bind="onPartnerUpdate"
+                        getIds.bind="getPartnerSelectorIds"
+                        multiSelect="false"
+                        fieldString="'Partner'"
+                        placeholder="'Select a partner'"
+                    />
+                </div>
+                <div class="prg-toolbar-section">
+                    <label class="form-label">Relation Types</label>
+                    <select class="form-select prg-type-select" multiple="multiple" t-on-change="onRelationTypeChange">
+                        <option
+                            t-foreach="state.relationTypes"
+                            t-as="relationType"
+                            t-key="relationType.id"
+                            t-att-value="relationType.id"
+                            t-att-selected="state.relationTypeIds.includes(relationType.id)"
+                        >
+                            <t t-esc="relationTypeLabel(relationType)" />
+                        </option>
+                    </select>
+                </div>
+                <div class="prg-toolbar-section prg-toggle-section">
+                    <label class="form-check">
+                        <input class="form-check-input" type="checkbox" t-att-checked="state.includeInactive" t-on-change="onToggleInactive" />
+                        <span class="form-check-label">Include past relationships</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="alert alert-danger" t-if="state.error">
+                <t t-esc="state.error" />
+            </div>
+            <div class="alert alert-warning" t-if="state.graphData.meta.truncated">
+                The graph was trimmed to keep the view responsive.
+            </div>
+
+            <div class="prg-content" t-if="state.partnerId">
+                <div class="prg-main-panel">
+                    <div class="prg-empty-state" t-if="!hasGraphData and !state.loading">
+                        <h4>No relationships to display</h4>
+                        <p>This partner has no matching `partner_multi_relation` records for the current filters.</p>
+                    </div>
+                    <div class="prg-loading-state" t-if="state.loading">
+                        Loading relationship graph...
+                    </div>
+                    <RelationGraphCanvas
+                        t-if="!state.loading"
+                        graphData="state.graphData"
+                        selectedNodeId="state.selectedNodeId || undefined"
+                        selectedEdgeId="state.selectedEdgeId || undefined"
+                        onNodeSelect.bind="onNodeSelect"
+                        onEdgeSelect.bind="onEdgeSelect"
+                        onNodeOpen.bind="openPartner"
+                        onEdgeOpen.bind="openRelation"
+                        onBackgroundClick.bind="onBackgroundClick"
+                    />
+                </div>
+
+                <aside class="prg-side-panel">
+                    <div class="prg-side-section" t-if="selectedNode">
+                        <h5>Selected Partner</h5>
+                        <p class="prg-side-title"><t t-esc="selectedNode.display_name" /></p>
+                        <p>Type: <t t-esc="selectedNode.is_company ? 'Company' : 'Person'" /></p>
+                        <p>Role: <t t-esc="selectedNode.is_focal ? 'Focal partner' : selectedNode.is_expanded ? 'Expanded node' : 'Related partner'" /></p>
+                        <div class="prg-side-actions">
+                            <button class="btn btn-primary" type="button" t-on-click="() => openPartner(selectedNode.id)">Open Partner</button>
+                            <button class="btn btn-outline-secondary" type="button" t-if="canExpandSelectedNode" t-on-click="onExpandSelectedNode">Expand One Hop</button>
+                        </div>
+                    </div>
+                    <div class="prg-side-section" t-if="selectedEdge">
+                        <h5>Selected Relationship</h5>
+                        <p class="prg-side-title"><t t-esc="selectedEdge.label" /></p>
+                        <p>Inverse label: <t t-esc="selectedEdge.inverse_label || '-'" /></p>
+                        <p>Start: <t t-esc="selectedEdge.date_start || '-'" /></p>
+                        <p>End: <t t-esc="selectedEdge.date_end || '-'" /></p>
+                        <p>Status: <t t-esc="selectedEdge.active ? 'Active' : 'Past'" /></p>
+                        <div class="prg-side-actions">
+                            <button class="btn btn-primary" type="button" t-on-click="() => openRelation(selectedEdge.id)">Open Relation</button>
+                        </div>
+                    </div>
+                    <div class="prg-side-section" t-if="!selectedNode and !selectedEdge">
+                        <h5>Graph Details</h5>
+                        <p>Select a node or edge to inspect it.</p>
+                        <p>Nodes: <t t-esc="state.graphData.meta.total_node_count" /></p>
+                        <p>Edges: <t t-esc="state.graphData.meta.total_edge_count" /></p>
+                    </div>
+                </aside>
+            </div>
+
+            <div class="prg-empty-state" t-if="!state.partnerId and props.standalone">
+                <h4>Select a partner to begin</h4>
+                <p>The standalone explorer stays partner-seeded so it does not try to load the full graph at once.</p>
+            </div>
+            <div class="prg-empty-state" t-if="!state.partnerId and !props.standalone">
+                <h4>Save this contact first</h4>
+                <p>The embedded graph becomes available once the partner record has been created.</p>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="partner_relation_graph.RelationGraphField">
+        <div class="prg-embedded-field">
+            <div class="prg-embedded-actions" t-if="partnerId">
+                <button class="btn btn-outline-primary" type="button" t-on-click="openStandalone">Open Full Graph</button>
+            </div>
+            <RelationGraphExplorer seedPartnerId="partnerId || undefined" standalone="false" />
+        </div>
+    </t>
+
+    <t t-name="partner_relation_graph.RelationGraphClientAction">
+        <div class="o_action partner_relation_graph_client_action">
+            <RelationGraphExplorer seedPartnerId="seedPartnerId || undefined" standalone="true" />
+        </div>
+    </t>
+</templates>

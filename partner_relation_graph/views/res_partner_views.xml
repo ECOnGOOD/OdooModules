@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_partner_form_relationship_graph" model="ir.ui.view">
+        <field name="name">res.partner.form.relationship.graph</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Relationship Graph">
+                    <field
+                        name="relationship_graph_seed_id"
+                        widget="partner_relation_graph"
+                        nolabel="1"
+                        readonly="1"
+                    />
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
