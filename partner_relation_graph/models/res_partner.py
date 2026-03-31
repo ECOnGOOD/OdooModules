@@ -42,6 +42,17 @@ class ResPartner(models.Model):
         relation_type_ids=None,
         expanded_partner_ids=None,
     ):
+        (
+            partner_id,
+            include_inactive,
+            relation_type_ids,
+            expanded_partner_ids,
+        ) = self._normalize_graph_call(
+            partner_id,
+            include_inactive,
+            relation_type_ids,
+            expanded_partner_ids,
+        )
         relation_type_ids = self._normalize_graph_ids(relation_type_ids)
         expanded_partner_ids = self._normalize_graph_ids(expanded_partner_ids)
         focal_partner = self.search([("id", "=", partner_id)], limit=1)
@@ -59,19 +70,27 @@ class ResPartner(models.Model):
         if not include_inactive:
             relation_domain.append(("active", "=", True))
 
-        relation_rows = (
-            self.env["res.partner.relation.all"]
-            .with_context(active_test=False)
-            .search(
-                relation_domain,
-                order="date_end desc, date_start desc, id desc",
-                limit=self._RELATION_GRAPH_QUERY_LIMIT + 1,
-            )
+        relation_rows = self.env["res.partner.relation.all"].with_context(active_test=False).search_read(
+            relation_domain,
+            fields=[
+                "res_id",
+                "this_partner_id",
+                "other_partner_id",
+                "type_id",
+                "date_start",
+                "date_end",
+                "active",
+                "is_inverse",
+            ],
+            order="date_end desc, date_start desc, id desc",
+            limit=self._RELATION_GRAPH_QUERY_LIMIT + 1,
         )
 
         truncated = len(relation_rows) > self._RELATION_GRAPH_QUERY_LIMIT
         relation_rows = relation_rows[: self._RELATION_GRAPH_QUERY_LIMIT]
-        relation_edges = self._build_relation_graph_edges(relation_rows)
+        relation_type_map = self._get_graph_relation_type_map(relation_rows)
+        relation_edges = self._build_relation_graph_edges(relation_rows, relation_type_map)
+        partner_map = self._get_accessible_graph_partner_map(focal_partner.id, relation_edges)
 
         nodes = OrderedDict()
         graph_nodes = []
@@ -79,34 +98,35 @@ class ResPartner(models.Model):
         expanded_set = set(expanded_partners.ids)
 
         for edge in relation_edges:
-            required_nodes = [edge["source_partner"], edge["target_partner"]]
-            new_node_count = len(
-                [partner for partner in required_nodes if partner.id not in nodes]
-            )
+            required_node_ids = [edge["source_partner_id"], edge["target_partner_id"]]
+            if any(partner_id not in partner_map for partner_id in required_node_ids):
+                continue
+            new_node_count = len([partner_id for partner_id in required_node_ids if partner_id not in nodes])
             if graph_edges and (
                 len(graph_edges) >= self._RELATION_GRAPH_EDGE_LIMIT
                 or len(nodes) + new_node_count > self._RELATION_GRAPH_NODE_LIMIT
             ):
                 truncated = True
                 continue
-            for partner in required_nodes:
-                if partner.id in nodes:
+            for node_partner_id in required_node_ids:
+                if node_partner_id in nodes:
                     continue
+                partner_data = partner_map[node_partner_id]
                 node = {
-                    "id": partner.id,
-                    "display_name": partner.display_name,
-                    "is_company": bool(partner.is_company),
-                    "is_focal": partner.id == focal_partner.id,
-                    "is_expanded": partner.id in expanded_set,
-                    "is_seed": partner.id in seed_partner_ids,
+                    "id": node_partner_id,
+                    "display_name": partner_data["display_name"],
+                    "is_company": bool(partner_data["is_company"]),
+                    "is_focal": node_partner_id == focal_partner.id,
+                    "is_expanded": node_partner_id in expanded_set,
+                    "is_seed": node_partner_id in seed_partner_ids,
                 }
-                nodes[partner.id] = node
+                nodes[node_partner_id] = node
                 graph_nodes.append(node)
             graph_edges.append(
                 {
                     "id": edge["id"],
-                    "source": edge["source_partner"].id,
-                    "target": edge["target_partner"].id,
+                    "source": edge["source_partner_id"],
+                    "target": edge["target_partner_id"],
                     "label": edge["label"],
                     "inverse_label": edge["inverse_label"],
                     "type_id": edge["type_id"],
@@ -118,10 +138,17 @@ class ResPartner(models.Model):
             )
 
         if focal_partner.id not in nodes:
+            focal_data = partner_map.get(
+                focal_partner.id,
+                {
+                    "display_name": focal_partner.display_name,
+                    "is_company": bool(focal_partner.is_company),
+                },
+            )
             focal_node = {
                 "id": focal_partner.id,
-                "display_name": focal_partner.display_name,
-                "is_company": bool(focal_partner.is_company),
+                "display_name": focal_data["display_name"],
+                "is_company": bool(focal_data["is_company"]),
                 "is_focal": True,
                 "is_expanded": focal_partner.id in expanded_set,
                 "is_seed": True,
@@ -147,13 +174,39 @@ class ResPartner(models.Model):
                 "expanded_partner_ids": [
                     relation_id
                     for relation_id in seed_partner_ids
-                    if relation_id != focal_partner.id
+                    if relation_id != focal_partner.id and relation_id in partner_map
                 ],
                 "total_node_count": len(graph_nodes),
                 "total_edge_count": len(graph_edges),
                 "truncated": truncated,
             },
         }
+
+    @api.model
+    def _normalize_graph_call(
+        self,
+        partner_id,
+        include_inactive=False,
+        relation_type_ids=None,
+        expanded_partner_ids=None,
+    ):
+        if isinstance(partner_id, (list, tuple)):
+            packed = list(partner_id)
+            partner_id = packed[0] if packed else False
+            if len(packed) > 1 and include_inactive in (False, None):
+                include_inactive = packed[1]
+            if len(packed) > 2 and relation_type_ids in (None, False):
+                relation_type_ids = packed[2]
+            if len(packed) > 3 and expanded_partner_ids in (None, False):
+                expanded_partner_ids = packed[3]
+
+        try:
+            partner_id = int(partner_id)
+        except (TypeError, ValueError):
+            partner_id = False
+
+        include_inactive = bool(include_inactive)
+        return partner_id, include_inactive, relation_type_ids, expanded_partner_ids
 
     @api.model
     def _normalize_graph_ids(self, values):
@@ -170,29 +223,72 @@ class ResPartner(models.Model):
         return normalized
 
     @api.model
-    def _build_relation_graph_edges(self, relation_rows):
+    def _get_graph_relation_type_map(self, relation_rows):
+        type_ids = self._normalize_graph_ids(
+            [
+                relation_row.get("type_id", [False])[0]
+                for relation_row in relation_rows
+                if relation_row.get("type_id")
+            ]
+        )
+        if not type_ids:
+            return {}
+        relation_types = self.env["res.partner.relation.type"].search_read(
+            [("id", "in", type_ids)],
+            fields=["name", "name_inverse"],
+            limit=len(type_ids),
+        )
+        return {relation_type["id"]: relation_type for relation_type in relation_types}
+
+    @api.model
+    def _get_accessible_graph_partner_map(self, focal_partner_id, relation_edges):
+        partner_ids = {focal_partner_id}
+        for edge in relation_edges:
+            partner_ids.add(edge["source_partner_id"])
+            partner_ids.add(edge["target_partner_id"])
+
+        partner_map = {}
+        for partner_id in partner_ids:
+            partner = self.search([("id", "=", partner_id)], limit=1)
+            if not partner:
+                continue
+            partner_map[partner.id] = {
+                "id": partner.id,
+                "display_name": partner.display_name,
+                "is_company": bool(partner.is_company),
+            }
+        return partner_map
+
+    @api.model
+    def _build_relation_graph_edges(self, relation_rows, relation_type_map):
         edges_by_relation = OrderedDict()
         for relation in relation_rows:
-            source_partner = (
-                relation.other_partner_id if relation.is_inverse else relation.this_partner_id
-            )
-            target_partner = (
-                relation.this_partner_id if relation.is_inverse else relation.other_partner_id
-            )
+            this_partner = relation.get("this_partner_id") or []
+            other_partner = relation.get("other_partner_id") or []
+            if len(this_partner) < 2 or len(other_partner) < 2:
+                continue
+
+            this_partner_id = int(this_partner[0])
+            other_partner_id = int(other_partner[0])
+            is_inverse = bool(relation.get("is_inverse"))
+            source_partner_id = other_partner_id if is_inverse else this_partner_id
+            target_partner_id = this_partner_id if is_inverse else other_partner_id
+            type_id = relation.get("type_id", [False])[0] if relation.get("type_id") else False
+            type_data = relation_type_map.get(type_id, {})
             candidate = {
-                "id": relation.res_id,
-                "source_partner": source_partner,
-                "target_partner": target_partner,
-                "label": relation.type_id.name,
-                "inverse_label": relation.type_id.name_inverse,
-                "type_id": relation.type_id.id,
-                "date_start": relation.date_start,
-                "date_end": relation.date_end,
-                "active": relation.active,
-                "is_inverse": relation.is_inverse,
+                "id": relation["res_id"],
+                "source_partner_id": source_partner_id,
+                "target_partner_id": target_partner_id,
+                "label": type_data.get("name") or (relation.get("type_id") or [False, ""])[1],
+                "inverse_label": type_data.get("name_inverse") or "",
+                "type_id": type_id,
+                "date_start": relation.get("date_start"),
+                "date_end": relation.get("date_end"),
+                "active": relation.get("active"),
+                "is_inverse": is_inverse,
             }
-            existing = edges_by_relation.get(relation.res_id)
+            existing = edges_by_relation.get(relation["res_id"])
             if existing and not existing["is_inverse"]:
                 continue
-            edges_by_relation[relation.res_id] = candidate
+            edges_by_relation[relation["res_id"]] = candidate
         return list(edges_by_relation.values())

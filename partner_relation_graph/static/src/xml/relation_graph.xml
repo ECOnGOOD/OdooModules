@@ -63,8 +63,8 @@
                         selectedEdgeId="state.selectedEdgeId || undefined"
                         onNodeSelect.bind="onNodeSelect"
                         onEdgeSelect.bind="onEdgeSelect"
-                        onNodeOpen.bind="openPartner"
-                        onEdgeOpen.bind="openRelation"
+                        onNodeOpen.bind="onGraphNodeOpen"
+                        onEdgeOpen.bind="onGraphEdgeOpen"
                         onBackgroundClick.bind="onBackgroundClick"
                     />
                 </div>
@@ -76,7 +76,7 @@
                         <p>Type: <t t-esc="selectedNode.is_company ? 'Company' : 'Person'" /></p>
                         <p>Role: <t t-esc="selectedNode.is_focal ? 'Focal partner' : selectedNode.is_expanded ? 'Expanded node' : 'Related partner'" /></p>
                         <div class="prg-side-actions">
-                            <button class="btn btn-primary" type="button" t-on-click="() => openPartner(selectedNode.id)">Open Partner</button>
+                            <button class="btn btn-primary" type="button" t-on-click="onOpenSelectedPartner">Open Partner</button>
                             <button class="btn btn-outline-secondary" type="button" t-if="canExpandSelectedNode" t-on-click="onExpandSelectedNode">Expand One Hop</button>
                         </div>
                     </div>
@@ -88,12 +88,13 @@
                         <p>End: <t t-esc="selectedEdge.date_end || '-'" /></p>
                         <p>Status: <t t-esc="selectedEdge.active ? 'Active' : 'Past'" /></p>
                         <div class="prg-side-actions">
-                            <button class="btn btn-primary" type="button" t-on-click="() => openRelation(selectedEdge.id)">Open Relation</button>
+                            <button class="btn btn-primary" type="button" t-on-click="onOpenSelectedRelation">Open Relation</button>
                         </div>
                     </div>
                     <div class="prg-side-section" t-if="!selectedNode and !selectedEdge">
                         <h5>Graph Details</h5>
                         <p>Select a node or edge to inspect it.</p>
+                        <p>Drag nodes to rearrange the layout. Labels try to reposition automatically.</p>
                         <p>Nodes: <t t-esc="state.graphData.meta.total_node_count" /></p>
                         <p>Edges: <t t-esc="state.graphData.meta.total_edge_count" /></p>
                     </div>

@@ -5,7 +5,7 @@ import { standardActionServiceProps } from "@web/webclient/actions/action_servic
 
 import { Component } from "@odoo/owl";
 
-import { RelationGraphExplorer } from "@partner_relation_graph/js/relation_graph_core";
+import { RelationGraphExplorer } from "@partner_relation_graph/js/relation_graph_core.esm";
 
 export class RelationGraphClientAction extends Component {
     static template = "partner_relation_graph.RelationGraphClientAction";

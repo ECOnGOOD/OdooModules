@@ -6,7 +6,7 @@ import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
 import { Component } from "@odoo/owl";
 
-import { RelationGraphExplorer } from "@partner_relation_graph/js/relation_graph_core";
+import { RelationGraphExplorer } from "@partner_relation_graph/js/relation_graph_core.esm";
 
 export class RelationGraphField extends Component {
     static template = "partner_relation_graph.RelationGraphField";

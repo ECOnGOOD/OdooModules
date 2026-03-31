@@ -139,6 +139,18 @@ class TestPartnerRelationGraph(TransactionCase):
             {node["id"] for node in expanded_payload["nodes"]},
         )
 
+    def test_graph_payload_accepts_nested_call_shape_from_web_client(self):
+        expanded_payload = self.env["res.partner"].get_relationship_graph(
+            [self.member.id, False, [], [self.company.id]]
+        )
+
+        self.assertIn(self.company.id, expanded_payload["meta"]["expanded_partner_ids"])
+        self.assertIn(
+            self.second_hop.id,
+            {node["id"] for node in expanded_payload["nodes"]},
+        )
+        self.assertEqual(expanded_payload["meta"]["total_edge_count"], 2)
+
     def test_empty_graph_returns_only_focal_partner(self):
         payload = self.env["res.partner"].get_relationship_graph(partner_id=self.lonely_partner.id)
 
