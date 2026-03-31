@@ -205,7 +205,7 @@
                     <group string="Cancellation" invisible="state != 'cancelled'">
                         <group>
                             <field name="date_cancelled" readonly="1" />
-                            <field name="cancel_reason" readonly="1" />
+                            <field name="cancel_reason" readonly="1" invisible="not cancel_reason" />
                         </group>
                     </group>
                     <notebook>
@@ -219,7 +219,7 @@
                             />
                             <field name="contribution_ids" readonly="1">
                                 <list create="0" edit="0" delete="0">
-                                    <field name="membership_year_display" />
+                                    <field name="membership_year_display" string="Year" />
                                     <field name="is_free" />
                                     <field name="amount_expected" />
                                     <field name="amount_paid" />

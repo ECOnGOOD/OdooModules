@@ -272,6 +272,47 @@ class MembershipMembership(models.Model):
         invoice_partner_id = partner.address_get(["invoice"]).get("invoice")
         return self.env["res.partner"].browse(invoice_partner_id) or partner
 
+    @api.model
+    def _prepare_membership_values(
+        self,
+        vals,
+        for_create=False,
+        apply_invoice_partner_default=False,
+    ):
+        vals = vals.copy()
+        if apply_invoice_partner_default and vals.get("partner_id") and not vals.get(
+            "invoice_partner_id"
+        ):
+            partner = self.env["res.partner"].browse(vals["partner_id"])
+            vals["invoice_partner_id"] = self._resolve_default_invoice_partner(partner).id
+        if for_create:
+            vals.setdefault("company_id", self.env.company.id)
+            vals.setdefault("date_start", fields.Date.context_today(self))
+        if "membership_number" in vals:
+            vals["membership_number"] = self._normalize_membership_number_value(
+                vals["membership_number"]
+            )
+        if "amount_override" in vals:
+            vals["has_amount_override"] = self._has_explicit_amount_override_value(
+                vals["amount_override"]
+            )
+        if "is_free_override" in vals:
+            vals["has_free_override"] = True
+        if vals.get("state") == "cancelled":
+            cancel_defaults = self._build_cancel_values(
+                cancel_date=vals.get("date_cancelled"),
+                cancel_reason=vals.get("cancel_reason"),
+            )
+            cancel_defaults.update(
+                {
+                    key: value
+                    for key, value in vals.items()
+                    if key in {"date_cancelled", "date_end", "cancel_reason"}
+                }
+            )
+            vals.update(cancel_defaults)
+        return vals
+
     @api.onchange("partner_id")
     def _onchange_partner_id(self):
         if not self.partner_id:
@@ -435,39 +476,27 @@ class MembershipMembership(models.Model):
         for record in self.filtered(lambda membership: not membership.membership_number):
             record.membership_number = record._generate_membership_number()
 
+    def _prepare_contribution_create_values(self, membership_year=False, **overrides):
+        self.ensure_one()
+        vals = {"membership_id": self.id}
+        if membership_year not in (False, None, ""):
+            vals["membership_year"] = membership_year
+        vals.update(overrides)
+        return self.env["membership.contribution"]._prepare_membership_contribution_values(
+            vals,
+            membership=self,
+        )
+
     @api.model_create_multi
     def create(self, vals_list):
-        prepared_vals_list = []
-        for vals in vals_list:
-            vals = vals.copy()
-            if vals.get("partner_id") and not vals.get("invoice_partner_id"):
-                partner = self.env["res.partner"].browse(vals["partner_id"])
-                vals["invoice_partner_id"] = self._resolve_default_invoice_partner(partner).id
-            vals.setdefault("company_id", self.env.company.id)
-            if "membership_number" in vals:
-                vals["membership_number"] = self._normalize_membership_number_value(
-                    vals["membership_number"]
-                )
-            if "amount_override" in vals:
-                vals["has_amount_override"] = self._has_explicit_amount_override_value(
-                    vals["amount_override"]
-                )
-            if "is_free_override" in vals:
-                vals["has_free_override"] = True
-            if vals.get("state") == "cancelled":
-                cancel_defaults = self._build_cancel_values(
-                    cancel_date=vals.get("date_cancelled"),
-                    cancel_reason=vals.get("cancel_reason"),
-                )
-                cancel_defaults.update(
-                    {
-                        key: value
-                        for key, value in vals.items()
-                        if key in {"date_cancelled", "date_end", "cancel_reason"}
-                    }
-                )
-                vals.update(cancel_defaults)
-            prepared_vals_list.append(vals)
+        prepared_vals_list = [
+            self._prepare_membership_values(
+                vals,
+                for_create=True,
+                apply_invoice_partner_default=True,
+            )
+            for vals in vals_list
+        ]
         self._check_explicit_membership_number_conflicts(prepared_vals_list)
         try:
             records = super().create(prepared_vals_list)
@@ -487,15 +516,7 @@ class MembershipMembership(models.Model):
     def write(self, vals):
         if "state" in vals and not self.env.context.get("allow_membership_state_write"):
             raise UserError(_("Use the membership actions instead of writing the state directly."))
-        vals = vals.copy()
-        if "membership_number" in vals:
-            vals["membership_number"] = self._normalize_membership_number_value(
-                vals["membership_number"]
-            )
-        if "amount_override" in vals:
-            vals["has_amount_override"] = self._has_explicit_amount_override_value(vals["amount_override"])
-        if "is_free_override" in vals:
-            vals["has_free_override"] = True
+        vals = self._prepare_membership_values(vals)
         result = super().write(vals)
         if {
             "partner_id",

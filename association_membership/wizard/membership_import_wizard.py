@@ -161,6 +161,8 @@ class MembershipImportWizard(models.TransientModel):
         )
 
     def _apply_row(self, row):
+        membership_model = self.env["membership.membership"]
+        contribution_model = self.env["membership.contribution"]
         partner = self._find_or_create_partner(
             row.get("partner_external_ref"),
             row.get("partner_name"),
@@ -170,7 +172,7 @@ class MembershipImportWizard(models.TransientModel):
         invoice_partner = (
             self._find_or_create_partner(invoice_partner_ref, invoice_partner_name)
             if invoice_partner_ref or invoice_partner_name
-            else partner
+            else self.env["res.partner"]
         )
         product = self._find_membership_product(row)
         date_start = self._parse_date(row.get("date_start"), _("start date"))
@@ -178,20 +180,20 @@ class MembershipImportWizard(models.TransientModel):
             raise ValidationError(_("Each imported membership row requires a start date."))
 
         membership = self._find_membership(row, partner, product, date_start)
-        membership_model = self.env["membership.membership"]
-        create_vals = {
+        membership_vals = {
             "partner_id": partner.id,
-            "invoice_partner_id": invoice_partner.id,
             "company_id": self.company_id.id,
             "product_id": product.id,
             "date_start": date_start,
         }
+        if invoice_partner:
+            membership_vals["invoice_partner_id"] = invoice_partner.id
         if "membership_number" in row:
             membership_number = membership_model._normalize_membership_number_value(
                 row.get("membership_number")
             )
             if membership_number:
-                create_vals["membership_number"] = membership_number
+                membership_vals["membership_number"] = membership_number
         state = row.get("state") or "waiting"
         state_values = {}
         if state == "cancelled":
@@ -202,40 +204,50 @@ class MembershipImportWizard(models.TransientModel):
                 "cancel_reason": row.get("cancel_reason") or False,
             }
         if membership:
-            membership.write(create_vals)
+            membership.write(
+                membership_model._prepare_membership_values(
+                    membership_vals,
+                    apply_invoice_partner_default=False,
+                )
+            )
+            if state == "cancelled":
+                membership.write(
+                    membership_model._prepare_membership_values(
+                        state_values,
+                        apply_invoice_partner_default=False,
+                    )
+                )
             if state and membership.state != state:
                 membership._do_transition(state, **state_values)
             membership_status = "updated"
             membership_message = _("Updated membership.")
         else:
-            create_vals["state"] = state
-            create_vals.update(state_values)
-            membership = self.env["membership.membership"].create(create_vals)
+            membership_vals.update({"state": state, **state_values})
+            membership = membership_model.create(membership_vals)
             membership_status = "created"
             membership_message = _("Created membership.")
 
         contribution_message = False
         membership_year = self._parse_int(row.get("membership_year"), _("membership year"))
         if membership_year:
-            contribution_vals = {
-                "membership_id": membership.id,
-                "membership_year": membership_year,
-            }
+            contribution_updates = {}
             if row.get("amount_expected") not in (None, "", False):
-                contribution_vals["amount_expected"] = self._parse_float(
+                contribution_updates["amount_expected"] = self._parse_float(
                     row.get("amount_expected"),
                     _("expected amount"),
                 )
             if row.get("amount_paid") not in (None, "", False):
-                contribution_vals["amount_paid"] = self._parse_float(
+                contribution_updates["amount_paid"] = self._parse_float(
                     row.get("amount_paid"),
                     _("paid amount"),
                 )
             if row.get("billing_status") not in (None, "", False):
-                contribution_vals["billing_status"] = row.get("billing_status")
+                contribution_updates["billing_status"] = row.get("billing_status")
             if row.get("is_free") not in (None, "", False):
-                contribution_vals["is_free"] = self._parse_bool(row.get("is_free"))
-            contribution = self.env["membership.contribution"].search(
+                contribution_updates["is_free"] = self._parse_bool(row.get("is_free"))
+            if invoice_partner:
+                contribution_updates["invoice_partner_id"] = invoice_partner.id
+            contribution = contribution_model.search(
                 [
                     ("membership_id", "=", membership.id),
                     ("membership_year", "=", membership_year),
@@ -243,11 +255,19 @@ class MembershipImportWizard(models.TransientModel):
                 limit=1,
             )
             if contribution:
-                contribution.write(contribution_vals)
+                if contribution_updates:
+                    contribution.write(
+                        contribution_model._prepare_membership_contribution_write_values(contribution_updates)
+                    )
                 membership_status = "updated"
                 contribution_message = _("Updated contribution for %s.") % membership_year
             else:
-                self.env["membership.contribution"].create(contribution_vals)
+                contribution_model.create(
+                    membership._prepare_contribution_create_values(
+                        membership_year=membership_year,
+                        **contribution_updates,
+                    )
+                )
                 contribution_message = _("Created contribution for %s.") % membership_year
 
         return membership, membership_status, membership_message, contribution_message

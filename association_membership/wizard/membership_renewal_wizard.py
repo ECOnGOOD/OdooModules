@@ -31,7 +31,7 @@ class MembershipRenewalWizard(models.TransientModel):
         self.ensure_one()
         return date(self.target_year, 1, 1), date(self.target_year, 12, 31)
 
-    def _eligible_memberships(self):
+    def _candidate_memberships(self):
         self.ensure_one()
         target_start, target_end = self._renewal_window()
         domain = [
@@ -44,16 +44,16 @@ class MembershipRenewalWizard(models.TransientModel):
         ]
         if self.product_ids:
             domain.append(("product_id", "in", self.product_ids.ids))
-        memberships = self.env["membership.membership"].search(domain)
-        return memberships.filtered(
-            lambda membership: self.env["membership.contribution"].search_count(
-                [
-                    ("membership_id", "=", membership.id),
-                    ("membership_year", "=", self.target_year),
-                ]
-            )
-            == 0
-        )
+        return self.env["membership.membership"].search(domain)
+
+    def _existing_contribution_membership_ids(self, memberships):
+        contribution_memberships = self.env["membership.contribution"].search(
+            [
+                ("membership_id", "in", memberships.ids),
+                ("membership_year", "=", self.target_year),
+            ]
+        ).mapped("membership_id")
+        return set(contribution_memberships.ids)
 
     def _build_result_values(self, item, status, message, invoice=False):
         return {
@@ -72,7 +72,11 @@ class MembershipRenewalWizard(models.TransientModel):
         self.result_line_ids.unlink()
 
         result_commands = [Command.clear()]
-        eligible_memberships = self._eligible_memberships()
+        candidate_memberships = self._candidate_memberships()
+        existing_membership_ids = self._existing_contribution_membership_ids(candidate_memberships)
+        eligible_memberships = candidate_memberships.filtered(
+            lambda membership: membership.id not in existing_membership_ids
+        )
         paid_groups = {}
 
         for membership in eligible_memberships:
@@ -89,17 +93,15 @@ class MembershipRenewalWizard(models.TransientModel):
                 try:
                     with self.env.cr.savepoint():
                         if not self.dry_run:
+                            contribution_vals = membership._prepare_contribution_create_values(
+                                self.target_year,
+                                is_free=True,
+                                amount_expected=0.0,
+                                invoice_partner_id=item["invoice_partner"].id,
+                            )
                             self.env["membership.contribution"].with_context(
                                 skip_membership_invoice_creation=True
-                            ).create(
-                                {
-                                    "membership_id": membership.id,
-                                    "membership_year": self.target_year,
-                                    "is_free": True,
-                                    "amount_expected": 0.0,
-                                    "invoice_partner_id": item["invoice_partner"].id,
-                                }
-                            )
+                            ).create(contribution_vals)
                     result_commands.append(
                         Command.create(
                             self._build_result_values(
@@ -129,18 +131,10 @@ class MembershipRenewalWizard(models.TransientModel):
             )
             paid_groups.setdefault(group_key, []).append(item)
 
-        existing_memberships = self.env["membership.membership"].search(
-            [
-                ("state", "=", "active"),
-                ("company_id", "in", self.company_ids.ids),
-            ]
+        skipped_memberships = candidate_memberships.filtered(
+            lambda membership: membership.id in existing_membership_ids
         )
-        skipped_memberships = existing_memberships - eligible_memberships
-        for membership in skipped_memberships.filtered(
-            lambda record: self.env["membership.contribution"].search_count(
-                [("membership_id", "=", record.id), ("membership_year", "=", self.target_year)]
-            )
-        ):
+        for membership in skipped_memberships:
             result_commands.append(
                 Command.create(
                     {
@@ -165,12 +159,11 @@ class MembershipRenewalWizard(models.TransientModel):
                             skip_membership_invoice_creation=True
                         ).create(
                             [
-                                {
-                                    "membership_id": item["membership"].id,
-                                    "membership_year": self.target_year,
-                                    "amount_expected": item["amount_expected"],
-                                    "invoice_partner_id": item["invoice_partner"].id,
-                                }
+                                item["membership"]._prepare_contribution_create_values(
+                                    self.target_year,
+                                    amount_expected=item["amount_expected"],
+                                    invoice_partner_id=item["invoice_partner"].id,
+                                )
                                 for item in group_items
                             ]
                         )

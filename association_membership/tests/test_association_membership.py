@@ -444,58 +444,65 @@ class TestAssociationMembership(TransactionCase):
         self.assertEqual(contribution.invoice_partner_id, invoice_contact)
         self.assertEqual(contribution.membership_year, self.today.year)
 
-    def test_contact_member_number_kanban_display_lists_all_current_memberships(self):
-        other_company = self.env["res.company"].create(
+    def test_import_uses_membership_default_invoice_contact(self):
+        member_partner = self.env["res.partner"].create(
             {
-                "name": "Kanban Number Company",
-                "membership_product_category_id": self.membership_category.id,
-                "member_number_prefix": "KAN/%(year)s/",
-                "member_number_padding": 4,
+                "name": "Imported Invoice Contact Member",
+                "ref": "PARTNER-IMPORT-INVOICE",
+                "property_account_receivable_id": self.receivable_account.id,
             }
         )
-        other_product = self._create_product(
-            "Kanban Number Membership",
-            40.0,
-            "MT-KANBAN",
-            company=other_company,
-            category=self.membership_category,
+        invoice_contact = self.env["res.partner"].create(
+            {
+                "name": "Imported Invoice Contact Child",
+                "parent_id": member_partner.id,
+                "type": "invoice",
+                "property_account_receivable_id": self.receivable_account.id,
+            }
         )
-        self.env.user.write({"company_ids": [Command.link(other_company.id)]})
+        wizard = self.env["membership.import.wizard"].create(
+            {
+                "file": self._make_csv_payload(
+                    [
+                        {
+                            "partner_external_ref": member_partner.ref,
+                            "partner_name": member_partner.name,
+                            "product_code": self.import_product.default_code,
+                            "date_start": self.today.isoformat(),
+                            "state": "waiting",
+                            "membership_year": str(self.next_year),
+                        }
+                    ]
+                ),
+                "filename": "memberships.csv",
+                "company_id": self.env.company.id,
+            }
+        )
 
-        waiting_membership = self._create_membership(
-            self.paid_product,
-            state="waiting",
-            partner=self.member_partner,
-            invoice_partner=self.billing_partner,
-        )
-        active_membership = self._create_membership(
-            other_product,
-            state="active",
-            company=other_company,
-            partner=self.member_partner,
-            invoice_partner=self.billing_partner,
-        )
-        cancelled_membership = self._create_membership(
-            self.secondary_paid_product,
-            state="cancelled",
-            partner=self.member_partner,
-            invoice_partner=self.billing_partner,
-        )
-        self.env.user.write({"company_ids": [Command.unlink(other_company.id)]})
-
+        wizard.action_run()
         self.env.invalidate_all()
-        partner = self.member_partner.with_company(self.env.company)
-        kanban_text = partner.current_member_numbers_kanban
 
-        self.assertIn(waiting_membership.membership_number, kanban_text)
-        self.assertIn(active_membership.membership_number, kanban_text)
-        self.assertNotIn(self.env.company.display_name, kanban_text)
-        self.assertNotIn(other_company.display_name, kanban_text)
-        self.assertNotIn("Membership:", kanban_text)
-        self.assertNotIn("All Memberships:", kanban_text)
-        self.assertNotIn(cancelled_membership.membership_number, kanban_text)
+        membership = self.env["membership.membership"].search(
+            [
+                ("partner_id", "=", member_partner.id),
+                ("company_id", "=", self.env.company.id),
+                ("product_id", "=", self.import_product.id),
+                ("date_start", "=", self.today),
+            ],
+            limit=1,
+        )
+        contribution = self.env["membership.contribution"].search(
+            [
+                ("membership_id", "=", membership.id),
+                ("membership_year", "=", self.next_year),
+            ],
+            limit=1,
+        )
 
-    def test_contact_member_number_display_keeps_current_company_and_builds_all_memberships(self):
+        self.assertEqual(membership.invoice_partner_id, invoice_contact)
+        self.assertEqual(contribution.invoice_partner_id, invoice_contact)
+
+    def test_contact_member_number_display_uses_active_company_memberships_only(self):
         other_company = self.env["res.company"].create(
             {
                 "name": "Display Number Company",
@@ -540,6 +547,8 @@ class TestAssociationMembership(TransactionCase):
         all_numbers = partner.all_membership_numbers_display
 
         self.assertEqual(primary_number, waiting_membership.membership_number)
+        self.assertNotEqual(primary_number, active_membership.membership_number)
+        self.assertNotIn(cancelled_membership.membership_number, primary_number)
         self.assertIn(waiting_membership.membership_number, all_numbers)
         self.assertIn(active_membership.membership_number, all_numbers)
         self.assertIn(other_company.display_name, all_numbers)
@@ -751,6 +760,40 @@ class TestAssociationMembership(TransactionCase):
                 lambda move: set(move.invoice_line_ids.mapped("membership_id").ids) == {paid_a.id, paid_b.id}
             )
         )
+
+    def test_renewal_skip_reporting_respects_candidate_filters(self):
+        included_membership = self._create_membership(
+            self.paid_product,
+            state="active",
+            invoice_partner=self.billing_partner,
+            date_start=self.today - timedelta(days=30),
+        )
+        excluded_membership = self._create_membership(
+            self.secondary_paid_product,
+            state="active",
+            invoice_partner=self.billing_partner,
+            date_start=self.today - timedelta(days=30),
+        )
+        self.env["membership.contribution"].create(
+            {
+                "membership_id": excluded_membership.id,
+                "membership_year": self.next_year,
+            }
+        )
+        wizard = self.env["membership.renewal.wizard"].create(
+            {
+                "target_year": self.next_year,
+                "company_ids": [(6, 0, [self.env.company.id])],
+                "product_ids": [(6, 0, [self.paid_product.id])],
+                "dry_run": True,
+            }
+        )
+
+        wizard.action_run()
+
+        self.assertEqual(len(wizard.result_line_ids), 1)
+        self.assertEqual(wizard.result_line_ids.membership_id, included_membership)
+        self.assertEqual(wizard.result_line_ids.status, "created")
 
     def test_import_is_idempotent_on_repeated_csv_rows(self):
         csv_payload = self._make_csv_payload(

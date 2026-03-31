@@ -21,15 +21,6 @@
                         class="text-body"
                     />
                 </div>
-                <!--
-                <field
-                    name="all_membership_numbers_display"
-                    string="All Memberships"
-                    widget="html"
-                    readonly="1"
-                    invisible="not all_membership_numbers_display"
-                />
-                -->
             </field>
         </field>
     </record>
@@ -71,7 +62,7 @@
                     <field name="membership_contribution_ids" readonly="1" nolabel="1">
                         <list create="0" edit="0" delete="0">
                             <field name="membership_id" />
-                            <field name="membership_year_display" />
+                            <field name="membership_year_display" string="Year" />
                             <field name="billing_status" />
                             <field name="amount_expected" />
                             <field name="amount_paid" />
@@ -84,77 +75,4 @@
         </field>
     </record>
 
-    <record id="view_partner_members_overview_search" model="ir.ui.view">
-        <field name="name">res.partner.members.overview.search</field>
-        <field name="model">res.partner</field>
-        <field name="arch" type="xml">
-            <search>
-                <field name="name" />
-                <field name="membership_company_names" />
-                <filter
-                    name="current_memberships"
-                    string="Waiting + Active"
-                    domain="[('membership_ids.state', 'in', ('waiting', 'active'))]"
-                />
-                <filter
-                    name="historical_memberships"
-                    string="Historical Only"
-                    domain="[('membership_ids.state', '=', 'cancelled')]"
-                />
-            </search>
-        </field>
-    </record>
-
-    <record id="view_partner_membership_kanban" model="ir.ui.view">
-        <field name="name">res.partner.membership.kanban</field>
-        <field name="model">res.partner</field>
-        <field name="arch" type="xml">
-            <kanban sample="1">
-                <field name="avatar_128" />
-                <field name="is_company" />
-                <field name="active" />
-                <field name="current_member_numbers_kanban" />
-                <templates>
-                    <t t-name="card" class="flex-row">
-                        <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active" />
-                        <aside class="o_kanban_aside_full">
-                            <t t-if="!record.is_company.raw_value">
-                                <div class="o_kanban_image_fill position-relative w-100">
-                                    <field name="avatar_128" alt="Contact image" class="h-100" widget="image" options="{'img_class': 'object-fit-cover'}" />
-                                    <field t-if="record.parent_id.raw_value" name="parent_id" class="position-absolute bottom-0 end-0 w-25 bg-light" widget="image" options="{'preview_image': 'image_128', 'img_class': 'object-fit-contain'}" />
-                                </div>
-                            </t>
-                            <t t-else="">
-                                <field name="avatar_128" class="w-100" widget="image" options="{'img_class': 'object-fit-contain w-100 h-100'}" />
-                            </t>
-                        </aside>
-                        <main class="ps-2 ps-md-0">
-                            <div class="mb-1">
-                                <field name="display_name" class="mb-0 fw-bold fs-5" />
-                                <field t-if="record.parent_id.raw_value and !record.function.raw_value" class="text-muted" name="parent_id" />
-                                <field t-elif="!record.parent_id.raw_value and record.function.raw_value" class="text-muted" name="function" />
-                                <div t-elif="record.parent_id.raw_value and record.function.raw_value" class="text-muted">
-                                    <field name="function" /> at <field name="parent_id" />
-                                </div>
-                            </div>
-                            <div t-if="record.city.raw_value or record.country_id.raw_value">
-                                <field name="city" />
-                                <span t-if="record.city.raw_value and record.country_id.raw_value">, </span>
-                                <field name="country_id" />
-                            </div>
-                            <field name="email" class="text-truncate" />
-                            <div
-                                t-if="record.current_member_numbers_kanban.value"
-                                class="text-body mt-1"
-                                style="white-space: pre-line;"
-                            >
-                                <field name="current_member_numbers_kanban" />
-                            </div>
-                            <footer><div /></footer>
-                        </main>
-                    </t>
-                </templates>
-            </kanban>
-        </field>
-    </record>
 </odoo>

@@ -28,7 +28,7 @@ Each company can configure:
 
 ## Typical Workflow
 
-1. Create or import a membership for a partner.
+1. Create a membership for a partner, or use the supported admin import wizard for bulk loads.
 2. The membership uses a membership product and belongs to one company.
 3. Create the yearly contribution for the target membership year.
 4. Run renewals from the renewal wizard or cron.
@@ -36,8 +36,9 @@ Each company can configure:
 
 ## Invoicing Behavior
 
-- Creating a paid contribution automatically creates a draft customer invoice unless the context disables invoice creation.
-- Renewal processing groups invoices by billing contact, company, year, and currency.
+- Contributions do not require invoices.
+- When a contribution is linked to an invoice or refund, billing amounts and status follow accounting.
+- Renewal processing groups paid invoices by billing contact, company, year, and currency.
 - Renewal runs are atomic per group: if invoice creation fails, that group rolls back cleanly.
 - Free contributions are recorded without invoice creation.
 
