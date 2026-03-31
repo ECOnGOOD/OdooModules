@@ -1,19 +1,73 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
+    <record id="view_membership_membership_kanban" model="ir.ui.view">
+        <field name="name">membership.membership.kanban</field>
+        <field name="model">membership.membership</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_small_column" sample="1">
+                <field name="partner_id" />
+                <field name="product_id" />
+                <field name="company_id" />
+                <field name="membership_number" />
+                <field name="date_start" />
+                <field name="date_end" />
+                <field name="active" />
+                <field name="partner_avatar_128" />
+                <templates>
+                    <t t-name="card" class="flex-row">
+                        <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active" />
+                        <aside class="o_kanban_aside_full">
+                            <field
+                                name="partner_avatar_128"
+                                alt="Member"
+                                class="w-100 h-100"
+                                widget="image"
+                                options="{'img_class': 'object-fit-cover w-100 h-100'}"
+                            />
+                        </aside>
+                        <main class="ps-3">
+                            <div class="fw-bold fs-5">
+                                <field name="partner_id" />
+                            </div>
+                            <div class="text-muted">
+                                <field name="product_id" />
+                            </div>
+                            <div t-if="record.membership_number.value" class="mt-2 text-body">
+                                <field name="membership_number" />
+                            </div>
+                            <div class="text-muted mt-2">
+                                <field name="company_id" />
+                            </div>
+                            <div class="text-muted mt-1">
+                                <span>Start </span>
+                                <field name="date_start" />
+                            </div>
+                            <div t-if="record.date_end.raw_value" class="text-muted">
+                                <span>End </span>
+                                <field name="date_end" />
+                            </div>
+                        </main>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
     <record id="view_membership_membership_list" model="ir.ui.view">
         <field name="name">membership.membership.list</field>
         <field name="model">membership.membership</field>
         <field name="arch" type="xml">
             <list>
+                <field name="membership_number" />
                 <field name="partner_id" />
-                <field name="invoice_partner_id" />
                 <field name="company_id" />
                 <field name="product_id" />
                 <field name="state" />
                 <field name="date_start" />
                 <field name="date_end" />
-                <field name="last_contribution_year" options="{'format': false}" />
+                <field name="last_contribution_year" options="{'format': false}" optional="hide" />
                 <field name="last_billing_status" />
+                <field name="invoice_partner_id" optional="hide" />
             </list>
         </field>
     </record>
@@ -23,6 +77,7 @@
         <field name="model">membership.membership</field>
         <field name="arch" type="xml">
             <search>
+                <field name="membership_number" />
                 <field name="partner_id" />
                 <field name="invoice_partner_id" />
                 <field name="product_id" />
@@ -127,23 +182,30 @@
                             <field name="partner_id" />
                             <field name="invoice_partner_id" />
                             <field name="company_id" />
+                            <field name="membership_number" />
                             <field
-                                name="membership_category_id"
-                                invisible="1"
+                                name="membership_number_preview"
+                                readonly="1"
+                                invisible="membership_number"
                             />
+                            <field name="membership_category_id" invisible="1" />
                             <field
                                 name="product_id"
-                                domain="[('active', '=', True), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+                                domain="[('active', '=', True), ('categ_id', 'child_of', membership_category_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"
                             />
-                            <field name="external_ref" groups="association_membership.group_membership_manager" />
                         </group>
                         <group>
                             <field name="date_start" />
                             <field name="date_end" />
-                            <field name="date_cancelled" />
-                            <field name="amount_override" groups="association_membership.group_membership_manager" />
+                            <field name="amount_override" string="Amount" groups="association_membership.group_membership_manager" />
                             <field name="is_free_override" groups="association_membership.group_membership_manager" />
-                            <field name="active" />
+                            <field name="active" optional="hide" />
+                        </group>
+                    </group>
+                    <group string="Cancellation" invisible="state != 'cancelled'">
+                        <group>
+                            <field name="date_cancelled" readonly="1" />
+                            <field name="cancel_reason" readonly="1" />
                         </group>
                     </group>
                     <notebook>
@@ -157,17 +219,15 @@
                             />
                             <field name="contribution_ids" readonly="1">
                                 <list create="0" edit="0" delete="0">
-                                    <field name="membership_year" options="{'format': false}" />
+                                    <field name="membership_year_display" />
                                     <field name="is_free" />
                                     <field name="amount_expected" />
+                                    <field name="amount_paid" />
                                     <field name="billing_status" />
                                     <field name="invoice_id" />
-                                    <field name="refund_move_id" />
+                                    <field name="refund_move_id" optional="hide" />
                                 </list>
                             </field>
-                        </page>
-                        <page string="Cancellation" invisible="state != 'cancelled'">
-                            <field name="cancel_reason" readonly="1" />
                         </page>
                     </notebook>
                 </sheet>
@@ -176,8 +236,18 @@
         </field>
     </record>
 
-    <record id="action_membership_membership" model="ir.actions.act_window">
+    <record id="action_members_overview" model="ir.actions.act_window">
         <field name="name">Memberships</field>
+        <field name="res_model">membership.membership</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_kanban" />
+        <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
+        <field name="domain">[]</field>
+        <field name="context">{'group_by': 'state'}</field>
+    </record>
+
+    <record id="action_membership_membership" model="ir.actions.act_window">
+        <field name="name">Membership Records</field>
         <field name="res_model">membership.membership</field>
         <field name="view_mode">list,form</field>
         <field name="view_id" ref="association_membership.view_membership_membership_list" />

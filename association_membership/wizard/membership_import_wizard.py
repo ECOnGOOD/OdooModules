@@ -140,13 +140,12 @@ class MembershipImportWizard(models.TransientModel):
 
     def _find_membership(self, row, partner, product, date_start):
         membership_model = self.env["membership.membership"].with_context(active_test=False)
-        external_ref = row.get("external_ref")
-        if external_ref:
+        membership_number = membership_model._normalize_membership_number_value(
+            row.get("membership_number")
+        )
+        if membership_number:
             membership = membership_model.search(
-                [
-                    ("external_ref", "=", external_ref),
-                    ("company_id", "=", self.company_id.id),
-                ],
+                [("membership_number", "=", membership_number)],
                 limit=1,
             )
             if membership:
@@ -179,6 +178,7 @@ class MembershipImportWizard(models.TransientModel):
             raise ValidationError(_("Each imported membership row requires a start date."))
 
         membership = self._find_membership(row, partner, product, date_start)
+        membership_model = self.env["membership.membership"]
         create_vals = {
             "partner_id": partner.id,
             "invoice_partner_id": invoice_partner.id,
@@ -186,8 +186,12 @@ class MembershipImportWizard(models.TransientModel):
             "product_id": product.id,
             "date_start": date_start,
         }
-        if row.get("external_ref"):
-            create_vals["external_ref"] = row.get("external_ref")
+        if "membership_number" in row:
+            membership_number = membership_model._normalize_membership_number_value(
+                row.get("membership_number")
+            )
+            if membership_number:
+                create_vals["membership_number"] = membership_number
         state = row.get("state") or "waiting"
         state_values = {}
         if state == "cancelled":
@@ -222,6 +226,13 @@ class MembershipImportWizard(models.TransientModel):
                     row.get("amount_expected"),
                     _("expected amount"),
                 )
+            if row.get("amount_paid") not in (None, "", False):
+                contribution_vals["amount_paid"] = self._parse_float(
+                    row.get("amount_paid"),
+                    _("paid amount"),
+                )
+            if row.get("billing_status") not in (None, "", False):
+                contribution_vals["billing_status"] = row.get("billing_status")
             if row.get("is_free") not in (None, "", False):
                 contribution_vals["is_free"] = self._parse_bool(row.get("is_free"))
             contribution = self.env["membership.contribution"].search(
@@ -260,7 +271,7 @@ class MembershipImportWizard(models.TransientModel):
                             {
                                 "row_number": row_number,
                                 "status": membership_status,
-                                "external_ref": row.get("external_ref"),
+                                "membership_number": membership.membership_number,
                                 "partner_name": membership.partner_id.display_name,
                                 "message": " ".join(
                                     message
@@ -281,7 +292,7 @@ class MembershipImportWizard(models.TransientModel):
                         {
                             "row_number": row_number,
                             "status": "error",
-                            "external_ref": row.get("external_ref"),
+                            "membership_number": row.get("membership_number"),
                             "partner_name": row.get("partner_name"),
                             "message": str(error),
                         }
@@ -317,6 +328,6 @@ class MembershipImportWizardLine(models.TransientModel):
         required=True,
         readonly=True,
     )
-    external_ref = fields.Char(readonly=True)
+    membership_number = fields.Char(readonly=True)
     partner_name = fields.Char(readonly=True)
     message = fields.Char(readonly=True)

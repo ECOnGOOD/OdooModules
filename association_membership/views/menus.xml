@@ -3,25 +3,17 @@
     <menuitem
         id="menu_membership_root"
         name="Memberships"
+        action="association_membership.action_members_overview"
         sequence="40"
         groups="association_membership.group_membership_manager"
     />
 
     <menuitem
         id="menu_membership_memberships"
-        name="Memberships"
+        name="Membership Records"
         parent="association_membership.menu_membership_root"
         action="association_membership.action_membership_membership"
         sequence="10"
-        groups="association_membership.group_membership_manager"
-    />
-
-    <menuitem
-        id="menu_membership_members_overview"
-        name="Members Overview"
-        parent="association_membership.menu_membership_root"
-        action="association_membership.action_members_overview"
-        sequence="20"
         groups="association_membership.group_membership_manager"
     />
 
@@ -30,25 +22,7 @@
         name="Contributions"
         parent="association_membership.menu_membership_root"
         action="association_membership.action_membership_contribution"
-        sequence="30"
-        groups="association_membership.group_membership_manager"
-    />
-
-    <menuitem
-        id="menu_membership_renewal"
-        name="Renewal"
-        parent="association_membership.menu_membership_root"
-        action="association_membership.action_membership_renewal_wizard"
-        sequence="40"
-        groups="association_membership.group_membership_manager"
-    />
-
-    <menuitem
-        id="menu_membership_import"
-        name="Import"
-        parent="association_membership.menu_membership_root"
-        action="association_membership.action_membership_import_wizard"
-        sequence="50"
+        sequence="20"
         groups="association_membership.group_membership_manager"
     />
 
@@ -56,7 +30,7 @@
         id="menu_membership_reporting"
         name="Reporting"
         parent="association_membership.menu_membership_root"
-        sequence="60"
+        sequence="30"
         groups="association_membership.group_membership_manager"
     />
 
@@ -127,7 +101,7 @@
         id="menu_membership_configuration"
         name="Configuration"
         parent="association_membership.menu_membership_root"
-        sequence="70"
+        sequence="40"
         groups="association_membership.group_membership_manager"
     />
 
@@ -146,6 +120,15 @@
         parent="association_membership.menu_membership_configuration"
         action="association_membership.action_membership_products"
         sequence="20"
+        groups="association_membership.group_membership_manager"
+    />
+
+    <menuitem
+        id="menu_membership_renewal"
+        name="Renewal"
+        parent="association_membership.menu_membership_configuration"
+        action="association_membership.action_membership_renewal_wizard"
+        sequence="30"
         groups="association_membership.group_membership_manager"
     />
 </odoo>

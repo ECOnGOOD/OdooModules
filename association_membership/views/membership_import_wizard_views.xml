@@ -20,7 +20,7 @@
                     <list create="0" edit="0" delete="0">
                         <field name="row_number" />
                         <field name="status" />
-                        <field name="external_ref" />
+                        <field name="membership_number" />
                         <field name="partner_name" />
                         <field name="message" />
                     </list>

@@ -21,6 +21,14 @@
                             <field name="membership_cron_auto_post" />
                         </setting>
                     </block>
+                    <block title="Member Numbers">
+                        <setting string="Member Number Prefix">
+                            <field name="member_number_prefix" />
+                        </setting>
+                        <setting string="Member Number Padding">
+                            <field name="member_number_padding" />
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

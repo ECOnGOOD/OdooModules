@@ -3,4 +3,12 @@
     <record id="product_category_membership" model="product.category">
         <field name="name">Membership</field>
     </record>
+
+    <record id="seq_association_membership_number" model="ir.sequence">
+        <field name="name">Association Membership Number Counter</field>
+        <field name="code">association.membership.number.seq</field>
+        <field name="prefix"></field>
+        <field name="padding">1</field>
+        <field name="company_id" eval="False" />
+    </record>
 </odoo>

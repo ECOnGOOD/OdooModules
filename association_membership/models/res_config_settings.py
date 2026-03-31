@@ -20,3 +20,11 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.membership_cron_auto_post",
         readonly=False,
     )
+    member_number_prefix = fields.Char(
+        related="company_id.member_number_prefix",
+        readonly=False,
+    )
+    member_number_padding = fields.Integer(
+        related="company_id.member_number_padding",
+        readonly=False,
+    )

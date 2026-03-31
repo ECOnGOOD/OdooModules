@@ -28,14 +28,42 @@ class MembershipContribution(models.Model):
         ondelete="cascade",
         index=True,
     )
-    membership_year = fields.Integer(required=True, index=True)
+    membership_year = fields.Integer(
+        required=True,
+        index=True,
+        default=lambda self: fields.Date.context_today(self).year,
+    )
+    membership_year_display = fields.Char(
+        compute="_compute_membership_year_display",
+        string="Year",
+    )
+    membership_year_input = fields.Char(
+        compute="_compute_membership_year_display",
+        inverse="_inverse_membership_year_input",
+        string="Year",
+    )
     is_free = fields.Boolean(required=True, default=False)
-    amount_expected = fields.Monetary(required=True, default=0.0)
+    manual_amount_expected = fields.Monetary(
+        string="Manual Expected Amount",
+        default=0.0,
+        copy=False,
+    )
+    amount_expected = fields.Monetary(
+        compute="_compute_billing_fields",
+        inverse="_inverse_amount_expected",
+        store=True,
+    )
     invoice_id = fields.Many2one("account.move", copy=False)
     refund_move_id = fields.Many2one("account.move", copy=False)
+    manual_billing_status = fields.Selection(
+        selection=CONTRIBUTION_BILLING_STATUS,
+        default="to_invoice",
+        copy=False,
+    )
     billing_status = fields.Selection(
         selection=CONTRIBUTION_BILLING_STATUS,
         compute="_compute_billing_fields",
+        inverse="_inverse_billing_status",
         store=True,
     )
     company_id = fields.Many2one(
@@ -62,8 +90,14 @@ class MembershipContribution(models.Model):
         compute="_compute_billing_fields",
         store=True,
     )
+    manual_amount_paid = fields.Monetary(
+        string="Manual Paid Amount",
+        default=0.0,
+        copy=False,
+    )
     amount_paid = fields.Monetary(
         compute="_compute_billing_fields",
+        inverse="_inverse_amount_paid",
         store=True,
     )
     product_id = fields.Many2one(
@@ -94,8 +128,60 @@ class MembershipContribution(models.Model):
         )
     ]
 
+    def _auto_init(self):
+        result = super()._auto_init()
+        self._migrate_manual_amount_expected_values()
+        return result
+
+    def _migrate_manual_amount_expected_values(self):
+        self.env.cr.execute(
+            """
+            SELECT column_name
+              FROM information_schema.columns
+             WHERE table_schema = current_schema()
+               AND table_name = 'membership_contribution'
+               AND column_name IN ('amount_expected', 'manual_amount_expected')
+            """
+        )
+        available_columns = {row[0] for row in self.env.cr.fetchall()}
+        if {'amount_expected', 'manual_amount_expected'} - available_columns:
+            return
+        self.env.cr.execute(
+            """
+            UPDATE membership_contribution
+               SET manual_amount_expected = amount_expected
+             WHERE amount_expected IS NOT NULL
+               AND (manual_amount_expected IS NULL OR manual_amount_expected = 0)
+            """
+        )
+
+    @api.model
+    def _normalize_membership_year_value(self, value):
+        normalized = str(value or "").replace(",", "").strip()
+        if not normalized:
+            raise ValidationError(_("Contribution year is required."))
+        if not normalized.isdigit():
+            raise ValidationError(_("Contribution year must be a whole number."))
+        return int(normalized)
+
+    @api.depends("membership_year")
+    def _compute_membership_year_display(self):
+        for record in self:
+            year_value = str(record.membership_year) if record.membership_year else False
+            record.membership_year_display = year_value
+            record.membership_year_input = year_value
+
+    def _inverse_membership_year_input(self):
+        for record in self:
+            record.membership_year = record._normalize_membership_year_value(
+                record.membership_year_input
+            )
+
     @api.depends(
         "is_free",
+        "manual_amount_expected",
+        "manual_amount_paid",
+        "manual_billing_status",
         "invoice_id.state",
         "invoice_id.payment_state",
         "invoice_id.amount_total",
@@ -105,27 +191,35 @@ class MembershipContribution(models.Model):
     )
     def _compute_billing_fields(self):
         for record in self:
-            line_amount = record.invoice_line_id.price_subtotal if record.invoice_line_id else 0.0
+            line_amount = record.invoice_line_id.price_subtotal if record.invoice_id and record.invoice_line_id else 0.0
             record.amount_invoiced = line_amount if record.invoice_id else 0.0
-            if record.invoice_id and record.amount_invoiced:
-                total = record.invoice_id.amount_total or 0.0
-                if total:
-                    paid_ratio = max(
-                        0.0,
-                        min(1.0, (total - record.invoice_id.amount_residual) / total),
-                    )
+            if record.invoice_id:
+                record.amount_expected = record.amount_invoiced
+                if record.amount_invoiced:
+                    total = record.invoice_id.amount_total or 0.0
+                    if total:
+                        paid_ratio = max(
+                            0.0,
+                            min(1.0, (total - record.invoice_id.amount_residual) / total),
+                        )
+                    else:
+                        paid_ratio = 1.0 if record.invoice_id.payment_state in ("in_payment", "paid") else 0.0
+                    record.amount_paid = record.currency_id.round(record.amount_invoiced * paid_ratio)
                 else:
-                    paid_ratio = 1.0 if record.invoice_id.payment_state in ("in_payment", "paid") else 0.0
-                record.amount_paid = record.currency_id.round(record.amount_invoiced * paid_ratio)
-            else:
+                    record.amount_paid = 0.0
+            elif record.is_free:
+                record.amount_expected = 0.0
                 record.amount_paid = 0.0
+            else:
+                record.amount_expected = record.manual_amount_expected
+                record.amount_paid = record.manual_amount_paid
 
             if record.is_free:
                 record.billing_status = "waived"
             elif record.refund_move_id and record.refund_move_id.state == "posted":
                 record.billing_status = "refunded"
             elif not record.invoice_id:
-                record.billing_status = "to_invoice"
+                record.billing_status = record.manual_billing_status or "to_invoice"
             elif record.invoice_id.state == "cancel":
                 record.billing_status = "cancelled"
             elif record.invoice_id.payment_state in ("in_payment", "paid"):
@@ -135,37 +229,90 @@ class MembershipContribution(models.Model):
             else:
                 record.billing_status = "invoiced"
 
+    def _inverse_amount_expected(self):
+        for record in self:
+            record.manual_amount_expected = 0.0 if record.is_free else record.amount_expected
+
+    def _inverse_amount_paid(self):
+        for record in self:
+            record.manual_amount_paid = 0.0 if record.is_free else record.amount_paid
+
+    def _inverse_billing_status(self):
+        for record in self:
+            record.manual_billing_status = "waived" if record.is_free else (record.billing_status or "to_invoice")
+
     @api.constrains("company_id", "membership_id")
     def _check_company_matches_membership(self):
         for record in self:
             if record.company_id != record.membership_id.company_id:
                 raise ValidationError(_("The contribution company must match the membership company."))
 
+    @api.model
+    def default_get(self, fields_list):
+        defaults = super().default_get(fields_list)
+        if "membership_year" in fields_list and not defaults.get("membership_year"):
+            defaults["membership_year"] = fields.Date.context_today(self).year
+        membership_id = defaults.get("membership_id") or self.env.context.get("default_membership_id")
+        if membership_id and "invoice_partner_id" in fields_list and not defaults.get("invoice_partner_id"):
+            membership = self.env["membership.membership"].browse(membership_id)
+            defaults["invoice_partner_id"] = membership._get_invoice_partner().id
+        return defaults
+
+    @api.onchange("membership_id")
+    def _onchange_membership_id(self):
+        if not self.membership_id:
+            return
+        self.invoice_partner_id = self.membership_id._get_invoice_partner()
+        if not self.membership_year:
+            self.membership_year = fields.Date.context_today(self).year
+
     @api.model_create_multi
     def create(self, vals_list):
+        prepared_vals_list = []
         for vals in vals_list:
+            vals = vals.copy()
             membership = self.env["membership.membership"].browse(vals["membership_id"])
+            vals.setdefault("membership_year", fields.Date.context_today(self).year)
             is_free = vals["is_free"] if "is_free" in vals else membership._resolve_is_free()
             vals.setdefault("is_free", is_free)
+            if "amount_expected" in vals:
+                vals["manual_amount_expected"] = vals.pop("amount_expected")
             vals.setdefault(
-                "amount_expected",
+                "manual_amount_expected",
                 membership._resolve_amount_expected(is_free=is_free),
             )
+            if "amount_paid" in vals:
+                vals["manual_amount_paid"] = vals.pop("amount_paid")
+            vals.setdefault("manual_amount_paid", 0.0)
+            if "billing_status" in vals:
+                vals["manual_billing_status"] = vals.pop("billing_status")
+            vals.setdefault("manual_billing_status", "waived" if is_free else "to_invoice")
             vals.setdefault("invoice_partner_id", membership._get_invoice_partner().id)
             if vals.get("invoice_line_id") and not vals.get("invoice_id"):
                 line = self.env["account.move.line"].browse(vals["invoice_line_id"])
                 vals["invoice_id"] = line.move_id.id
-        records = super().create(vals_list)
+            prepared_vals_list.append(vals)
+        records = super().create(prepared_vals_list)
         records.filtered(
             lambda contribution: not contribution.invoice_id
             and not contribution.refund_move_id
             and not contribution.invoice_line_id
         )._sync_accounting_links_from_lines()
-        if not self.env.context.get("skip_membership_invoice_creation"):
-            records._create_membership_invoices()
+        if self.env.context.get("create_membership_invoice"):
+            records._create_membership_invoices(
+                auto_post=bool(self.env.context.get("membership_invoice_auto_post")),
+                invoice_date=self.env.context.get("membership_invoice_date"),
+            )
         return records
 
     def write(self, vals):
+        vals = vals.copy()
+        if "amount_expected" in vals:
+            vals["manual_amount_expected"] = vals.pop("amount_expected")
+        if "amount_paid" in vals:
+            vals["manual_amount_paid"] = vals.pop("amount_paid")
+        if "billing_status" in vals:
+            vals["manual_billing_status"] = vals.pop("billing_status")
         result = super().write(vals)
         if {"invoice_line_id", "invoice_id", "refund_move_id"} & set(vals):
             self._sync_accounting_links_from_lines()
