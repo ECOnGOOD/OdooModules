@@ -2,6 +2,16 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    width: 100%;
+    max-width: none;
+}
+
+.prg-explorer-embedded {
+    min-height: 0;
+    height: auto;
+    width: 100%;
+    max-width: none;
+    flex: 1 1 auto;
 }
 
 .prg-toolbar {
@@ -9,6 +19,11 @@
     flex-wrap: wrap;
     gap: 1rem;
     align-items: end;
+    padding: 0.875rem 1rem;
+    border: 1px solid #d9d4df;
+    border-radius: 0.5rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, #f7f5f8 100%);
+    box-shadow: 0 1px 2px rgba(32, 16, 44, 0.04);
 }
 
 .prg-toolbar-section {
@@ -27,34 +42,59 @@
 
 .prg-content {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr) 320px;
     gap: 1rem;
+    width: 100%;
     min-height: 32rem;
+    flex: 1 1 auto;
+    align-items: stretch;
 }
 
 .prg-main-panel,
 .prg-side-panel,
 .prg-empty-state {
-    border: 1px solid #d7dce3;
-    border-radius: 1rem;
-    background: linear-gradient(180deg, #fbfcfe 0%, #f3f6fa 100%);
+    border: 1px solid #d9d4df;
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(32, 16, 44, 0.06);
 }
 
 .prg-main-panel {
     position: relative;
     overflow: hidden;
+    display: flex;
+    min-height: 0;
+    min-width: 0;
+}
+
+.prg-loading-overlay,
+.prg-empty-overlay {
+    position: absolute;
+    inset: 0.75rem;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border: 1px dashed rgba(135, 90, 123, 0.18);
+    border-radius: 0.5rem;
+    background: rgba(251, 250, 252, 0.82);
+    backdrop-filter: blur(2px);
 }
 
 .prg-side-panel {
-    padding: 1rem;
+    padding: 1rem 1rem 1.125rem;
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    min-width: 0;
+    background: linear-gradient(180deg, #fbfafc 0%, #f4f1f6 100%);
 }
 
 .prg-side-title {
     font-weight: 600;
     margin-bottom: 0.5rem;
+    color: #3d3148;
 }
 
 .prg-side-actions {
@@ -66,6 +106,8 @@
 .prg-graph-canvas {
     min-height: 32rem;
     height: 100%;
+    width: 100%;
+    flex: 1 1 auto;
 }
 
 .prg-graph-svg {
@@ -73,8 +115,8 @@
     height: 100%;
     min-height: 32rem;
     background:
-        radial-gradient(circle at top, rgba(44, 114, 206, 0.08), transparent 38%),
-        linear-gradient(180deg, #ffffff 0%, #edf2f8 100%);
+        radial-gradient(circle at top, rgba(113, 75, 103, 0.08), transparent 34%),
+        linear-gradient(180deg, #fcfbfd 0%, #f2eef4 100%);
     cursor: grab;
     touch-action: none;
     user-select: none;
@@ -90,82 +132,82 @@
 }
 
 .prg-edge-line {
-    stroke: #7c8da5;
+    stroke: #85758d;
     stroke-width: 2;
     fill: none;
 }
 
 .prg-edge-arrow {
-    fill: #7c8da5;
+    fill: #85758d;
 }
 
 .prg-edge.is-inactive .prg-edge-line {
-    stroke: #b8c1cd;
+    stroke: #c5bdcb;
     stroke-dasharray: 7 5;
 }
 
 .prg-edge.is-inactive .prg-edge-arrow {
-    fill: #b8c1cd;
+    fill: #c5bdcb;
 }
 
 .prg-edge-label-bg {
-    fill: rgba(255, 255, 255, 0.94);
-    stroke: rgba(124, 141, 165, 0.35);
-    filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.08));
+    fill: rgba(255, 255, 255, 0.76);
+    stroke: rgba(117, 96, 126, 0.22);
+    filter: drop-shadow(0 1px 2px rgba(32, 16, 44, 0.05));
 }
 
 .prg-edge-label {
     font-size: 11px;
-    fill: #334155;
+    fill: #5b4d66;
     pointer-events: none;
 }
 
 .prg-edge.is-selected .prg-edge-line {
-    stroke: #f97316;
+    stroke: #875a7b;
     stroke-width: 3;
 }
 
 .prg-edge.is-selected .prg-edge-arrow {
-    fill: #f97316;
+    fill: #875a7b;
 }
 
 .prg-node-shape {
-    stroke: #153458;
+    stroke: #7b617f;
     stroke-width: 2;
-    fill: #cfe3ff;
+    fill: #ebe4ee;
 }
 
 .prg-node.is-company .prg-node-shape {
-    fill: #dff4e6;
-    stroke: #24543d;
+    fill: #e9f1ec;
+    stroke: #63806d;
 }
 
 .prg-node.is-focal .prg-node-shape {
-    fill: #ffe2bf;
-    stroke: #9a4b00;
+    fill: #efe3eb;
+    stroke: #875a7b;
 }
 
 .prg-node.is-selected .prg-node-shape {
-    stroke: #f97316;
+    stroke: #875a7b;
     stroke-width: 3;
 }
 
 .prg-node-caption {
     font-size: 12px;
     font-weight: 600;
-    fill: #203040;
+    fill: #3d3148;
     pointer-events: none;
 }
 
 .prg-node.is-expanded .prg-node-caption {
-    fill: #0b5cab;
+    fill: #6d4f73;
 }
 
 .prg-empty-state,
 .prg-loading-state {
     padding: 2rem;
     text-align: center;
-    color: #516174;
+    color: #6b5a73;
 }
 
 .prg-embedded-actions {
@@ -177,6 +219,9 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    width: 100%;
+    min-height: 0;
+    height: auto;
 }
 
 @media (max-width: 991px) {
@@ -188,7 +233,6 @@
         order: -1;
     }
 }
-
 
 .prg-graph-svg.is-node-dragging,
 .prg-node {
@@ -202,17 +246,14 @@
 }
 
 .prg-node-label-bg {
-    fill: rgba(255, 255, 255, 0.98);
-    stroke: rgba(32, 48, 64, 0.14);
+    fill: rgba(255, 255, 255, 0);
+    stroke: rgba(117, 96, 126, 0);
     stroke-width: 1;
-    filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.1));
-}
-
-.prg-node-label {
+    filter: none;
     pointer-events: auto;
 }
 
-.prg-node-label-bg {
+.prg-node-label {
     pointer-events: auto;
 }
 
@@ -222,4 +263,69 @@
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.01em;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.prg-side-section {
+    padding-bottom: 0.875rem;
+    border-bottom: 1px solid rgba(135, 90, 123, 0.12);
+}
+
+.prg-side-section:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.prg-side-section h5 {
+    margin-bottom: 0.75rem;
+    color: #56455f;
+    font-size: 0.95rem;
+}
+
+.prg-side-section p {
+    margin-bottom: 0.45rem;
+}
+
+.prg-explorer-embedded .prg-content {
+    min-height: 30rem;
+    height: clamp(30rem, calc(100vh - 29rem), 40rem);
+}
+
+.prg-explorer-embedded .prg-main-panel,
+.prg-explorer-embedded .prg-side-panel {
+    min-height: 30rem;
+}
+
+.prg-explorer-embedded .prg-graph-canvas,
+.prg-explorer-embedded .prg-graph-svg {
+    min-height: 30rem;
+}
+
+.o_field_widget.prg-notebook-field,
+.o_field_widget.o_field_partner_relation_graph {
+    display: block;
+    width: 100% !important;
+    max-width: none;
+}
+
+.o_field_widget.prg-notebook-field .prg-embedded-field,
+.o_field_widget.o_field_partner_relation_graph .prg-embedded-field,
+.o_field_widget.prg-notebook-field .prg-explorer-embedded,
+.o_field_widget.o_field_partner_relation_graph .prg-explorer-embedded,
+.o_field_widget.prg-notebook-field .prg-toolbar,
+.o_field_widget.o_field_partner_relation_graph .prg-toolbar,
+.o_field_widget.prg-notebook-field .prg-content,
+.o_field_widget.o_field_partner_relation_graph .prg-content {
+    width: 100%;
+    max-width: none;
+}
+
+.o_field_widget.prg-notebook-field,
+.o_field_widget.o_field_partner_relation_graph,
+.o_field_widget.prg-notebook-field .prg-embedded-field,
+.o_field_widget.o_field_partner_relation_graph .prg-embedded-field,
+.o_field_widget.prg-notebook-field .prg-explorer-embedded,
+.o_field_widget.o_field_partner_relation_graph .prg-explorer-embedded {
+    min-height: 0;
+    height: auto;
 }

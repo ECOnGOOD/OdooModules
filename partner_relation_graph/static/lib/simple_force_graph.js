@@ -279,6 +279,25 @@
         };
     }
 
+    function estimateNodeExtent(node) {
+        const lines = splitLabelLines(node?.display_name || "");
+        const longestLine = lines.reduce((width, line) => Math.max(width, line.length), 0);
+        const labelWidth = longestLine * 7.2 + 32;
+        const labelHeight = lines.length * 14 + 24;
+        const shapeWidth = node?.is_company ? 78 : 64;
+        const shapeHeight = node?.is_company ? 48 : 64;
+        return Math.max(shapeWidth, shapeHeight, labelWidth, labelHeight);
+    }
+
+    function estimateLevelSpacing(nodes) {
+        if (!nodes?.length) {
+            return 108;
+        }
+        const averageExtent =
+            nodes.reduce((sum, node) => sum + estimateNodeExtent(node), 0) / nodes.length;
+        return Math.max(104, Math.min(176, averageExtent * 0.96));
+    }
+
     function toNumberAttribute(element, attributeName) {
         return Number(element.getAttribute(attributeName) || 0);
     }
@@ -296,6 +315,7 @@
             this.currentFocalId = null;
             this.nodeDrag = null;
             this.suppressedNodeClick = { id: null, until: 0 };
+            this.suppressedBackgroundClickUntil = 0;
             this.isDragging = false;
             this.dragOrigin = null;
             this.lastPan = { x: 0, y: 0 };
@@ -328,6 +348,56 @@
                 window.cancelAnimationFrame(this.renderToken);
             }
             this.container.innerHTML = "";
+        }
+
+        cloneViewState() {
+            return {
+                viewport: { ...this.viewport },
+                currentFocalId: this.currentFocalId,
+                layout: [...(this.layout || new Map()).entries()].map(([nodeId, position]) => ({
+                    id: nodeId,
+                    x: position.x,
+                    y: position.y,
+                })),
+                manualNodePositions: [...this.manualNodePositions.entries()].map(([nodeId, position]) => ({
+                    id: nodeId,
+                    x: position.x,
+                    y: position.y,
+                })),
+            };
+        }
+
+        publishViewState() {
+            this.emit("viewstatechange", this.cloneViewState());
+        }
+
+        restoreState(viewState) {
+            if (!viewState || typeof viewState !== "object") {
+                return;
+            }
+            const parsePositions = (items) => {
+                const positions = new Map();
+                for (const item of items || []) {
+                    const nodeId = Number(item?.id);
+                    const x = Number(item?.x);
+                    const y = Number(item?.y);
+                    if (!Number.isInteger(nodeId) || !Number.isFinite(x) || !Number.isFinite(y)) {
+                        continue;
+                    }
+                    positions.set(nodeId, { x, y });
+                }
+                return positions;
+            };
+            this.layout = parsePositions(viewState.layout);
+            this.manualNodePositions = parsePositions(viewState.manualNodePositions);
+            const scale = Number(viewState.viewport?.scale);
+            const x = Number(viewState.viewport?.x);
+            const y = Number(viewState.viewport?.y);
+            if (Number.isFinite(scale) && Number.isFinite(x) && Number.isFinite(y)) {
+                this.viewport = { scale, x, y };
+            }
+            const focalId = Number(viewState.currentFocalId);
+            this.currentFocalId = Number.isInteger(focalId) && focalId > 0 ? focalId : null;
         }
 
         renderBase() {
@@ -368,16 +438,18 @@
         }
 
         setData(data) {
+            const previousLayout = this.layout ? new Map(this.layout) : new Map();
             this.data = normalizeGraphData(data);
             this.pruneManualPositions();
-            this.layout = this.computeLayout();
+            this.layout = this.computeLayout(previousLayout);
             this.edgeTracks = buildEdgeTracks(this.data.edges || []);
             const focalId = this.data.meta?.focal_partner_id || null;
             if (this.currentFocalId !== focalId) {
-                this.resetViewport();
                 this.currentFocalId = focalId;
+                this.fitViewportToLayout();
             }
             this.render();
+            this.publishViewState();
         }
 
         setSelection(selection) {
@@ -389,8 +461,8 @@
         }
 
         resetViewport() {
-            const width = Math.max(this.container.clientWidth || 960, 960);
-            const height = Math.max(this.container.clientHeight || 520, 520);
+            const width = Math.max(this.container.clientWidth || 320, 320);
+            const height = Math.max(this.container.clientHeight || 320, 320);
             this.viewport = {
                 scale: 1,
                 x: width / 2,
@@ -398,7 +470,48 @@
             };
         }
 
-        computeLayout() {
+        fitViewportToLayout() {
+            const nodes = this.data.nodes || [];
+            if (!nodes.length) {
+                this.resetViewport();
+                return;
+            }
+            const width = Math.max(this.container.clientWidth || 320, 320);
+            const height = Math.max(this.container.clientHeight || 320, 320);
+            const paddingX = Math.max(56, width * 0.08);
+            const paddingY = Math.max(56, height * 0.1);
+            let minX = Infinity;
+            let minY = Infinity;
+            let maxX = -Infinity;
+            let maxY = -Infinity;
+            for (const node of nodes) {
+                const position = this.layout.get(node.id) || { x: 0, y: 0 };
+                const extent = estimateNodeExtent(node) / 2;
+                minX = Math.min(minX, position.x - extent);
+                maxX = Math.max(maxX, position.x + extent);
+                minY = Math.min(minY, position.y - extent);
+                maxY = Math.max(maxY, position.y + extent);
+            }
+            const boundsWidth = Math.max(1, maxX - minX);
+            const boundsHeight = Math.max(1, maxY - minY);
+            const scale = Math.max(
+                0.6,
+                Math.min(
+                    1.85,
+                    (width - paddingX * 2) / boundsWidth,
+                    (height - paddingY * 2) / boundsHeight
+                )
+            );
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            this.viewport = {
+                scale,
+                x: width / 2 - centerX * scale,
+                y: height / 2 - centerY * scale,
+            };
+        }
+
+        computeLayout(previousLayout = new Map()) {
             const nodes = this.data.nodes || [];
             const edges = this.data.edges || [];
             const focalId = this.data.meta?.focal_partner_id || nodes[0]?.id;
@@ -427,24 +540,88 @@
                 }
                 levelNodes.get(depth).push(node);
             }
+            const width = Math.max(this.container.clientWidth || 320, 320);
+            const height = Math.max(this.container.clientHeight || 320, 320);
+            const baseRadius = Math.min(260, Math.max(118, Math.min(width * 0.28, height * 0.24)));
+            const radiusStep = Math.max(136, Math.min(228, Math.round(Math.min(width, height) * 0.24)));
             const positions = new Map();
-            positions.set(focalId, { x: 0, y: 0 });
-            for (const [depth, level] of [...levelNodes.entries()].sort((a, b) => a[0] - b[0])) {
-                if (depth === 0) {
-                    continue;
-                }
-                const radius = depth === 1 ? 240 : depth === 2 ? 430 : 620;
-                const slice = (Math.PI * 2) / Math.max(level.length, 1);
-                level
-                    .slice()
-                    .sort((left, right) => left.display_name.localeCompare(right.display_name))
-                    .forEach((node, index) => {
-                        const angle = -Math.PI / 2 + slice * index;
-                        positions.set(node.id, polarPoint(radius, angle, 0, 0));
-                    });
+            const knownPositions = new Map(previousLayout || []);
+            if (focalId && knownPositions.has(focalId)) {
+                positions.set(focalId, { ...knownPositions.get(focalId) });
+            } else if (focalId) {
+                positions.set(focalId, { x: 0, y: 0 });
             }
             for (const [nodeId, position] of this.manualNodePositions.entries()) {
+                knownPositions.set(nodeId, { ...position });
                 positions.set(nodeId, { ...position });
+            }
+            for (const [depth, level] of [...levelNodes.entries()].sort((left, right) => left[0] - right[0])) {
+                if (!level.length) {
+                    continue;
+                }
+                const levelSpacing = estimateLevelSpacing(level);
+                const requiredRadius =
+                    level.length <= 1 ? 0 : (level.length * levelSpacing) / (Math.PI * 2);
+                const radius =
+                    depth === 0
+                        ? 0
+                        : Math.max(baseRadius + Math.max(0, depth - 1) * radiusStep, requiredRadius);
+                const missingNodes = level
+                    .slice()
+                    .sort((left, right) => left.display_name.localeCompare(right.display_name))
+                    .filter((node) => !positions.has(node.id) && !knownPositions.has(node.id));
+                const slice = (Math.PI * 2) / Math.max(missingNodes.length, 1);
+                missingNodes.forEach((node, index) => {
+                    const positionedNeighbors = [...(adjacency.get(node.id) || [])]
+                        .map((neighborId) => positions.get(neighborId) || knownPositions.get(neighborId))
+                        .filter(Boolean);
+                    if (positionedNeighbors.length) {
+                        const anchor = positionedNeighbors.reduce(
+                            (accumulator, position) => ({
+                                x: accumulator.x + position.x,
+                                y: accumulator.y + position.y,
+                            }),
+                            { x: 0, y: 0 }
+                        );
+                        const centerX = anchor.x / positionedNeighbors.length;
+                        const centerY = anchor.y / positionedNeighbors.length;
+                        const outwardAngle =
+                            Math.abs(centerX) < 1 && Math.abs(centerY) < 1
+                                ? -Math.PI / 2
+                                : Math.atan2(centerY, centerX);
+                        const arcSpan =
+                            missingNodes.length <= 1
+                                ? 0
+                                : Math.min(Math.PI * 1.5, 0.95 + (missingNodes.length - 1) * 0.42);
+                        const localSpacing = estimateLevelSpacing(missingNodes);
+                        const localRadius = Math.max(
+                            104,
+                            Math.min(
+                                radiusStep * 1.28,
+                                (missingNodes.length * localSpacing) /
+                                    Math.max(Math.PI * 0.92, arcSpan || Math.PI * 0.92)
+                            )
+                        );
+                        const angle =
+                            missingNodes.length <= 1
+                                ? outwardAngle
+                                : outwardAngle - arcSpan / 2 + (arcSpan / (missingNodes.length - 1)) * index;
+                        positions.set(node.id, polarPoint(localRadius, angle, centerX, centerY));
+                        return;
+                    }
+                    const angle = -Math.PI / 2 + slice * index;
+                    positions.set(node.id, polarPoint(radius, angle, 0, 0));
+                });
+                for (const node of level) {
+                    if (!positions.has(node.id) && knownPositions.has(node.id)) {
+                        positions.set(node.id, { ...knownPositions.get(node.id) });
+                    }
+                }
+            }
+            for (const node of nodes) {
+                if (!positions.has(node.id) && knownPositions.has(node.id)) {
+                    positions.set(node.id, { ...knownPositions.get(node.id) });
+                }
             }
             return positions;
         }
@@ -533,6 +710,7 @@
             if (this.activePointerId !== null && event.pointerId !== this.activePointerId) {
                 return;
             }
+            const didPan = this.isDragging;
             if (this.nodeDrag) {
                 const nodeId = this.nodeDrag.nodeId;
                 if (this.nodeDrag.moved) {
@@ -545,10 +723,12 @@
                         id: nodeId,
                         until: Date.now() + 250,
                     };
+                    this.suppressedBackgroundClickUntil = Date.now() + 250;
                     this.emit("nodeclick", { id: nodeId });
                 }
                 this.nodeDrag = null;
                 this.svg.classList.remove("is-node-dragging");
+                this.publishViewState();
             }
             this.isDragging = false;
             this.dragOrigin = null;
@@ -559,6 +739,9 @@
             } catch {
                 // Synthetic test events may not have an active browser pointer to release.
             }
+            if (didPan) {
+                this.publishViewState();
+            }
         }
 
         onWheel(event) {
@@ -566,9 +749,13 @@
             const factor = event.deltaY < 0 ? 1.1 : 0.9;
             this.viewport.scale = Math.max(0.45, Math.min(2.5, this.viewport.scale * factor));
             this.applyViewport();
+            this.publishViewState();
         }
 
         onSvgClick(event) {
+            if (Date.now() < this.suppressedBackgroundClickUntil) {
+                return;
+            }
             if (event.target.closest("[data-node-id], [data-edge-id]")) {
                 return;
             }

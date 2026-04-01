@@ -6,10 +6,12 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
-                <page string="Relationship Graph">
+                <page string="Relationship Graph" class="prg-notebook-page">
                     <field
                         name="relationship_graph_seed_id"
                         widget="partner_relation_graph"
+                        class="prg-notebook-field"
+                        colspan="2"
                         nolabel="1"
                         readonly="1"
                     />

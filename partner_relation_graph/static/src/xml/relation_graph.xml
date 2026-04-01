@@ -5,7 +5,7 @@
     </t>
 
     <t t-name="partner_relation_graph.RelationGraphExplorer">
-        <div class="prg-explorer">
+        <div t-att-class="props.standalone ? 'prg-explorer prg-explorer-standalone' : 'prg-explorer prg-explorer-embedded'">
             <div class="prg-toolbar">
                 <div class="prg-toolbar-section" t-if="props.standalone">
                     <label class="form-label">Partner</label>
@@ -49,23 +49,24 @@
 
             <div class="prg-content" t-if="state.partnerId">
                 <div class="prg-main-panel">
-                    <div class="prg-empty-state" t-if="!hasGraphData and !state.loading">
+                    <div class="prg-empty-state prg-empty-overlay" t-if="!hasGraphData and !state.loading">
                         <h4>No relationships to display</h4>
                         <p>This partner has no matching `partner_multi_relation` records for the current filters.</p>
                     </div>
-                    <div class="prg-loading-state" t-if="state.loading">
+                    <div class="prg-loading-state prg-loading-overlay" t-if="state.loading">
                         Loading relationship graph...
                     </div>
                     <RelationGraphCanvas
-                        t-if="!state.loading"
                         graphData="state.graphData"
                         selectedNodeId="state.selectedNodeId || undefined"
                         selectedEdgeId="state.selectedEdgeId || undefined"
+                        viewState="state.graphViewState || undefined"
                         onNodeSelect.bind="onNodeSelect"
                         onEdgeSelect.bind="onEdgeSelect"
                         onNodeOpen.bind="onGraphNodeOpen"
                         onEdgeOpen.bind="onGraphEdgeOpen"
                         onBackgroundClick.bind="onBackgroundClick"
+                        onViewStateChange.bind="onGraphViewStateChange"
                     />
                 </div>
 

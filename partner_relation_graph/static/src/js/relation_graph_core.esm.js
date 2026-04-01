@@ -51,11 +51,13 @@ export class RelationGraphCanvas extends Component {
         graphData: Object,
         selectedNodeId: { type: Number, optional: true },
         selectedEdgeId: { type: Number, optional: true },
+        viewState: { type: Object, optional: true },
         onNodeSelect: { type: Function, optional: true },
         onEdgeSelect: { type: Function, optional: true },
         onNodeOpen: { type: Function, optional: true },
         onEdgeOpen: { type: Function, optional: true },
         onBackgroundClick: { type: Function, optional: true },
+        onViewStateChange: { type: Function, optional: true },
     };
 
     setup() {
@@ -71,6 +73,10 @@ export class RelationGraphCanvas extends Component {
             this.graph.on("nodedblclick", ({ id }) => this.props.onNodeOpen?.(id));
             this.graph.on("edgedblclick", ({ id }) => this.props.onEdgeOpen?.(id));
             this.graph.on("backgroundclick", () => this.props.onBackgroundClick?.());
+            this.graph.on("viewstatechange", (viewState) => this.props.onViewStateChange?.(viewState));
+            if (this.props.viewState) {
+                this.graph.restoreState(this.props.viewState);
+            }
             this.syncGraph();
         });
         useEffect(
@@ -128,6 +134,7 @@ export class RelationGraphExplorer extends Component {
             selectedNodeId: false,
             selectedEdgeId: false,
             expandedPartnerIds: [],
+            graphViewState: null,
         });
 
         onWillStart(async () => {
@@ -145,6 +152,7 @@ export class RelationGraphExplorer extends Component {
             if (nextPartnerId !== this.state.partnerId) {
                 this.state.partnerId = nextPartnerId;
                 this.state.expandedPartnerIds = [];
+                this.state.graphViewState = null;
                 this.clearSelection();
                 if (this.state.partnerId) {
                     await this.reloadGraph();
@@ -232,12 +240,14 @@ export class RelationGraphExplorer extends Component {
     async onPartnerUpdate(ids) {
         this.state.partnerId = ids[0] || false;
         this.state.expandedPartnerIds = [];
+        this.state.graphViewState = null;
         this.clearSelection();
         await this.reloadGraph();
     }
 
     async onToggleInactive(event) {
         this.state.includeInactive = Boolean(event.target.checked);
+        this.state.graphViewState = null;
         await this.reloadGraph();
     }
 
@@ -246,6 +256,7 @@ export class RelationGraphExplorer extends Component {
             Array.from(event.target.selectedOptions).map((option) => option.value)
         );
         this.state.expandedPartnerIds = [];
+        this.state.graphViewState = null;
         this.clearSelection();
         await this.reloadGraph();
     }
@@ -319,6 +330,10 @@ export class RelationGraphExplorer extends Component {
             views: [[false, "form"]],
             target: "main",
         });
+    }
+
+    onGraphViewStateChange(viewState) {
+        this.state.graphViewState = viewState;
     }
 
     relationTypeLabel(relationType) {
