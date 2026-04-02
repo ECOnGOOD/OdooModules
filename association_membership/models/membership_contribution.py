@@ -185,6 +185,21 @@ class MembershipContribution(models.Model):
             record.membership_year = self._normalize_membership_year_value(record.membership_year_text)
 
     @api.model
+    def action_open_default_year_contributions(self):
+        action = self.env.ref(
+            "association_membership.action_membership_contribution"
+        ).read()[0]
+        default_year = (
+            self.env.company.membership_default_contribution_year
+            or fields.Date.context_today(self).year
+        )
+        action["context"] = {
+            "search_default_current_year": 1,
+            "default_membership_year_filter": default_year,
+        }
+        return action
+
+    @api.model
     def _prepare_membership_contribution_values(self, vals, membership=False):
         vals = vals.copy()
         membership = membership or self.env["membership.membership"].browse(vals["membership_id"])

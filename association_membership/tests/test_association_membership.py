@@ -448,34 +448,31 @@ class TestAssociationMembership(TransactionCase):
         )
         self.assertEqual(membership.membership_number, "IMPORT-0002")
 
-    def test_membership_navigation_uses_membership_kanban_overview(self):
+    def test_membership_navigation_uses_membership_list_overview(self):
         overview_action = self.env.ref("association_membership.action_members_overview")
         root_menu = self.env.ref("association_membership.menu_membership_root")
 
         self.assertEqual(overview_action.name, "Memberships")
         self.assertEqual(overview_action.res_model, "membership.membership")
-        self.assertEqual(overview_action.view_mode, "kanban,list,form")
+        self.assertEqual(overview_action.view_mode, "list,form,kanban")
         self.assertEqual(overview_action.domain, "[]")
         self.assertEqual(
             overview_action.view_id,
-            self.env.ref("association_membership.view_membership_membership_kanban"),
+            self.env.ref("association_membership.view_membership_membership_list"),
         )
-        records_action = self.env.ref("association_membership.action_membership_membership")
-        self.assertEqual(records_action.view_mode, "kanban,list,form")
-        self.assertEqual(
-            records_action.view_id,
-            self.env.ref("association_membership.view_membership_membership_kanban"),
-        )
+        self.assertIn("search_default_active_memberships", overview_action.context)
+        self.assertNotIn("group_by", overview_action.context)
         self.assertIn("membership_number", overview_action.view_id.arch_db)
-        self.assertNotIn("current_member_numbers_kanban", overview_action.view_id.arch_db)
         self.assertEqual(root_menu.action, overview_action)
 
-        records_menu = self.env.ref("association_membership.menu_membership_memberships")
+        records_menu = self.env.ref(
+            "association_membership.menu_membership_memberships",
+            raise_if_not_found=False,
+        )
         config_menu = self.env.ref("association_membership.menu_membership_configuration")
         renewal_menu = self.env.ref("association_membership.menu_membership_renewal")
 
-        self.assertEqual(records_menu.name, "Membership Records")
-        self.assertEqual(records_menu.parent_id, root_menu)
+        self.assertFalse(records_menu.active)
         self.assertEqual(config_menu.parent_id, root_menu)
         self.assertEqual(renewal_menu.parent_id, config_menu)
         self.assertFalse(
@@ -579,6 +576,15 @@ class TestAssociationMembership(TransactionCase):
 
         self.assertEqual(membership.invoice_partner_id, invoice_contact)
         self.assertEqual(contribution.invoice_partner_id, invoice_contact)
+
+    def test_contribution_action_defaults_to_default_contribution_year_filter(self):
+        action = self.env["membership.contribution"].action_open_default_year_contributions()
+
+        self.assertEqual(action["context"]["search_default_current_year"], 1)
+        self.assertEqual(
+            action["context"]["default_membership_year_filter"],
+            self.env.company.membership_default_contribution_year,
+        )
 
     def test_contact_member_number_display_uses_current_company_memberships_only(self):
         other_company = self.env["res.company"].create(

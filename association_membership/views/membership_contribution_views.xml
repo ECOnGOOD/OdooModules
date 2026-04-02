@@ -32,6 +32,11 @@
                 <field name="membership_year" />
                 <field name="billing_status" />
                 <filter
+                    name="current_year"
+                    string="Current Year"
+                    domain="[('membership_year', '=', context.get('default_membership_year_filter'))]"
+                />
+                <filter
                     name="unpaid_contributions"
                     string="Unpaid"
                     domain="[('billing_status', 'in', ('to_invoice', 'invoiced', 'partial'))]"
@@ -101,6 +106,13 @@
                 <field name="amount_paid" type="measure" />
             </pivot>
         </field>
+    </record>
+
+    <record id="action_membership_contribution_default_year" model="ir.actions.server">
+        <field name="name">Contributions</field>
+        <field name="model_id" ref="association_membership.model_membership_contribution" />
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_default_year_contributions()</field>
     </record>
 
     <record id="action_membership_contribution" model="ir.actions.act_window">

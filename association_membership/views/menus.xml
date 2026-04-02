@@ -8,20 +8,20 @@
         groups="association_membership.group_membership_manager"
     />
 
-    <menuitem
-        id="menu_membership_memberships"
-        name="Membership Records"
-        parent="association_membership.menu_membership_root"
-        action="association_membership.action_membership_membership"
-        sequence="10"
-        groups="association_membership.group_membership_manager"
-    />
+    <record id="menu_membership_memberships" model="ir.ui.menu">
+        <field name="name">Membership Records</field>
+        <field name="parent_id" ref="association_membership.menu_membership_root" />
+        <field name="action" ref="association_membership.action_membership_membership" />
+        <field name="sequence">10</field>
+        <field name="groups_id" eval="[(6, 0, [ref('association_membership.group_membership_manager')])]" />
+        <field name="active" eval="False" />
+    </record>
 
     <menuitem
         id="menu_membership_contributions"
         name="Contributions"
         parent="association_membership.menu_membership_root"
-        action="association_membership.action_membership_contribution"
+        action="association_membership.action_membership_contribution_default_year"
         sequence="20"
         groups="association_membership.group_membership_manager"
     />
