@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_res_partner_organization_kind_user,res.partner.organization.kind user,model_res_partner_organization_kind,base.group_user,1,0,0,0
+access_res_partner_organization_kind_system,res.partner.organization.kind system,model_res_partner_organization_kind,base.group_system,1,1,1,1
+access_res_partner_ou_type_user,res.partner.ou.type user,model_res_partner_ou_type,base.group_user,1,0,0,0
+access_res_partner_ou_type_system,res.partner.ou.type system,model_res_partner_ou_type,base.group_system,1,1,1,1

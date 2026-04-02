@@ -1,0 +1,48 @@
+<odoo noupdate="1">
+    <record id="res_partner_organization_kind_company" model="res.partner.organization.kind">
+        <field name="name">Company</field>
+        <field name="code">company</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="res_partner_organization_kind_organization" model="res.partner.organization.kind">
+        <field name="name">Organization</field>
+        <field name="code">organization</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="res_partner_organization_kind_municipality_public_body" model="res.partner.organization.kind">
+        <field name="name">Municipality / Public Body</field>
+        <field name="code">municipality_public_body</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="res_partner_organization_kind_other_organization" model="res.partner.organization.kind">
+        <field name="name">Other Organization</field>
+        <field name="code">other_organization</field>
+        <field name="sequence">40</field>
+    </record>
+
+    <record id="res_partner_ou_type_national_association" model="res.partner.ou.type">
+        <field name="name">National Association</field>
+        <field name="code">national_association</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="res_partner_ou_type_regional_association" model="res.partner.ou.type">
+        <field name="name">Regional Association</field>
+        <field name="code">regional_association</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="res_partner_ou_type_local_chapter" model="res.partner.ou.type">
+        <field name="name">Local Chapter</field>
+        <field name="code">local_chapter</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="res_partner_ou_type_hub" model="res.partner.ou.type">
+        <field name="name">Hub</field>
+        <field name="code">hub</field>
+        <field name="sequence">40</field>
+    </record>
+    <record id="res_partner_ou_type_other" model="res.partner.ou.type">
+        <field name="name">Other</field>
+        <field name="code">other</field>
+        <field name="sequence">50</field>
+    </record>
+</odoo>

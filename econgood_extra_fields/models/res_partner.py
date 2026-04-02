@@ -19,10 +19,24 @@ class ResPartner(models.Model):
         help="Population count if this partner represents a region or commune.",
     )
 
-    # Nonprofit Status
-    x_is_nonprofit = fields.Boolean(
-        string="Nonprofit Organization",
-        default=False,
+    # Organization classification
+    x_organization_kind_id = fields.Many2one(
+        comodel_name="res.partner.organization.kind",
+        string="Organization Kind",
+    )
+    x_ou_type_id = fields.Many2one(
+        comodel_name="res.partner.ou.type",
+        string="OU Type",
+    )
+    x_nonprofit_status = fields.Selection(
+        selection=[
+            ("unknown", "Unknown"),
+            ("confirmed", "Confirmed nonprofit"),
+            ("not_nonprofit", "Not nonprofit"),
+        ],
+        string="Nonprofit Status",
+        default="unknown",
+        required=True,
     )
 
     # Legal/Compliance Dates
@@ -42,6 +56,13 @@ class ResPartner(models.Model):
     x_legacy_id_formidable = fields.Char(string="Legacy ID Formidable")
     x_letter_salutation = fields.Char(string="Letter Salutation")
     x_socials = fields.Char(string="Socials")
+
+    @api.onchange("company_type")
+    def _onchange_company_type_clear_org_fields_for_people(self):
+        for partner in self:
+            if partner.company_type == "person":
+                partner.x_organization_kind_id = False
+                partner.x_ou_type_id = False
 
     @api.constrains("x_employee_count", "x_inhabitant_count")
     def _check_non_negative_counts(self):
@@ -85,4 +106,16 @@ class ResPartner(models.Model):
             ):
                 raise ValidationError(
                     _("ECOnGOOD Email Address is not a valid email.")
+                )
+
+    @api.constrains("company_type", "x_organization_kind_id", "x_ou_type_id")
+    def _check_company_classification_fields(self):
+        for partner in self:
+            if partner.company_type == "person" and (
+                partner.x_organization_kind_id or partner.x_ou_type_id
+            ):
+                raise ValidationError(
+                    _(
+                        "Organization Kind and OU Type can only be set on company contacts."
+                    )
                 )
