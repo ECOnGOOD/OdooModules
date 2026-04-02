@@ -18,7 +18,7 @@
                         placeholder="'Select a partner'"
                     />
                 </div>
-                <div class="prg-toolbar-section">
+                <div class="prg-toolbar-section" t-if="props.standalone">
                     <label class="form-label">Relation Types</label>
                     <select class="form-select prg-type-select" multiple="multiple" t-on-change="onRelationTypeChange">
                         <option
@@ -72,19 +72,33 @@
 
                 <aside class="prg-side-panel">
                     <div class="prg-side-section" t-if="selectedNode">
-                        <h5>Selected Partner</h5>
-                        <p class="prg-side-title"><t t-esc="selectedNode.display_name" /></p>
-                        <p>Type: <t t-esc="selectedNode.is_company ? 'Company' : 'Person'" /></p>
-                        <p>Role: <t t-esc="selectedNode.is_focal ? 'Focal partner' : selectedNode.is_expanded ? 'Expanded node' : 'Related partner'" /></p>
-                        <div class="prg-side-actions">
-                            <button class="btn btn-primary" type="button" t-on-click="onOpenSelectedPartner">Open Partner</button>
-                            <button class="btn btn-outline-secondary" type="button" t-if="canExpandSelectedNode" t-on-click="onExpandSelectedNode">Expand One Hop</button>
-                        </div>
+                        <h5>Selected Contact</h5>
+                        <a
+                            class="prg-side-title prg-side-link"
+                            t-att-href="partnerRecordUrl(selectedNode.id)"
+                            t-on-click.prevent="onOpenSelectedPartner"
+                        >
+                            <t t-esc="selectedNode.display_name" />
+                        </a>
+                    </div>
+                    <div class="prg-side-section" t-if="!props.standalone">
+                        <h5>Relation Types</h5>
+                        <select class="form-select prg-type-select prg-side-select" multiple="multiple" t-on-change="onRelationTypeChange">
+                            <option
+                                t-foreach="state.relationTypes"
+                                t-as="relationType"
+                                t-key="relationType.id"
+                                t-att-value="relationType.id"
+                                t-att-selected="state.relationTypeIds.includes(relationType.id)"
+                            >
+                                <t t-esc="relationTypeLabel(relationType)" />
+                            </option>
+                        </select>
                     </div>
                     <div class="prg-side-section" t-if="selectedEdge">
                         <h5>Selected Relationship</h5>
-                        <p class="prg-side-title"><t t-esc="selectedEdge.label" /></p>
-                        <p>Inverse label: <t t-esc="selectedEdge.inverse_label || '-'" /></p>
+                        <p class="prg-side-title"><t t-esc="displayEdgeLabel(selectedEdge)" /></p>
+                        <p>Inverse label: <t t-esc="displayOppositeEdgeLabel(selectedEdge) || '-'" /></p>
                         <p>Start: <t t-esc="selectedEdge.date_start || '-'" /></p>
                         <p>End: <t t-esc="selectedEdge.date_end || '-'" /></p>
                         <p>Status: <t t-esc="selectedEdge.active ? 'Active' : 'Past'" /></p>

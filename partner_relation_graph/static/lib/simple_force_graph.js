@@ -136,16 +136,47 @@
         const distance = Math.hypot(dx, dy) || 1;
         const normalX = -dy / distance;
         const normalY = dx / distance;
-        const curveDistance = trackOffset * 28;
-        const controlX = (source.x + target.x) / 2 + normalX * curveDistance;
-        const controlY = (source.y + target.y) / 2 + normalY * curveDistance;
-        const labelX = 0.25 * source.x + 0.5 * controlX + 0.25 * target.x;
-        const labelY = 0.25 * source.y + 0.5 * controlY + 0.25 * target.y;
+        const offsetDistance = trackOffset * 22;
+        const offsetX = normalX * offsetDistance;
+        const offsetY = normalY * offsetDistance;
+        const startX = source.x + offsetX;
+        const startY = source.y + offsetY;
+        const endX = target.x + offsetX;
+        const endY = target.y + offsetY;
+        const labelX = (startX + endX) / 2;
+        const labelY = (startY + endY) / 2 - 8;
 
         return {
-            path: `M ${source.x} ${source.y} Q ${controlX} ${controlY} ${target.x} ${target.y}`,
+            path: `M ${startX} ${startY} L ${endX} ${endY}`,
             labelX,
             labelY,
+        };
+    }
+
+    function resolveEdgeDirection(edge, selectedNodeId, focalNodeId) {
+        const edgeTouchesSelectedNode =
+            selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
+        const edgeTouchesFocalNode =
+            focalNodeId && (edge.source === focalNodeId || edge.target === focalNodeId);
+
+        let preferredSourceId = null;
+        if (edgeTouchesSelectedNode) {
+            preferredSourceId = selectedNodeId;
+        } else if (edgeTouchesFocalNode) {
+            preferredSourceId = focalNodeId;
+        }
+
+        if (preferredSourceId && edge.target === preferredSourceId) {
+            return {
+                sourceId: edge.target,
+                targetId: edge.source,
+                label: edge.inverse_label || edge.label,
+            };
+        }
+        return {
+            sourceId: edge.source,
+            targetId: edge.target,
+            label: edge.label,
         };
     }
 
@@ -825,8 +856,13 @@
         }
 
         renderEdge(edge) {
-            const source = this.layout.get(edge.source) || { x: 0, y: 0 };
-            const target = this.layout.get(edge.target) || { x: 0, y: 0 };
+            const directedEdge = resolveEdgeDirection(
+                edge,
+                this.selection.nodeId,
+                this.data.meta?.focal_partner_id || null
+            );
+            const source = this.layout.get(directedEdge.sourceId) || { x: 0, y: 0 };
+            const target = this.layout.get(directedEdge.targetId) || { x: 0, y: 0 };
             const track = this.edgeTracks.get(edge.id) || { offset: 0 };
             const curve = computeParallelPath(source, target, track.offset);
             const classes = ["prg-edge", edge.active ? "is-active" : "is-inactive"];
@@ -838,7 +874,7 @@
                     <path class="prg-edge-hitbox" d="${curve.path}"></path>
                     <path class="prg-edge-line" d="${curve.path}" marker-end="url(#${this.uid}_arrow)"></path>
                     <rect class="prg-edge-label-bg" rx="12"></rect>
-                    <text class="prg-edge-label" x="${curve.labelX}" y="${curve.labelY + 4}" text-anchor="middle">${escapeHtml(edge.label)}</text>
+                    <text class="prg-edge-label" x="${curve.labelX}" y="${curve.labelY + 4}" text-anchor="middle">${escapeHtml(directedEdge.label)}</text>
                 </g>
             `;
         }
@@ -892,22 +928,26 @@
                     ) {
                         return;
                     }
-                    if (event.detail >= 2) {
-                        this.emit("nodedblclick", { id: nodeId });
-                        return;
-                    }
                     this.emit("nodeclick", { id: nodeId });
+                });
+                nodeEl.addEventListener("dblclick", (event) => {
+                    event.stopPropagation();
+                    const nodeId = Number(nodeEl.dataset.nodeId);
+                    this.suppressedNodeClick = { id: null, until: 0 };
+                    this.suppressedBackgroundClickUntil = Date.now() + 250;
+                    this.emit("nodedblclick", { id: nodeId });
                 });
             }
             for (const edgeEl of this.viewportEl.querySelectorAll("[data-edge-id]")) {
                 edgeEl.addEventListener("click", (event) => {
                     event.stopPropagation();
                     const edgeId = Number(edgeEl.dataset.edgeId);
-                    if (event.detail >= 2) {
-                        this.emit("edgedblclick", { id: edgeId });
-                        return;
-                    }
                     this.emit("edgeclick", { id: edgeId });
+                });
+                edgeEl.addEventListener("dblclick", (event) => {
+                    event.stopPropagation();
+                    const edgeId = Number(edgeEl.dataset.edgeId);
+                    this.emit("edgedblclick", { id: edgeId });
                 });
             }
         }

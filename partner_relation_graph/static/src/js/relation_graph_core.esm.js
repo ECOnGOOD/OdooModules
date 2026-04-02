@@ -70,7 +70,6 @@ export class RelationGraphCanvas extends Component {
             this.graph = new GraphLibrary(this.canvasRef.el);
             this.graph.on("nodeclick", ({ id }) => this.props.onNodeSelect?.(id));
             this.graph.on("edgeclick", ({ id }) => this.props.onEdgeSelect?.(id));
-            this.graph.on("nodedblclick", ({ id }) => this.props.onNodeOpen?.(id));
             this.graph.on("edgedblclick", ({ id }) => this.props.onEdgeOpen?.(id));
             this.graph.on("backgroundclick", () => this.props.onBackgroundClick?.());
             this.graph.on("viewstatechange", (viewState) => this.props.onViewStateChange?.(viewState));
@@ -123,6 +122,7 @@ export class RelationGraphExplorer extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
+        this.lastNodeInteraction = { id: false, at: 0 };
         this.state = useState({
             partnerId: toSingleId(this.props.seedPartnerId),
             includeInactive: false,
@@ -185,12 +185,8 @@ export class RelationGraphExplorer extends Component {
         return this.state.graphData.nodes.length > 1 || this.state.graphData.edges.length > 0;
     }
 
-    get canExpandSelectedNode() {
-        return Boolean(
-            this.selectedNode &&
-                !this.selectedNode.is_focal &&
-                !this.state.expandedPartnerIds.includes(this.selectedNode.id)
-        );
+    get focalPartnerId() {
+        return toSingleId(this.state.graphData.meta?.focal_partner_id);
     }
 
     async loadRelationTypes() {
@@ -233,6 +229,7 @@ export class RelationGraphExplorer extends Component {
     }
 
     clearSelection() {
+        this.lastNodeInteraction = { id: false, at: 0 };
         this.state.selectedNodeId = false;
         this.state.selectedEdgeId = false;
     }
@@ -261,12 +258,29 @@ export class RelationGraphExplorer extends Component {
         await this.reloadGraph();
     }
 
-    onNodeSelect(nodeId) {
-        this.state.selectedNodeId = nodeId;
+    async onNodeSelect(nodeId) {
+        const selectedNodeId = toSingleId(nodeId);
+        const now = Date.now();
+        const shouldToggleExpansion =
+            Boolean(selectedNodeId) &&
+            selectedNodeId === this.state.selectedNodeId &&
+            this.lastNodeInteraction.id === selectedNodeId &&
+            now - this.lastNodeInteraction.at < 360;
+
+        this.state.selectedNodeId = selectedNodeId;
         this.state.selectedEdgeId = false;
+
+        if (shouldToggleExpansion) {
+            this.lastNodeInteraction = { id: false, at: 0 };
+            await this.toggleExpandedNode(selectedNodeId);
+            return;
+        }
+
+        this.lastNodeInteraction = { id: selectedNodeId, at: now };
     }
 
     onEdgeSelect(edgeId) {
+        this.lastNodeInteraction = { id: false, at: 0 };
         this.state.selectedEdgeId = edgeId;
         this.state.selectedNodeId = false;
     }
@@ -276,7 +290,7 @@ export class RelationGraphExplorer extends Component {
     }
 
     async onGraphNodeOpen(nodeId) {
-        await this.openPartner(nodeId);
+        await this.toggleExpandedNode(nodeId);
     }
 
     async onGraphEdgeOpen(edgeId) {
@@ -291,15 +305,15 @@ export class RelationGraphExplorer extends Component {
         await this.openRelation(this.selectedEdge?.id);
     }
 
-    async onExpandSelectedNode() {
-        if (!this.canExpandSelectedNode) {
+    async toggleExpandedNode(nodeId = false) {
+        const selectedNodeId = toSingleId(nodeId);
+        if (!selectedNodeId || selectedNodeId === this.focalPartnerId) {
             return;
         }
-        const selectedNodeId = this.selectedNode.id;
-        this.state.expandedPartnerIds = toIdList([
-            ...this.state.expandedPartnerIds,
-            selectedNodeId,
-        ]);
+        const nextExpandedIds = this.state.expandedPartnerIds.includes(selectedNodeId)
+            ? this.state.expandedPartnerIds.filter((id) => id !== selectedNodeId)
+            : [...this.state.expandedPartnerIds, selectedNodeId];
+        this.state.expandedPartnerIds = toIdList(nextExpandedIds);
         await this.reloadGraph();
         this.state.selectedNodeId = selectedNodeId;
     }
@@ -330,6 +344,58 @@ export class RelationGraphExplorer extends Component {
             views: [[false, "form"]],
             target: "main",
         });
+    }
+
+    partnerRecordUrl(partnerId = false) {
+        const selectedPartnerId = toSingleId(partnerId || this.selectedNode?.id);
+        return selectedPartnerId ? `/odoo/res.partner/${selectedPartnerId}` : "#";
+    }
+
+    getEdgeDisplay(edge) {
+        if (!edge) {
+            return {
+                label: "",
+                oppositeLabel: "",
+                source: false,
+                target: false,
+            };
+        }
+        const selectedNodeId = toSingleId(this.state.selectedNodeId);
+        const focalPartnerId = this.focalPartnerId;
+        const edgeTouchesSelectedNode =
+            selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
+        const edgeTouchesFocalNode =
+            focalPartnerId && (edge.source === focalPartnerId || edge.target === focalPartnerId);
+
+        let preferredSourceId = false;
+        if (edgeTouchesSelectedNode) {
+            preferredSourceId = selectedNodeId;
+        } else if (edgeTouchesFocalNode) {
+            preferredSourceId = focalPartnerId;
+        }
+
+        if (preferredSourceId && edge.target === preferredSourceId) {
+            return {
+                label: edge.inverse_label || edge.label,
+                oppositeLabel: edge.label,
+                source: edge.target,
+                target: edge.source,
+            };
+        }
+        return {
+            label: edge.label,
+            oppositeLabel: edge.inverse_label || edge.label,
+            source: edge.source,
+            target: edge.target,
+        };
+    }
+
+    displayEdgeLabel(edge) {
+        return this.getEdgeDisplay(edge).label;
+    }
+
+    displayOppositeEdgeLabel(edge) {
+        return this.getEdgeDisplay(edge).oppositeLabel;
     }
 
     onGraphViewStateChange(viewState) {

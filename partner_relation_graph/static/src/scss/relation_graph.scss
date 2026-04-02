@@ -40,6 +40,10 @@
     min-height: 7.5rem;
 }
 
+.prg-side-select {
+    min-height: 10rem;
+}
+
 .prg-content {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
@@ -97,6 +101,19 @@
     color: #3d3148;
 }
 
+.prg-side-link {
+    display: inline-flex;
+    align-items: center;
+    color: #3d3148;
+    text-decoration: none;
+}
+
+.prg-side-link:hover,
+.prg-side-link:focus {
+    color: #875a7b;
+    text-decoration: underline;
+}
+
 .prg-side-actions {
     display: flex;
     flex-wrap: wrap;
@@ -133,7 +150,7 @@
 
 .prg-edge-line {
     stroke: #85758d;
-    stroke-width: 2;
+    stroke-width: 1.75;
     fill: none;
 }
 
