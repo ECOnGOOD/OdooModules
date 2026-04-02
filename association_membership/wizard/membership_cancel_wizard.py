@@ -1,6 +1,7 @@
 from datetime import date
 
 from odoo import _, fields, models
+from odoo.exceptions import UserError
 
 
 class MembershipCancelWizard(models.TransientModel):
@@ -24,10 +25,12 @@ class MembershipCancelWizard(models.TransientModel):
 
     def action_confirm(self):
         self.ensure_one()
-        self.membership_id._do_transition(
-            "cancelled",
-            date_cancelled=self.date_cancelled,
-            date_end=self.date_end,
-            cancel_reason=self.cancel_reason,
-        )
+        if self.membership_id.state != "active":
+            raise UserError(_("Only active memberships can be cancelled."))
+        values = {
+            "date_cancelled": self.date_cancelled,
+            "date_end": self.date_end,
+            "cancel_reason": self.cancel_reason,
+        }
+        self.membership_id._schedule_termination(**values)
         return {"type": "ir.actions.act_window_close"}

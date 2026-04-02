@@ -20,7 +20,6 @@ class MembershipRenewalWizard(models.TransientModel):
     product_ids = fields.Many2many("product.product", string="Membership Products")
     dry_run = fields.Boolean(string="Dry Run")
     invoice_date = fields.Date()
-    auto_post = fields.Boolean()
     result_line_ids = fields.One2many(
         "membership.renewal.wizard.line",
         "wizard_id",
@@ -35,7 +34,7 @@ class MembershipRenewalWizard(models.TransientModel):
         self.ensure_one()
         target_start, target_end = self._renewal_window()
         domain = [
-            ("state", "=", "active"),
+            ("membership_active", "=", True),
             ("company_id", "in", self.company_ids.ids),
             ("date_start", "<=", target_end),
             "|",
@@ -55,6 +54,15 @@ class MembershipRenewalWizard(models.TransientModel):
         ).mapped("membership_id")
         return set(contribution_memberships.ids)
 
+    def _result_message(self, strategy, is_free=False):
+        if is_free or strategy == "manual":
+            return _("Created contribution.")
+        if strategy == "draft":
+            return _("Created contribution and draft invoice.")
+        if strategy == "auto_confirm":
+            return _("Created contribution and confirmed invoice.")
+        return _("Created contribution and sent invoice.")
+
     def _build_result_values(self, item, status, message, invoice=False):
         return {
             "membership_id": item["membership"].id,
@@ -63,7 +71,6 @@ class MembershipRenewalWizard(models.TransientModel):
             "status": status,
             "message": message,
             "amount_expected": item["amount_expected"],
-            "is_free": item["is_free"],
             "invoice_id": invoice.id if invoice else False,
         }
 
@@ -77,37 +84,35 @@ class MembershipRenewalWizard(models.TransientModel):
         eligible_memberships = candidate_memberships.filtered(
             lambda membership: membership.id not in existing_membership_ids
         )
-        paid_groups = {}
+        grouped_items = {}
 
         for membership in eligible_memberships:
-            is_free = membership._resolve_is_free()
-            amount_expected = membership._resolve_amount_expected(is_free=is_free)
+            amount_expected = membership._resolve_amount_expected()
+            is_free = membership._resolve_is_free(amount_value=amount_expected)
             item = {
                 "membership": membership,
-                "is_free": is_free,
                 "amount_expected": amount_expected,
                 "invoice_partner": membership._get_invoice_partner(),
-                "currency": membership.currency_id,
+                "is_free": is_free,
+                "strategy": membership.company_id.membership_invoicing_strategy,
             }
             if is_free:
                 try:
                     with self.env.cr.savepoint():
                         if not self.dry_run:
-                            contribution_vals = membership._prepare_contribution_create_values(
-                                self.target_year,
-                                is_free=True,
-                                amount_expected=0.0,
-                                invoice_partner_id=item["invoice_partner"].id,
+                            membership.env["membership.contribution"].create(
+                                membership._prepare_contribution_create_values(
+                                    self.target_year,
+                                    amount_expected=0.0,
+                                    invoice_partner_id=item["invoice_partner"].id,
+                                )
                             )
-                            self.env["membership.contribution"].with_context(
-                                skip_membership_invoice_creation=True
-                            ).create(contribution_vals)
                     result_commands.append(
                         Command.create(
                             self._build_result_values(
                                 item,
                                 "created",
-                                _("Created free contribution."),
+                                self._result_message(item["strategy"], is_free=True),
                             )
                         )
                     )
@@ -129,7 +134,7 @@ class MembershipRenewalWizard(models.TransientModel):
                 self.target_year,
                 membership.currency_id.id,
             )
-            paid_groups.setdefault(group_key, []).append(item)
+            grouped_items.setdefault(group_key, []).append(item)
 
         skipped_memberships = candidate_memberships.filtered(
             lambda membership: membership.id in existing_membership_ids
@@ -150,41 +155,39 @@ class MembershipRenewalWizard(models.TransientModel):
                 )
             )
 
-        for group_items in paid_groups.values():
+        for group in grouped_items.values():
             try:
                 invoice = False
                 with self.env.cr.savepoint():
                     if not self.dry_run:
-                        contributions = self.env["membership.contribution"].with_context(
-                            skip_membership_invoice_creation=True
-                        ).create(
+                        contributions = self.env["membership.contribution"].create(
                             [
                                 item["membership"]._prepare_contribution_create_values(
                                     self.target_year,
                                     amount_expected=item["amount_expected"],
                                     invoice_partner_id=item["invoice_partner"].id,
                                 )
-                                for item in group_items
+                                for item in group
                             ]
                         )
-                        invoice = contributions._create_membership_invoices(
-                            auto_post=self.auto_post,
+                        invoice = contributions._apply_invoicing_strategy(
+                            strategy=group[0]["strategy"],
                             invoice_date=self.invoice_date,
                         )[:1]
-                for item in group_items:
+                for item in group:
                     result_commands.append(
                         Command.create(
                             self._build_result_values(
                                 item,
                                 "created",
-                                _("Created contribution and invoice draft."),
+                                self._result_message(item["strategy"]),
                                 invoice=invoice,
                             )
                         )
                     )
             except Exception as error:
                 self.env.invalidate_all()
-                for item in group_items:
+                for item in group:
                     result_commands.append(
                         Command.create(
                             self._build_result_values(
@@ -233,5 +236,4 @@ class MembershipRenewalWizardLine(models.TransientModel):
         related="membership_id.currency_id",
         readonly=True,
     )
-    is_free = fields.Boolean(readonly=True)
     invoice_id = fields.Many2one("account.move", readonly=True)

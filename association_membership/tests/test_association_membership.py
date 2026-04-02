@@ -3,7 +3,7 @@ import base64
 import csv
 import io
 import re
-from datetime import timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from psycopg2 import IntegrityError
@@ -29,6 +29,8 @@ class TestAssociationMembership(TransactionCase):
                 "membership_auto_activate_on_payment": False,
                 "membership_cron_year_offset": 1,
                 "membership_cron_auto_post": False,
+                "membership_default_contribution_year": cls.today.year,
+                "membership_invoicing_strategy": "draft",
                 "member_number_prefix": "MEM/%(year)s/",
                 "member_number_padding": 5,
             }
@@ -111,7 +113,9 @@ class TestAssociationMembership(TransactionCase):
         company=None,
         state="draft",
         date_start=None,
+        date_cancelled=False,
         date_end=False,
+        cancel_reason=False,
         amount_override=False,
         is_free_override=False,
         membership_number=False,
@@ -127,12 +131,16 @@ class TestAssociationMembership(TransactionCase):
         }
         if invoice_partner:
             vals["invoice_partner_id"] = invoice_partner.id
+        if date_cancelled:
+            vals["date_cancelled"] = date_cancelled
         if date_end:
             vals["date_end"] = date_end
+        if cancel_reason:
+            vals["cancel_reason"] = cancel_reason
         if amount_override is not False:
             vals["amount_override"] = amount_override
         if is_free_override:
-            vals["is_free_override"] = True
+            vals["amount_override"] = 0.0
         if membership_number is not False:
             vals["membership_number"] = membership_number
         return self.env["membership.membership"].create(vals)
@@ -183,6 +191,7 @@ class TestAssociationMembership(TransactionCase):
         self.assertEqual(membership.invoice_partner_id, self.member_partner)
         self.assertEqual(membership.date_start, self.today)
         self.assertEqual(membership.state, "draft")
+        self.assertFalse(membership.membership_active)
         self.assertIn(self.member_partner.display_name, membership.name)
         self.assertTrue(preview_membership.membership_number_preview)
         self.assertRegex(
@@ -195,24 +204,58 @@ class TestAssociationMembership(TransactionCase):
 
         membership.action_submit()
         self.assertEqual(membership.state, "waiting")
+        self.assertFalse(membership.membership_active)
 
         membership.action_activate()
         self.assertEqual(membership.state, "active")
+        self.assertTrue(membership.membership_active)
 
-        membership._do_transition(
-            "cancelled",
+        membership._schedule_termination(
             date_cancelled=self.today,
+            date_end=self.today + timedelta(days=30),
             cancel_reason="No longer needed.",
         )
         self.assertEqual(membership.state, "cancelled")
+        self.assertTrue(membership.membership_active)
         self.assertEqual(membership.date_cancelled, self.today)
-        self.assertEqual(membership.date_end, self.today.replace(month=12, day=31))
+        self.assertEqual(membership.date_end, self.today + timedelta(days=30))
+
+        membership.action_activate()
+        self.assertEqual(membership.state, "active")
+        self.assertTrue(membership.membership_active)
+        self.assertFalse(membership.date_cancelled)
+        self.assertFalse(membership.date_end)
+        self.assertFalse(membership.cancel_reason)
+
+        membership._schedule_termination(
+            date_cancelled=self.today,
+            date_end=self.today + timedelta(days=1),
+            cancel_reason="No longer needed.",
+        )
+        self.assertEqual(membership.state, "cancelled")
+
+        membership._do_transition(
+            "terminated",
+            date_cancelled=membership.date_cancelled,
+            date_end=membership.date_end,
+            cancel_reason=membership.cancel_reason,
+        )
+        self.assertEqual(membership.state, "terminated")
+        self.assertFalse(membership.membership_active)
+
+        with self.assertRaises(UserError):
+            membership.action_activate()
 
         membership.action_reopen_waiting()
         self.assertEqual(membership.state, "waiting")
+        self.assertFalse(membership.membership_active)
+        self.assertFalse(membership.date_cancelled)
+        self.assertFalse(membership.date_end)
+        self.assertFalse(membership.cancel_reason)
 
         membership.action_revert_to_draft()
         self.assertEqual(membership.state, "draft")
+        self.assertFalse(membership.membership_active)
 
         with self.assertRaises(ValidationError):
             self._create_membership(
@@ -227,8 +270,36 @@ class TestAssociationMembership(TransactionCase):
         self.assertEqual(state_field.group_expand, "_read_group_state")
         self.assertEqual(
             self.env["membership.membership"]._read_group_state([], []),
-            ["draft", "waiting", "active", "cancelled"],
+            ["draft", "waiting", "active", "cancelled", "terminated"],
         )
+
+
+    def test_membership_active_is_true_only_for_active_and_cancelled(self):
+        membership = self._create_membership(self.paid_product)
+
+        self.assertFalse(membership.membership_active)
+
+        membership.action_submit()
+        self.assertFalse(membership.membership_active)
+
+        membership.action_activate()
+        self.assertTrue(membership.membership_active)
+
+        membership._schedule_termination(
+            date_cancelled=self.today,
+            date_end=self.today + timedelta(days=14),
+            cancel_reason="Pending termination.",
+        )
+        self.assertEqual(membership.state, "cancelled")
+        self.assertTrue(membership.membership_active)
+
+        membership._do_transition(
+            "terminated",
+            date_cancelled=membership.date_cancelled,
+            date_end=membership.date_end,
+            cancel_reason=membership.cancel_reason,
+        )
+        self.assertFalse(membership.membership_active)
 
     def test_member_number_auto_generation_uses_company_format_and_is_global(self):
         other_company = self.env["res.company"].create(
@@ -389,6 +460,12 @@ class TestAssociationMembership(TransactionCase):
             overview_action.view_id,
             self.env.ref("association_membership.view_membership_membership_kanban"),
         )
+        records_action = self.env.ref("association_membership.action_membership_membership")
+        self.assertEqual(records_action.view_mode, "kanban,list,form")
+        self.assertEqual(
+            records_action.view_id,
+            self.env.ref("association_membership.view_membership_membership_kanban"),
+        )
         self.assertIn("membership_number", overview_action.view_id.arch_db)
         self.assertNotIn("current_member_numbers_kanban", overview_action.view_id.arch_db)
         self.assertEqual(root_menu.action, overview_action)
@@ -424,6 +501,7 @@ class TestAssociationMembership(TransactionCase):
             }
         )
 
+        self.env.company.membership_invoicing_strategy = "manual"
         membership = self._create_membership(self.paid_product, partner=member_partner)
         action = member_partner.action_create_membership()
         contribution_action = membership.action_create_contribution()
@@ -432,17 +510,17 @@ class TestAssociationMembership(TransactionCase):
         ).default_get(["membership_year", "invoice_partner_id"])
         contribution = self.env["membership.contribution"].new({"membership_id": membership.id})
         contribution._onchange_membership_id()
+        created_contribution = self.env["membership.contribution"].browse(contribution_action["res_id"])
 
         self.assertEqual(membership.invoice_partner_id, invoice_contact)
         self.assertEqual(action["context"]["default_invoice_partner_id"], invoice_contact.id)
-        self.assertEqual(
-            contribution_action["context"]["default_invoice_partner_id"],
-            invoice_contact.id,
-        )
+        self.assertEqual(contribution_action["res_model"], "membership.contribution")
         self.assertEqual(defaults["membership_year"], self.today.year)
         self.assertEqual(defaults["invoice_partner_id"], invoice_contact.id)
         self.assertEqual(contribution.invoice_partner_id, invoice_contact)
         self.assertEqual(contribution.membership_year, self.today.year)
+        self.assertEqual(created_contribution.invoice_partner_id, invoice_contact)
+        self.assertEqual(created_contribution.membership_year, self.today.year)
 
     def test_import_uses_membership_default_invoice_contact(self):
         member_partner = self.env["res.partner"].create(
@@ -502,7 +580,7 @@ class TestAssociationMembership(TransactionCase):
         self.assertEqual(membership.invoice_partner_id, invoice_contact)
         self.assertEqual(contribution.invoice_partner_id, invoice_contact)
 
-    def test_contact_member_number_display_uses_active_company_memberships_only(self):
+    def test_contact_member_number_display_uses_current_company_memberships_only(self):
         other_company = self.env["res.company"].create(
             {
                 "name": "Display Number Company",
@@ -526,16 +604,19 @@ class TestAssociationMembership(TransactionCase):
             partner=self.member_partner,
             invoice_partner=self.billing_partner,
         )
-        active_membership = self._create_membership(
+        cancelled_membership = self._create_membership(
             other_product,
-            state="active",
+            state="cancelled",
             company=other_company,
             partner=self.member_partner,
             invoice_partner=self.billing_partner,
+            date_cancelled=self.today,
+            date_end=self.today + timedelta(days=30),
+            cancel_reason="Pending end.",
         )
-        cancelled_membership = self._create_membership(
+        terminated_membership = self._create_membership(
             self.secondary_paid_product,
-            state="cancelled",
+            state="terminated",
             partner=self.member_partner,
             invoice_partner=self.billing_partner,
         )
@@ -547,13 +628,13 @@ class TestAssociationMembership(TransactionCase):
         all_numbers = partner.all_membership_numbers_display
 
         self.assertEqual(primary_number, waiting_membership.membership_number)
-        self.assertNotEqual(primary_number, active_membership.membership_number)
-        self.assertNotIn(cancelled_membership.membership_number, primary_number)
+        self.assertNotEqual(primary_number, cancelled_membership.membership_number)
+        self.assertNotIn(terminated_membership.membership_number, primary_number)
         self.assertIn(waiting_membership.membership_number, all_numbers)
-        self.assertIn(active_membership.membership_number, all_numbers)
+        self.assertIn(cancelled_membership.membership_number, all_numbers)
         self.assertIn(other_company.display_name, all_numbers)
         self.assertIn("/web#id=%s" % other_company.partner_id.id, all_numbers)
-        self.assertNotIn(cancelled_membership.membership_number, all_numbers)
+        self.assertNotIn(terminated_membership.membership_number, all_numbers)
 
     def test_contribution_creation_is_hybrid_and_free_memberships_stay_waived(self):
         membership = self._create_membership(
@@ -564,7 +645,7 @@ class TestAssociationMembership(TransactionCase):
         contribution = self.env["membership.contribution"].create(
             {
                 "membership_id": membership.id,
-                "membership_year": self.today.year,
+                "membership_year": self.next_year,
             }
         )
         self.env.invalidate_all()
@@ -589,7 +670,7 @@ class TestAssociationMembership(TransactionCase):
         self.assertEqual(contribution.invoice_id, invoice)
         self.assertEqual(contribution.amount_expected, 150.0)
         self.assertEqual(contribution.billing_status, "invoiced")
-        self.assertEqual(contribution.membership_year_display, str(self.today.year))
+        self.assertEqual(contribution.membership_year_display, str(self.next_year))
 
         free_membership = self._create_membership(
             self.free_product,
@@ -613,11 +694,11 @@ class TestAssociationMembership(TransactionCase):
                 self.env["membership.contribution"].create(
                     {
                         "membership_id": membership.id,
-                        "membership_year": self.today.year,
+                        "membership_year": self.next_year,
                     }
                 )
 
-    def test_zero_amount_override_keeps_zero_expected_amount_and_zero_value_invoice(self):
+    def test_zero_amount_override_marks_contribution_free_and_skips_invoice(self):
         membership = self._create_membership(
             self.paid_product,
             state="waiting",
@@ -633,14 +714,16 @@ class TestAssociationMembership(TransactionCase):
         self.env.invalidate_all()
 
         self.assertEqual(membership._resolve_amount_expected(), 0.0)
+        self.assertTrue(contribution.is_free)
         self.assertEqual(contribution.amount_expected, 0.0)
+        self.assertEqual(contribution.billing_status, "waived")
         self.assertFalse(contribution.invoice_id)
 
         invoice = contribution._create_membership_invoices()[:1]
         self.env.invalidate_all()
 
-        self.assertEqual(contribution.invoice_id, invoice)
-        self.assertEqual(contribution.invoice_line_id.price_unit, 0.0)
+        self.assertFalse(invoice)
+        self.assertFalse(contribution.invoice_id)
 
     def test_renewal_groups_paid_memberships_and_creates_free_contributions(self):
         target_year = self.next_year
@@ -648,8 +731,11 @@ class TestAssociationMembership(TransactionCase):
             self.paid_product,
             partner=self.member_partner,
             invoice_partner=self.billing_partner,
-            state="active",
+            state="cancelled",
             date_start=self.today - timedelta(days=30),
+            date_cancelled=self.today,
+            date_end=date(target_year, 12, 31),
+            cancel_reason="Ends after renewal year.",
         )
         paid_b = self._create_membership(
             self.secondary_paid_product,
@@ -672,7 +758,6 @@ class TestAssociationMembership(TransactionCase):
                 "company_ids": [(6, 0, [self.env.company.id])],
                 "dry_run": False,
                 "invoice_date": self.today,
-                "auto_post": False,
             }
         )
         wizard.action_run()
@@ -903,6 +988,153 @@ class TestAssociationMembership(TransactionCase):
         )
         self.assertEqual(membership.product_id, correct_product)
 
+    def test_cancel_membership_wizard_moves_future_end_date_to_cancelled(self):
+        membership = self._create_membership(
+            self.paid_product,
+            state="active",
+            invoice_partner=self.billing_partner,
+        )
+        wizard = self.env["membership.cancel.wizard"].create(
+            {
+                "membership_id": membership.id,
+                "date_cancelled": self.today,
+                "date_end": self.today + timedelta(days=30),
+                "cancel_reason": "Ends next month.",
+            }
+        )
+
+        wizard.action_confirm()
+        self.env.invalidate_all()
+
+        membership = self.env["membership.membership"].browse(membership.id)
+        self.assertEqual(membership.state, "cancelled")
+        self.assertTrue(membership.membership_active)
+        self.assertEqual(membership.date_cancelled, self.today)
+        self.assertEqual(membership.date_end, self.today + timedelta(days=30))
+        self.assertEqual(membership.cancel_reason, "Ends next month.")
+
+    def test_termination_cron_terminates_expired_cancelled_memberships(self):
+        membership = self._create_membership(
+            self.paid_product,
+            state="cancelled",
+            invoice_partner=self.billing_partner,
+            date_start=self.today - timedelta(days=30),
+            date_cancelled=self.today - timedelta(days=10),
+            date_end=self.today - timedelta(days=1),
+            cancel_reason="Finished.",
+        )
+
+        self.env["membership.membership"].cron_terminate_expired_memberships()
+        self.env.invalidate_all()
+
+        membership = self.env["membership.membership"].browse(membership.id)
+        self.assertEqual(membership.state, "terminated")
+        self.assertFalse(membership.membership_active)
+        self.assertEqual(membership.date_end, self.today - timedelta(days=1))
+        self.assertEqual(membership.date_cancelled, self.today - timedelta(days=10))
+        self.assertEqual(membership.cancel_reason, "Finished.")
+
+    def test_cancel_membership_wizard_terminates_immediately_when_end_is_today(self):
+        membership = self._create_membership(
+            self.paid_product,
+            state="active",
+            invoice_partner=self.billing_partner,
+        )
+        wizard = self.env["membership.cancel.wizard"].create(
+            {
+                "membership_id": membership.id,
+                "date_cancelled": self.today,
+                "date_end": self.today,
+                "cancel_reason": "Ends now.",
+            }
+        )
+
+        wizard.action_confirm()
+        self.env.invalidate_all()
+
+        membership = self.env["membership.membership"].browse(membership.id)
+        self.assertEqual(membership.state, "terminated")
+        self.assertFalse(membership.membership_active)
+        self.assertEqual(membership.date_cancelled, self.today)
+        self.assertEqual(membership.date_end, self.today)
+        self.assertEqual(membership.cancel_reason, "Ends now.")
+
+    def test_product_amount_prefers_variant_sales_price(self):
+        class DummyTemplate:
+            _fields = {"list_price": object()}
+
+            def __init__(self, list_price):
+                self.list_price = list_price
+
+        class DummyProduct:
+            _fields = {
+                "lst_price": object(),
+                "list_price": object(),
+                "product_tmpl_id": object(),
+            }
+
+            def __init__(self, lst_price, list_price):
+                self.lst_price = lst_price
+                self.list_price = list_price
+                self.product_tmpl_id = DummyTemplate(list_price)
+
+        amount = self.env["membership.membership"]._get_product_amount(
+            DummyProduct(145.0, 120.0)
+        )
+
+        self.assertEqual(amount, 145.0)
+
+    def test_action_create_contribution_uses_invoicing_strategy(self):
+        strategies = [
+            ("manual", False, False),
+            ("draft", True, False),
+            ("auto_confirm", True, True),
+        ]
+        for strategy, expect_invoice, expect_posted in strategies:
+            with self.subTest(strategy=strategy):
+                partner = self.env["res.partner"].create(
+                    {
+                        "name": f"Strategy Member {strategy}",
+                        "property_account_receivable_id": self.receivable_account.id,
+                    }
+                )
+                membership = self._create_membership(
+                    self.paid_product,
+                    partner=partner,
+                    state="waiting",
+                    invoice_partner=self.billing_partner,
+                )
+                membership.company_id.membership_invoicing_strategy = strategy
+                action = membership.action_create_contribution()
+                contribution = self.env["membership.contribution"].browse(action["res_id"])
+                self.assertEqual(contribution.membership_year, self.today.year)
+                if expect_invoice:
+                    self.assertTrue(contribution.invoice_id)
+                    self.assertEqual(contribution.invoice_id.state == "posted", expect_posted)
+                else:
+                    self.assertFalse(contribution.invoice_id)
+
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Strategy Member confirm_send",
+                "property_account_receivable_id": self.receivable_account.id,
+            }
+        )
+        membership = self._create_membership(
+            self.paid_product,
+            partner=partner,
+            state="waiting",
+            invoice_partner=self.billing_partner,
+        )
+        membership.company_id.membership_invoicing_strategy = "confirm_send"
+        send_model = type(self.env["account.move.send"])
+        with patch.object(send_model, "_generate_and_send_invoices", autospec=True) as send_mock:
+            action = membership.action_create_contribution()
+        contribution = self.env["membership.contribution"].browse(action["res_id"])
+        self.assertTrue(contribution.invoice_id)
+        self.assertEqual(contribution.invoice_id.state, "posted")
+        self.assertTrue(send_mock.called)
+
     def test_company_specific_settings_are_isolated(self):
         other_category = self.env["product.category"].create({"name": "Other Membership Category"})
         other_company = self.env["res.company"].create(
@@ -912,6 +1144,8 @@ class TestAssociationMembership(TransactionCase):
                 "membership_auto_activate_on_payment": True,
                 "membership_cron_year_offset": 3,
                 "membership_cron_auto_post": True,
+                "membership_default_contribution_year": self.next_year,
+                "membership_invoicing_strategy": "auto_confirm",
                 "member_number_prefix": "ALT/%(year)s/",
                 "member_number_padding": 7,
             }
@@ -943,6 +1177,8 @@ class TestAssociationMembership(TransactionCase):
         )
         self.assertEqual(other_company._render_member_number_prefix(), f"ALT/{self.today.year}/")
         self.assertEqual(other_company.member_number_padding, 7)
+        self.assertEqual(other_company.membership_default_contribution_year, self.next_year)
+        self.assertEqual(other_company.membership_invoicing_strategy, "auto_confirm")
 
         self._create_membership(
             other_product,

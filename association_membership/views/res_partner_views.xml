@@ -50,12 +50,11 @@
                             <field name="company_id" />
                             <field name="state" />
                             <field name="date_start" />
-                            <field name="date_end" />
+                            <field name="date_end" optional="hide" />
                             <field name="amount_override" string="Amount" />
                             <field name="last_billing_status" />
                             <field name="invoice_partner_id" optional="hide" />
                             <field name="date_cancelled" optional="hide" />
-                            <field name="active" optional="hide" />
                         </list>
                     </field>
                     <separator string="Contributions" />

@@ -11,4 +11,16 @@
         <field name="user_id" ref="base.user_root" />
         <field name="active">True</field>
     </record>
+
+    <record id="ir_cron_membership_termination" model="ir.cron">
+        <field name="name">Membership Termination</field>
+        <field name="model_id" ref="model_membership_membership" />
+        <field name="state">code</field>
+        <field name="code">model.cron_terminate_expired_memberships()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="nextcall">2026-04-03 02:15:00</field>
+        <field name="user_id" ref="base.user_root" />
+        <field name="active">True</field>
+    </record>
 </odoo>

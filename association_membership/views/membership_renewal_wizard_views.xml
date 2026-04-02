@@ -18,7 +18,6 @@
                     <group>
                         <field name="dry_run" />
                         <field name="invoice_date" />
-                        <field name="auto_post" />
                     </group>
                 </group>
                 <field name="result_line_ids" readonly="1">
@@ -27,7 +26,6 @@
                         <field name="partner_id" />
                         <field name="company_id" />
                         <field name="status" />
-                        <field name="is_free" />
                         <field name="amount_expected" />
                         <field name="invoice_id" />
                         <field name="message" />

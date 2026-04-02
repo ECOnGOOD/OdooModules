@@ -14,11 +14,11 @@
                         <setting string="Auto-activate on Payment">
                             <field name="membership_auto_activate_on_payment" />
                         </setting>
-                        <setting string="Scheduled Renewal Year Offset">
-                            <field name="membership_cron_year_offset" />
+                        <setting string="Default Contribution Year">
+                            <field name="membership_default_contribution_year_text" />
                         </setting>
-                        <setting string="Auto-post Scheduled Renewal Invoices">
-                            <field name="membership_cron_auto_post" />
+                        <setting string="Invoicing Strategy">
+                            <field name="membership_invoicing_strategy" />
                         </setting>
                     </block>
                     <block title="Member Numbers">

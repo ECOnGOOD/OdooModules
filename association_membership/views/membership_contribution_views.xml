@@ -7,10 +7,10 @@
             <list>
                 <field name="membership_id" />
                 <field name="partner_id" />
+                <field name="invoice_partner_id" optional="hide" />
                 <field name="company_id" />
                 <field name="product_id" />
                 <field name="membership_year_display" string="Year" />
-                <field name="is_free" />
                 <field name="amount_expected" />
                 <field name="amount_paid" />
                 <field name="billing_status" />
@@ -46,11 +46,6 @@
                     string="Refunded"
                     domain="[('billing_status', '=', 'refunded')]"
                 />
-                <filter
-                    name="free_only"
-                    string="Free"
-                    domain="[('is_free', '=', True)]"
-                />
                 <group expand="0" string="Group By">
                     <filter string="Year" name="group_by_year" context="{'group_by': 'membership_year'}" />
                     <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />
@@ -70,30 +65,23 @@
                     <group>
                         <group>
                             <field name="membership_id" />
-                            <field name="membership_year" options="{'format': false}" />
-                            <field name="company_id" readonly="1" />
+                            <field name="membership_year_text" string="Membership Year" />
                             <field name="partner_id" readonly="1" />
+                            <field name="invoice_partner_id" />
+                            <field name="company_id" readonly="1" />
                             <field name="product_id" readonly="1" />
+                            <field name="note" />
                         </group>
                         <group>
-                            <field name="is_free" />
+                            <field name="invoice_id" />
+                            <field name="invoice_line_id" readonly="1" />
+                            <field name="date_invoice" readonly="1" />
+                            <field name="refund_move_id" />
+                            <field name="date_refund" readonly="1" />
                             <field name="amount_expected" />
                             <field name="amount_invoiced" readonly="1" />
                             <field name="amount_paid" />
                             <field name="billing_status" />
-                        </group>
-                    </group>
-                    <group>
-                        <group>
-                            <field name="invoice_partner_id" />
-                            <field name="invoice_id" />
-                            <field name="invoice_line_id" readonly="1" />
-                            <field name="date_invoice" readonly="1" />
-                        </group>
-                        <group>
-                            <field name="refund_move_id" />
-                            <field name="date_refund" readonly="1" />
-                            <field name="note" />
                         </group>
                     </group>
                 </sheet>

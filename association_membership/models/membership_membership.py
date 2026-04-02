@@ -12,7 +12,10 @@ MEMBERSHIP_STATE_SELECTION = [
     ("waiting", "Waiting"),
     ("active", "Active"),
     ("cancelled", "Cancelled"),
+    ("terminated", "Terminated"),
 ]
+
+BUSINESS_ACTIVE_STATES = ("active", "cancelled")
 
 
 class MembershipMembership(models.Model):
@@ -32,7 +35,7 @@ class MembershipMembership(models.Model):
     )
     invoice_partner_id = fields.Many2one(
         "res.partner",
-        string="Billing Contact",
+        string="Invoice Contact",
         tracking=True,
         index=True,
     )
@@ -67,19 +70,27 @@ class MembershipMembership(models.Model):
     date_end = fields.Date(tracking=True, index=True)
     date_cancelled = fields.Date(tracking=True, index=True)
     cancel_reason = fields.Text(tracking=True)
+    membership_active = fields.Boolean(
+        string="Membership Active",
+        compute="_compute_membership_active",
+        store=True,
+        index=True,
+    )
     membership_number = fields.Char(
         tracking=True,
         index=True,
         copy=False,
     )
+    override_membership_number = fields.Boolean(
+        string="Override",
+        copy=False,
+    )
     membership_number_preview = fields.Char(
         compute="_compute_membership_number_preview",
-        string="Membership Number Preview",
+        string="Membership Number (Preview)",
     )
     amount_override = fields.Monetary(tracking=True)
     has_amount_override = fields.Boolean(copy=False)
-    is_free_override = fields.Boolean(tracking=True)
-    has_free_override = fields.Boolean(copy=False)
     currency_id = fields.Many2one(
         "res.currency",
         related="company_id.currency_id",
@@ -120,6 +131,19 @@ class MembershipMembership(models.Model):
 
     def _auto_init(self):
         result = super()._auto_init()
+        today = fields.Date.context_today(self)
+        self.env.cr.execute(
+            """
+            UPDATE membership_membership
+               SET state = CASE
+                   WHEN date_end > %s THEN 'cancelled'
+                   ELSE 'terminated'
+               END
+             WHERE state = 'active'
+               AND date_end IS NOT NULL
+            """,
+            (today,),
+        )
         self._migrate_legacy_membership_numbers()
         return result
 
@@ -220,7 +244,10 @@ class MembershipMembership(models.Model):
         )
         next_counter = str(sequence.number_next_actual) if sequence else False
         for record in self:
-            if record.membership_number or not next_counter:
+            if record.membership_number:
+                record.membership_number_preview = record.membership_number
+                continue
+            if not next_counter:
                 record.membership_number_preview = False
                 continue
             prefix = record.company_id._render_member_number_prefix(
@@ -230,6 +257,11 @@ class MembershipMembership(models.Model):
                 prefix,
                 next_counter.zfill(record.company_id.member_number_padding),
             )
+
+    @api.depends("state")
+    def _compute_membership_active(self):
+        for record in self:
+            record.membership_active = record.state in BUSINESS_ACTIVE_STATES
 
     @api.depends("contribution_ids")
     def _compute_contribution_count(self):
@@ -273,6 +305,10 @@ class MembershipMembership(models.Model):
         return self.env["res.partner"].browse(invoice_partner_id) or partner
 
     @api.model
+    def _normalize_state_value(self, value):
+        return value
+
+    @api.model
     def _prepare_membership_values(
         self,
         vals,
@@ -288,17 +324,19 @@ class MembershipMembership(models.Model):
         if for_create:
             vals.setdefault("company_id", self.env.company.id)
             vals.setdefault("date_start", fields.Date.context_today(self))
+        if "state" in vals:
+            vals["state"] = self._normalize_state_value(vals["state"])
         if "membership_number" in vals:
             vals["membership_number"] = self._normalize_membership_number_value(
                 vals["membership_number"]
             )
+            if not self.env.context.get("skip_membership_number_override_flag"):
+                vals.setdefault("override_membership_number", bool(vals["membership_number"]))
         if "amount_override" in vals:
             vals["has_amount_override"] = self._has_explicit_amount_override_value(
                 vals["amount_override"]
             )
-        if "is_free_override" in vals:
-            vals["has_free_override"] = True
-        if vals.get("state") == "cancelled":
+        if vals.get("state") in {"cancelled", "terminated"}:
             cancel_defaults = self._build_cancel_values(
                 cancel_date=vals.get("date_cancelled"),
                 cancel_reason=vals.get("cancel_reason"),
@@ -320,6 +358,15 @@ class MembershipMembership(models.Model):
         default_invoice_partner = self._resolve_default_invoice_partner(self.partner_id)
         if not self.invoice_partner_id or self.invoice_partner_id == self._origin.partner_id:
             self.invoice_partner_id = default_invoice_partner
+
+    @api.onchange("product_id")
+    def _onchange_product_id(self):
+        if not self.product_id:
+            self.amount_override = 0.0
+            self.has_amount_override = False
+            return
+        self.amount_override = self._get_product_amount(self.product_id)
+        self.has_amount_override = True
 
     @api.model
     def _membership_product_domain(self, company=False):
@@ -425,6 +472,19 @@ class MembershipMembership(models.Model):
         return value is not False and value is not None and value != ""
 
     @api.model
+    def _get_product_amount(self, product):
+        if not product:
+            return 0.0
+        if "lst_price" in product._fields and product.lst_price not in (False, None):
+            return product.lst_price
+        if "list_price" in product._fields and product.list_price not in (False, None):
+            return product.list_price
+        template = product.product_tmpl_id if "product_tmpl_id" in product._fields else self.env["product.template"]
+        if template and "list_price" in template._fields and template.list_price not in (False, None):
+            return template.list_price
+        return 0.0
+
+    @api.model
     def _normalize_membership_number_value(self, value):
         if value in (False, None):
             return False
@@ -474,7 +534,16 @@ class MembershipMembership(models.Model):
 
     def _assign_membership_number_if_missing(self):
         for record in self.filtered(lambda membership: not membership.membership_number):
-            record.membership_number = record._generate_membership_number()
+            record.with_context(skip_membership_number_override_flag=True).write(
+                {
+                    "membership_number": record._generate_membership_number(),
+                    "override_membership_number": False,
+                }
+            )
+
+    def _default_contribution_year(self):
+        self.ensure_one()
+        return self.company_id.membership_default_contribution_year or fields.Date.context_today(self).year
 
     def _prepare_contribution_create_values(self, membership_year=False, **overrides):
         self.ensure_one()
@@ -533,10 +602,11 @@ class MembershipMembership(models.Model):
 
     def _get_allowed_transitions(self):
         return {
-            "draft": {"waiting", "active", "cancelled"},
-            "waiting": {"draft", "active", "cancelled"},
-            "active": {"cancelled"},
-            "cancelled": {"draft", "waiting", "active"},
+            "draft": {"waiting"},
+            "waiting": {"draft", "active"},
+            "active": {"cancelled", "terminated"},
+            "cancelled": {"active", "terminated"},
+            "terminated": {"waiting"},
         }
 
     def _get_invoice_partner(self):
@@ -550,8 +620,34 @@ class MembershipMembership(models.Model):
             cancel_reason=cancel_reason,
         )
 
+    def _schedule_termination(self, **kwargs):
+        today = fields.Date.context_today(self)
+        for record in self:
+            vals = record._get_default_cancel_values(
+                cancel_date=kwargs.get("date_cancelled"),
+                cancel_reason=kwargs.get("cancel_reason"),
+            )
+            if kwargs.get("date_end"):
+                vals["date_end"] = kwargs["date_end"]
+            if vals.get("date_end") and vals["date_end"] <= today:
+                record._do_transition(
+                    "terminated",
+                    date_cancelled=vals.get("date_cancelled"),
+                    date_end=vals.get("date_end"),
+                    cancel_reason=vals.get("cancel_reason"),
+                )
+                continue
+            record._do_transition(
+                "cancelled",
+                date_cancelled=vals.get("date_cancelled"),
+                date_end=vals.get("date_end"),
+                cancel_reason=vals.get("cancel_reason"),
+            )
+        return True
+
     def _do_transition(self, new_state, **kwargs):
         allowed = self._get_allowed_transitions()
+        new_state = self._normalize_state_value(new_state)
         for record in self:
             if new_state == record.state:
                 continue
@@ -566,7 +662,7 @@ class MembershipMembership(models.Model):
                     }
                 )
             vals = {"state": new_state}
-            if new_state == "cancelled":
+            if new_state in {"cancelled", "terminated"}:
                 vals.update(
                     record._get_default_cancel_values(
                         cancel_date=kwargs.get("date_cancelled"),
@@ -575,12 +671,20 @@ class MembershipMembership(models.Model):
                 )
                 if kwargs.get("date_end"):
                     vals["date_end"] = kwargs["date_end"]
-            elif record.state == "cancelled":
+            elif record.state == "cancelled" and new_state == "active":
                 vals.update(
                     {
-                        "date_cancelled": kwargs.get("date_cancelled"),
-                        "date_end": kwargs.get("date_end"),
-                        "cancel_reason": kwargs.get("cancel_reason"),
+                        "date_cancelled": False,
+                        "date_end": False,
+                        "cancel_reason": False,
+                    }
+                )
+            elif record.state == "terminated" and new_state == "waiting":
+                vals.update(
+                    {
+                        "date_cancelled": kwargs.get("date_cancelled", False),
+                        "date_end": kwargs.get("date_end", False),
+                        "cancel_reason": kwargs.get("cancel_reason", False),
                     }
                 )
             record.with_context(allow_membership_state_write=True).write(vals)
@@ -619,6 +723,8 @@ class MembershipMembership(models.Model):
 
     def action_cancel(self):
         self.ensure_one()
+        if self.state != "active":
+            raise UserError(_("Only active memberships can be cancelled."))
         return {
             "type": "ir.actions.act_window",
             "name": _("Cancel Membership"),
@@ -656,34 +762,44 @@ class MembershipMembership(models.Model):
 
     def action_create_contribution(self):
         self.ensure_one()
+        contribution_year = self._default_contribution_year()
+        contribution = self.env["membership.contribution"].search(
+            [
+                ("membership_id", "=", self.id),
+                ("membership_year", "=", contribution_year),
+            ],
+            limit=1,
+        )
+        if not contribution:
+            contribution = self.env["membership.contribution"].create(
+                self._prepare_contribution_create_values(
+                    membership_year=contribution_year,
+                )
+            )
+            contribution._apply_invoicing_strategy(
+                strategy=self.company_id.membership_invoicing_strategy,
+                invoice_date=fields.Date.context_today(self),
+            )
         return {
             "type": "ir.actions.act_window",
-            "name": _("Create Contribution"),
+            "name": _("Contribution"),
             "res_model": "membership.contribution",
+            "res_id": contribution.id,
             "view_mode": "form",
             "target": "current",
-            "context": {
-                "default_membership_id": self.id,
-                "default_membership_year": fields.Date.context_today(self).year,
-                "default_invoice_partner_id": self._get_invoice_partner().id,
-            },
         }
 
-    def _resolve_is_free(self, contribution_override=False):
+    def _resolve_amount_expected(self):
         self.ensure_one()
-        if contribution_override is not False:
-            return bool(contribution_override)
-        if self.has_free_override:
-            return bool(self.is_free_override)
-        return not bool(self.product_id.list_price)
+        if self.has_amount_override or self.amount_override not in (False, None):
+            return self.amount_override or 0.0
+        return self._get_product_amount(self.product_id)
 
-    def _resolve_amount_expected(self, is_free=False):
+    def _resolve_is_free(self, amount_value=False):
         self.ensure_one()
-        if is_free:
-            return 0.0
-        if self.has_amount_override or self.amount_override not in (False, None, 0.0):
-            return self.amount_override
-        return self.product_id.list_price
+        if amount_value not in (False, None, ""):
+            return float(amount_value or 0.0) == 0.0
+        return float(self._resolve_amount_expected() or 0.0) == 0.0
 
     @api.model
     def _cron_target_year(self, company=False):
@@ -699,10 +815,28 @@ class MembershipMembership(models.Model):
                     "target_year": self._cron_target_year(company=company),
                     "company_ids": [(6, 0, [company.id])],
                     "dry_run": False,
-                    "auto_post": company.membership_cron_auto_post,
                 }
             )
             wizard.action_run()
+        return True
+
+    @api.model
+    def cron_terminate_expired_memberships(self):
+        today = fields.Date.context_today(self)
+        memberships = self.search(
+            [
+                ("state", "=", "cancelled"),
+                ("date_end", "!=", False),
+                ("date_end", "<", today),
+            ]
+        )
+        for membership in memberships:
+            membership._do_transition(
+                "terminated",
+                date_cancelled=membership.date_cancelled or membership.date_end,
+                date_end=membership.date_end,
+                cancel_reason=membership.cancel_reason,
+            )
         return True
 
     def _sync_optional_partner_relations(self):
@@ -722,7 +856,7 @@ class MembershipMembership(models.Model):
                 ],
                 limit=1,
             )
-            if record.state == "active":
+            if record.state in BUSINESS_ACTIVE_STATES:
                 values = {
                     "left_partner_id": record.partner_id.id,
                     "right_partner_id": company_partner.id,
@@ -734,13 +868,13 @@ class MembershipMembership(models.Model):
                     relation.write(values)
                 else:
                     relation_model.create(values)
-            elif record.state == "cancelled" and relation:
+            elif record.state == "terminated" and relation:
                 sibling_membership = self.search(
                     [
                         ("id", "!=", record.id),
                         ("partner_id", "=", record.partner_id.id),
                         ("company_id", "=", record.company_id.id),
-                        ("state", "=", "active"),
+                        ("state", "in", BUSINESS_ACTIVE_STATES),
                         "|",
                         ("date_end", "=", False),
                         ("date_end", ">=", record.date_end or fields.Date.context_today(record)),
@@ -750,8 +884,7 @@ class MembershipMembership(models.Model):
                 if not sibling_membership:
                     relation.write(
                         {
-                            "date_end": record.date_end
-                            or fields.Date.context_today(record)
+                            "date_end": record.date_end or fields.Date.context_today(record)
                         }
                     )
 

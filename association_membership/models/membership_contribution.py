@@ -3,6 +3,8 @@ from collections import defaultdict
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from .res_company import normalize_year_value
+
 
 CONTRIBUTION_BILLING_STATUS = [
     ("none", "None"),
@@ -31,11 +33,16 @@ class MembershipContribution(models.Model):
     membership_year = fields.Integer(
         required=True,
         index=True,
-        default=lambda self: fields.Date.context_today(self).year,
+        default=lambda self: self._default_membership_year(),
     )
     membership_year_display = fields.Char(
         compute="_compute_membership_year_display",
         string="Year Display",
+    )
+    membership_year_text = fields.Char(
+        string="Membership Year Input",
+        compute="_compute_membership_year_text",
+        inverse="_inverse_membership_year_text",
     )
     is_free = fields.Boolean(required=True, default=False)
     manual_amount_expected = fields.Monetary(
@@ -101,7 +108,7 @@ class MembershipContribution(models.Model):
         store=True,
         readonly=True,
     )
-    invoice_partner_id = fields.Many2one("res.partner")
+    invoice_partner_id = fields.Many2one("res.partner", string="Invoice Contact")
     date_invoice = fields.Date(
         string="Invoice Date",
         related="invoice_id.invoice_date",
@@ -139,7 +146,7 @@ class MembershipContribution(models.Model):
             """
         )
         available_columns = {row[0] for row in self.env.cr.fetchall()}
-        if {'amount_expected', 'manual_amount_expected'} - available_columns:
+        if {"amount_expected", "manual_amount_expected"} - available_columns:
             return
         self.env.cr.execute(
             """
@@ -152,23 +159,30 @@ class MembershipContribution(models.Model):
 
     @api.model
     def _default_membership_year(self):
-        return fields.Date.context_today(self).year
+        membership_id = self.env.context.get("default_membership_id")
+        if membership_id:
+            membership = self.env["membership.membership"].browse(membership_id)
+            if membership.company_id:
+                return membership.company_id.membership_default_contribution_year
+        return self.env.company.membership_default_contribution_year or fields.Date.context_today(self).year
 
     @api.model
     def _normalize_membership_year_value(self, value):
-        normalized = str(value or "").replace(",", "").strip()
-        if not normalized:
-            raise ValidationError(_("Contribution year is required."))
-        if not normalized.isdigit():
-            raise ValidationError(_("Contribution year must be a whole number."))
-        return int(normalized)
+        return normalize_year_value(value, self._fields["membership_year"].string)
 
     @api.depends("membership_year")
     def _compute_membership_year_display(self):
         for record in self:
-            record.membership_year_display = (
-                str(record.membership_year) if record.membership_year else False
-            )
+            record.membership_year_display = str(record.membership_year) if record.membership_year else False
+
+    @api.depends("membership_year")
+    def _compute_membership_year_text(self):
+        for record in self:
+            record.membership_year_text = str(record.membership_year) if record.membership_year else False
+
+    def _inverse_membership_year_text(self):
+        for record in self:
+            record.membership_year = self._normalize_membership_year_value(record.membership_year_text)
 
     @api.model
     def _prepare_membership_contribution_values(self, vals, membership=False):
@@ -177,14 +191,13 @@ class MembershipContribution(models.Model):
         vals["membership_year"] = self._normalize_membership_year_value(
             vals.get("membership_year") or self._default_membership_year()
         )
-        is_free = bool(vals["is_free"]) if "is_free" in vals else membership._resolve_is_free()
-        vals["is_free"] = is_free
         if "amount_expected" in vals:
             vals["manual_amount_expected"] = vals.pop("amount_expected")
-        vals.setdefault(
-            "manual_amount_expected",
-            membership._resolve_amount_expected(is_free=is_free),
+        vals.setdefault("manual_amount_expected", membership._resolve_amount_expected())
+        is_free = bool(vals["is_free"]) if "is_free" in vals else membership._resolve_is_free(
+            amount_value=vals.get("manual_amount_expected")
         )
+        vals["is_free"] = is_free
         if "amount_paid" in vals:
             vals["manual_amount_paid"] = vals.pop("amount_paid")
         vals.setdefault("manual_amount_paid", 0.0)
@@ -208,6 +221,14 @@ class MembershipContribution(models.Model):
             vals["manual_amount_paid"] = vals.pop("amount_paid")
         if "billing_status" in vals:
             vals["manual_billing_status"] = vals.pop("billing_status")
+        if "manual_amount_expected" in vals:
+            vals["is_free"] = float(vals["manual_amount_expected"] or 0.0) == 0.0
+            if vals["is_free"]:
+                vals.setdefault("manual_amount_expected", 0.0)
+                vals.setdefault("manual_amount_paid", 0.0)
+                vals.setdefault("manual_billing_status", "waived")
+            elif "manual_billing_status" not in vals:
+                vals["manual_billing_status"] = "to_invoice"
         if vals.get("invoice_line_id") and not vals.get("invoice_id"):
             line = self.env["account.move.line"].browse(vals["invoice_line_id"])
             vals["invoice_id"] = line.move_id.id
@@ -231,7 +252,11 @@ class MembershipContribution(models.Model):
     )
     def _compute_billing_fields(self):
         for record in self:
-            line_amount = record.invoice_line_id.price_subtotal if record.invoice_id and record.invoice_line_id else 0.0
+            line_amount = (
+                record.invoice_line_id.price_subtotal
+                if record.invoice_id and record.invoice_line_id
+                else 0.0
+            )
             record.amount_invoiced = line_amount if record.invoice_id else 0.0
             if record.invoice_id:
                 record.amount_expected = record.amount_invoiced
@@ -304,7 +329,10 @@ class MembershipContribution(models.Model):
             return
         self.invoice_partner_id = self.membership_id._get_invoice_partner()
         if not self.membership_year:
-            self.membership_year = self._default_membership_year()
+            self.membership_year = (
+                self.membership_id.company_id.membership_default_contribution_year
+                or self._default_membership_year()
+            )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -316,8 +344,11 @@ class MembershipContribution(models.Model):
             and not contribution.invoice_line_id
         )._sync_accounting_links_from_lines()
         if self.env.context.get("create_membership_invoice"):
-            records._create_membership_invoices(
-                auto_post=bool(self.env.context.get("membership_invoice_auto_post")),
+            strategy = self.env.context.get("membership_invoicing_strategy")
+            if not strategy:
+                strategy = "auto_confirm" if self.env.context.get("membership_invoice_auto_post") else "draft"
+            records._apply_invoicing_strategy(
+                strategy=strategy,
                 invoice_date=self.env.context.get("membership_invoice_date"),
             )
         return records
@@ -398,6 +429,29 @@ class MembershipContribution(models.Model):
             if auto_post:
                 invoice.action_post()
             invoices |= invoice
+        return invoices
+
+    def _send_membership_invoices(self):
+        send_model = self.env["account.move.send"]
+        for invoice in self.mapped("invoice_id").filtered(lambda move: move.state == "posted"):
+            send_model._generate_and_send_invoices(invoice, sending_methods=["email"])
+
+    def _apply_invoicing_strategy(self, strategy=False, invoice_date=False):
+        invoices = self.env["account.move"]
+        company_map = defaultdict(lambda: self.env["membership.contribution"])
+        for contribution in self:
+            company_map[contribution.company_id] |= contribution
+        for company, contributions in company_map.items():
+            current_strategy = strategy or company.membership_invoicing_strategy or "draft"
+            if current_strategy == "manual":
+                continue
+            created_invoices = contributions._create_membership_invoices(
+                auto_post=current_strategy in {"auto_confirm", "confirm_send"},
+                invoice_date=invoice_date,
+            )
+            if current_strategy == "confirm_send":
+                contributions.filtered(lambda contribution: contribution.invoice_id in created_invoices)._send_membership_invoices()
+            invoices |= created_invoices
         return invoices
 
     def _sync_accounting_links_from_lines(self):

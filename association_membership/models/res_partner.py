@@ -32,7 +32,7 @@ class ResPartner(models.Model):
         memberships = self.env["membership.membership"].sudo().search(
             [
                 ("partner_id", "in", self.ids),
-                ("state", "in", ("waiting", "active")),
+                ("state", "in", ("waiting", "active", "cancelled")),
                 ("membership_number", "!=", False),
             ]
         )
