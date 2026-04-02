@@ -36,6 +36,11 @@ function toSingleId(value) {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : false;
 }
 
+function toEdgeId(value) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed !== 0 ? parsed : false;
+}
+
 function toIdList(values) {
     return (values || [])
         .map((value) => Number(value))
@@ -43,6 +48,45 @@ function toIdList(values) {
             (value, index, list) =>
                 Number.isInteger(value) && value > 0 && list.indexOf(value) === index
         );
+}
+
+function toFilterIdList(values) {
+    return (values || [])
+        .map((value) => Number(value))
+        .filter(
+            (value, index, list) =>
+                Number.isInteger(value) && value !== 0 && list.indexOf(value) === index
+        );
+}
+
+function normalizeInitialGraphState(value) {
+    if (!value) {
+        return null;
+    }
+    let state = value;
+    if (typeof state === "string") {
+        try {
+            state = JSON.parse(state);
+        } catch {
+            return null;
+        }
+    }
+    if (!state || typeof state !== "object") {
+        return null;
+    }
+    return {
+        partnerId: toSingleId(state.partnerId),
+        includeInactive: Boolean(state.includeInactive),
+        showChildContacts:
+            state.showChildContacts === undefined ? true : Boolean(state.showChildContacts),
+        relationTypeIds: toFilterIdList(state.relationTypeIds),
+        expandedPartnerIds: toIdList(state.expandedPartnerIds),
+        selectedNodeId: toSingleId(state.selectedNodeId),
+        selectedEdgeId: toEdgeId(state.selectedEdgeId),
+        graphViewState: state.graphViewState && typeof state.graphViewState === "object"
+            ? state.graphViewState
+            : null,
+    };
 }
 
 export class RelationGraphCanvas extends Component {
@@ -54,7 +98,6 @@ export class RelationGraphCanvas extends Component {
         viewState: { type: Object, optional: true },
         onNodeSelect: { type: Function, optional: true },
         onEdgeSelect: { type: Function, optional: true },
-        onNodeOpen: { type: Function, optional: true },
         onEdgeOpen: { type: Function, optional: true },
         onBackgroundClick: { type: Function, optional: true },
         onViewStateChange: { type: Function, optional: true },
@@ -113,6 +156,7 @@ export class RelationGraphExplorer extends Component {
     static props = {
         seedPartnerId: { type: Number, optional: true },
         standalone: { type: Boolean, optional: true },
+        initialGraphState: { type: Object, optional: true },
     };
     static defaultProps = {
         standalone: false,
@@ -123,18 +167,21 @@ export class RelationGraphExplorer extends Component {
         this.action = useService("action");
         this.notification = useService("notification");
         this.lastNodeInteraction = { id: false, at: 0 };
+        this.initialGraphState = normalizeInitialGraphState(this.props.initialGraphState);
+        const initialPartnerId = this.initialGraphState?.partnerId || toSingleId(this.props.seedPartnerId);
         this.state = useState({
-            partnerId: toSingleId(this.props.seedPartnerId),
-            includeInactive: false,
-            relationTypeIds: [],
+            partnerId: initialPartnerId,
+            includeInactive: Boolean(this.initialGraphState?.includeInactive),
+            relationTypeIds: this.initialGraphState?.relationTypeIds || [],
+            showChildContacts: this.initialGraphState?.showChildContacts ?? true,
             relationTypes: [],
-            graphData: makeEmptyGraph(toSingleId(this.props.seedPartnerId)),
+            graphData: makeEmptyGraph(initialPartnerId),
             loading: false,
             error: "",
-            selectedNodeId: false,
-            selectedEdgeId: false,
-            expandedPartnerIds: [],
-            graphViewState: null,
+            selectedNodeId: this.initialGraphState?.selectedNodeId || false,
+            selectedEdgeId: this.initialGraphState?.selectedEdgeId || false,
+            expandedPartnerIds: this.initialGraphState?.expandedPartnerIds || [],
+            graphViewState: this.initialGraphState?.graphViewState || null,
         });
 
         onWillStart(async () => {
@@ -167,14 +214,8 @@ export class RelationGraphExplorer extends Component {
         return this.state.partnerId ? [this.state.partnerId] : [];
     }
 
-    getPartnerSelectorIds() {
-        return this.partnerSelectorIds;
-    }
-
     get selectedNode() {
-        return this.state.graphData.nodes.find(
-            (node) => node.id === this.state.selectedNodeId
-        );
+        return this.state.graphData.nodes.find((node) => node.id === this.state.selectedNodeId);
     }
 
     get selectedEdge() {
@@ -189,13 +230,26 @@ export class RelationGraphExplorer extends Component {
         return toSingleId(this.state.graphData.meta?.focal_partner_id);
     }
 
+    get includeChildContacts() {
+        return Boolean(this.state.showChildContacts);
+    }
+
+    get relationTypeDomainIds() {
+        return this.state.relationTypeIds.filter((relationTypeId) => relationTypeId > 0);
+    }
+
+    getPartnerSelectorIds() {
+        return this.partnerSelectorIds;
+    }
+
     async loadRelationTypes() {
-        this.state.relationTypes = await this.orm.call(
+        const relationTypes = await this.orm.call(
             "res.partner.relation.type",
             "search_read",
             [[], ["name", "name_inverse"]],
             { order: "name asc", limit: 200 }
         );
+        this.state.relationTypes = relationTypes;
     }
 
     async reloadGraph() {
@@ -209,8 +263,9 @@ export class RelationGraphExplorer extends Component {
             const payload = await this.orm.call("res.partner", "get_relationship_graph", [
                 this.state.partnerId,
                 this.state.includeInactive,
-                this.state.relationTypeIds,
+                this.state.relationTypeDomainIds,
                 this.state.expandedPartnerIds,
+                this.includeChildContacts,
             ]);
             this.state.graphData = payload;
             if (!payload.nodes.find((node) => node.id === this.state.selectedNodeId)) {
@@ -242,6 +297,12 @@ export class RelationGraphExplorer extends Component {
         await this.reloadGraph();
     }
 
+    async onToggleChildContacts(event) {
+        this.state.showChildContacts = Boolean(event.target.checked);
+        this.state.graphViewState = null;
+        await this.reloadGraph();
+    }
+
     async onToggleInactive(event) {
         this.state.includeInactive = Boolean(event.target.checked);
         this.state.graphViewState = null;
@@ -249,7 +310,7 @@ export class RelationGraphExplorer extends Component {
     }
 
     async onRelationTypeChange(event) {
-        this.state.relationTypeIds = toIdList(
+        this.state.relationTypeIds = toFilterIdList(
             Array.from(event.target.selectedOptions).map((option) => option.value)
         );
         this.state.expandedPartnerIds = [];
@@ -281,16 +342,12 @@ export class RelationGraphExplorer extends Component {
 
     onEdgeSelect(edgeId) {
         this.lastNodeInteraction = { id: false, at: 0 };
-        this.state.selectedEdgeId = edgeId;
+        this.state.selectedEdgeId = toEdgeId(edgeId);
         this.state.selectedNodeId = false;
     }
 
     onBackgroundClick() {
         this.clearSelection();
-    }
-
-    async onGraphNodeOpen(nodeId) {
-        await this.toggleExpandedNode(nodeId);
     }
 
     async onGraphEdgeOpen(edgeId) {
@@ -303,6 +360,31 @@ export class RelationGraphExplorer extends Component {
 
     async onOpenSelectedRelation() {
         await this.openRelation(this.selectedEdge?.id);
+    }
+
+    async openStandalone() {
+        if (this.props.standalone || !this.state.partnerId) {
+            return;
+        }
+        const action = await this.orm.call("res.partner", "action_open_relationship_graph", [
+            [this.state.partnerId],
+            this.serializeGraphState(),
+        ]);
+        await this.action.doAction(action);
+    }
+
+    serializeGraphState() {
+        return {
+            partnerId: this.state.partnerId || false,
+            includeInactive: Boolean(this.state.includeInactive),
+            showChildContacts: Boolean(this.state.showChildContacts),
+            relationTypeIds: [...this.state.relationTypeIds],
+            expandedPartnerIds: [...this.state.expandedPartnerIds],
+            selectedNodeId: this.state.selectedNodeId || false,
+            selectedEdgeId:
+                this.state.selectedEdgeId === false ? false : this.state.selectedEdgeId,
+            graphViewState: this.state.graphViewState || null,
+        };
     }
 
     async toggleExpandedNode(nodeId = false) {
@@ -332,9 +414,11 @@ export class RelationGraphExplorer extends Component {
         });
     }
 
-    async openRelation(relationId = false) {
-        const selectedRelationId = toSingleId(relationId || this.selectedEdge?.id);
-        if (!selectedRelationId) {
+    async openRelation(edgeId = false) {
+        const selectedEdgeId = toEdgeId(edgeId || this.selectedEdge?.id);
+        const edge = this.state.graphData.edges.find((candidate) => candidate.id === selectedEdgeId);
+        const selectedRelationId = toSingleId(edge?.record_id);
+        if (!edge?.openable || edge.record_model !== "res.partner.relation" || !selectedRelationId) {
             return;
         }
         await this.action.doAction({

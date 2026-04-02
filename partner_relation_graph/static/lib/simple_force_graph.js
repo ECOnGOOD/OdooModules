@@ -69,7 +69,7 @@
             const edgeId = Number(edge?.id);
             const sourceId = Number(edge?.source);
             const targetId = Number(edge?.target);
-            if (!Number.isInteger(edgeId) || edgeId <= 0) {
+            if (!Number.isInteger(edgeId) || edgeId === 0) {
                 continue;
             }
             if (!nodesById.has(sourceId) || !nodesById.has(targetId)) {
@@ -122,13 +122,40 @@
         return tracks;
     }
 
-    function computeParallelPath(source, target, trackOffset) {
+    function getNodeVectorOffset(node, direction, extra = 0) {
+        if (node?.is_company) {
+            const halfWidth = 32 + extra;
+            const halfHeight = 18 + extra;
+            const absX = Math.abs(direction.x) || 0.0001;
+            const absY = Math.abs(direction.y) || 0.0001;
+            const scale = Math.min(halfWidth / absX, halfHeight / absY);
+            return {
+                x: direction.x * scale,
+                y: direction.y * scale,
+            };
+        }
+        const radius = 26 + extra;
+        return {
+            x: direction.x * radius,
+            y: direction.y * radius,
+        };
+    }
+
+    function computeParallelPath(source, target, trackOffset, sourceNode = null, targetNode = null) {
         if (source.x === target.x && source.y === target.y) {
             const loopSize = 46 + Math.abs(trackOffset) * 18;
+            const direction = normalizeDirection(0.72, -1);
+            const endX = source.x + loopSize * 0.12;
+            const endY = source.y - loopSize * 0.76;
             return {
                 path: `M ${source.x} ${source.y} C ${source.x + loopSize} ${source.y - loopSize}, ${source.x - loopSize} ${source.y - loopSize}, ${target.x} ${target.y}`,
                 labelX: source.x,
                 labelY: source.y - loopSize - 10,
+                startX: source.x,
+                startY: source.y,
+                endX,
+                endY,
+                direction,
             };
         }
         const dx = target.x - source.x;
@@ -139,10 +166,21 @@
         const offsetDistance = trackOffset * 22;
         const offsetX = normalX * offsetDistance;
         const offsetY = normalY * offsetDistance;
-        const startX = source.x + offsetX;
-        const startY = source.y + offsetY;
-        const endX = target.x + offsetX;
-        const endY = target.y + offsetY;
+        const baseStartX = source.x + offsetX;
+        const baseStartY = source.y + offsetY;
+        const baseEndX = target.x + offsetX;
+        const baseEndY = target.y + offsetY;
+        const lineDirection = normalizeDirection(baseEndX - baseStartX, baseEndY - baseStartY);
+        const sourceOffset = getNodeVectorOffset(sourceNode, lineDirection, 5);
+        const targetOffset = getNodeVectorOffset(
+            targetNode,
+            { x: -lineDirection.x, y: -lineDirection.y },
+            16
+        );
+        const startX = baseStartX + sourceOffset.x;
+        const startY = baseStartY + sourceOffset.y;
+        const endX = baseEndX + targetOffset.x;
+        const endY = baseEndY + targetOffset.y;
         const labelX = (startX + endX) / 2;
         const labelY = (startY + endY) / 2 - 8;
 
@@ -150,7 +188,24 @@
             path: `M ${startX} ${startY} L ${endX} ${endY}`,
             labelX,
             labelY,
+            startX,
+            startY,
+            endX,
+            endY,
+            direction: lineDirection,
         };
+    }
+
+    function buildArrowHeadPoints(curve, size = 12, width = 7) {
+        const direction = curve.direction || normalizeDirection(curve.endX - curve.startX, curve.endY - curve.startY);
+        const baseX = curve.endX - direction.x * size;
+        const baseY = curve.endY - direction.y * size;
+        const perpendicular = { x: -direction.y, y: direction.x };
+        const leftX = baseX + perpendicular.x * width;
+        const leftY = baseY + perpendicular.y * width;
+        const rightX = baseX - perpendicular.x * width;
+        const rightY = baseY - perpendicular.y * width;
+        return `${curve.endX},${curve.endY} ${leftX},${leftY} ${rightX},${rightY}`;
     }
 
     function resolveEdgeDirection(edge, selectedNodeId, focalNodeId) {
@@ -342,6 +397,7 @@
             this.selection = { nodeId: null, edgeId: null };
             this.viewport = { scale: 1, x: 0, y: 0 };
             this.edgeTracks = new Map();
+            this.nodeById = new Map();
             this.manualNodePositions = new Map();
             this.currentFocalId = null;
             this.nodeDrag = null;
@@ -352,8 +408,12 @@
             this.lastPan = { x: 0, y: 0 };
             this.renderToken = null;
             this.activePointerId = null;
+            this.pendingViewportRestore = null;
+            this.lastMeasuredSize = null;
+            this.resizeObserver = null;
             this.renderBase();
             this.bindViewportEvents();
+            this.bindResizeObserver();
         }
 
         on(eventName, callback) {
@@ -375,6 +435,8 @@
             this.svg?.removeEventListener("click", this.onSvgClickBound);
             window.removeEventListener("pointermove", this.onPointerMoveBound);
             window.removeEventListener("pointerup", this.onPointerUpBound);
+            window.removeEventListener("resize", this.onWindowResizeBound);
+            this.resizeObserver?.disconnect();
             if (this.renderToken) {
                 window.cancelAnimationFrame(this.renderToken);
             }
@@ -382,8 +444,13 @@
         }
 
         cloneViewState() {
+            const viewportCenter = this.getViewportCenterWorld();
             return {
-                viewport: { ...this.viewport },
+                viewport: {
+                    ...this.viewport,
+                    center_world_x: viewportCenter.x,
+                    center_world_y: viewportCenter.y,
+                },
                 currentFocalId: this.currentFocalId,
                 layout: [...(this.layout || new Map()).entries()].map(([nodeId, position]) => ({
                     id: nodeId,
@@ -396,6 +463,42 @@
                     y: position.y,
                 })),
             };
+        }
+
+        getViewportCenterWorld() {
+            const { width, height } = this.lastMeasuredSize || this.measureContainer();
+            const scale = this.viewport.scale || 1;
+            return {
+                x: (width / 2 - this.viewport.x) / scale,
+                y: (height / 2 - this.viewport.y) / scale,
+            };
+        }
+
+        applyViewportRestore(viewportState) {
+            if (!viewportState || typeof viewportState !== "object") {
+                return;
+            }
+            const scale = Number(viewportState.scale);
+            if (!Number.isFinite(scale)) {
+                return;
+            }
+            const centerWorldX = Number(viewportState.center_world_x);
+            const centerWorldY = Number(viewportState.center_world_y);
+            if (Number.isFinite(centerWorldX) && Number.isFinite(centerWorldY)) {
+                const { width, height } = this.measureContainer();
+                this.lastMeasuredSize = { width, height };
+                this.viewport = {
+                    scale,
+                    x: width / 2 - centerWorldX * scale,
+                    y: height / 2 - centerWorldY * scale,
+                };
+                return;
+            }
+            const x = Number(viewportState.x);
+            const y = Number(viewportState.y);
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+                this.viewport = { scale, x, y };
+            }
         }
 
         publishViewState() {
@@ -421,12 +524,7 @@
             };
             this.layout = parsePositions(viewState.layout);
             this.manualNodePositions = parsePositions(viewState.manualNodePositions);
-            const scale = Number(viewState.viewport?.scale);
-            const x = Number(viewState.viewport?.x);
-            const y = Number(viewState.viewport?.y);
-            if (Number.isFinite(scale) && Number.isFinite(x) && Number.isFinite(y)) {
-                this.viewport = { scale, x, y };
-            }
+            this.pendingViewportRestore = viewState.viewport || null;
             const focalId = Number(viewState.currentFocalId);
             this.currentFocalId = Number.isInteger(focalId) && focalId > 0 ? focalId : null;
         }
@@ -434,16 +532,12 @@
         renderBase() {
             this.container.innerHTML = `
                 <svg class="prg-graph-svg" xmlns="http://www.w3.org/2000/svg" aria-label="Relationship graph">
-                    <defs>
-                        <marker id="${this.uid}_arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                            <path d="M 0 0 L 10 5 L 0 10 z" class="prg-edge-arrow"></path>
-                        </marker>
-                    </defs>
                     <g class="prg-viewport"></g>
                 </svg>
             `;
             this.svg = this.container.querySelector("svg");
             this.viewportEl = this.container.querySelector(".prg-viewport");
+            this.lastMeasuredSize = this.measureContainer();
         }
 
         bindViewportEvents() {
@@ -457,6 +551,44 @@
             this.svg.addEventListener("click", this.onSvgClickBound);
             window.addEventListener("pointermove", this.onPointerMoveBound);
             window.addEventListener("pointerup", this.onPointerUpBound);
+        }
+
+        bindResizeObserver() {
+            this.onWindowResizeBound = this.onResize.bind(this);
+            window.addEventListener("resize", this.onWindowResizeBound);
+            if (typeof window.ResizeObserver === "function") {
+                this.resizeObserver = new window.ResizeObserver(() => this.onResize());
+                this.resizeObserver.observe(this.container);
+            }
+        }
+
+        measureContainer() {
+            return {
+                width: Math.max(this.container.clientWidth || 320, 320),
+                height: Math.max(this.container.clientHeight || 320, 320),
+            };
+        }
+
+        onResize() {
+            const nextSize = this.measureContainer();
+            const previousSize = this.lastMeasuredSize || nextSize;
+            if (
+                nextSize.width === previousSize.width &&
+                nextSize.height === previousSize.height
+            ) {
+                return;
+            }
+            const scale = this.viewport.scale || 1;
+            const centerWorldX = (previousSize.width / 2 - this.viewport.x) / scale;
+            const centerWorldY = (previousSize.height / 2 - this.viewport.y) / scale;
+            this.lastMeasuredSize = nextSize;
+            this.viewport = {
+                scale,
+                x: nextSize.width / 2 - centerWorldX * scale,
+                y: nextSize.height / 2 - centerWorldY * scale,
+            };
+            this.scheduleRender();
+            this.publishViewState();
         }
 
         pruneManualPositions() {
@@ -474,10 +606,15 @@
             this.pruneManualPositions();
             this.layout = this.computeLayout(previousLayout);
             this.edgeTracks = buildEdgeTracks(this.data.edges || []);
+            this.nodeById = new Map((this.data.nodes || []).map((node) => [node.id, node]));
             const focalId = this.data.meta?.focal_partner_id || null;
             if (this.currentFocalId !== focalId) {
                 this.currentFocalId = focalId;
                 this.fitViewportToLayout();
+            }
+            if (this.pendingViewportRestore) {
+                this.applyViewportRestore(this.pendingViewportRestore);
+                this.pendingViewportRestore = null;
             }
             this.render();
             this.publishViewState();
@@ -492,8 +629,8 @@
         }
 
         resetViewport() {
-            const width = Math.max(this.container.clientWidth || 320, 320);
-            const height = Math.max(this.container.clientHeight || 320, 320);
+            const { width, height } = this.measureContainer();
+            this.lastMeasuredSize = { width, height };
             this.viewport = {
                 scale: 1,
                 x: width / 2,
@@ -507,8 +644,8 @@
                 this.resetViewport();
                 return;
             }
-            const width = Math.max(this.container.clientWidth || 320, 320);
-            const height = Math.max(this.container.clientHeight || 320, 320);
+            const { width, height } = this.measureContainer();
+            this.lastMeasuredSize = { width, height };
             const paddingX = Math.max(56, width * 0.08);
             const paddingY = Math.max(56, height * 0.1);
             let minX = Infinity;
@@ -863,16 +1000,20 @@
             );
             const source = this.layout.get(directedEdge.sourceId) || { x: 0, y: 0 };
             const target = this.layout.get(directedEdge.targetId) || { x: 0, y: 0 };
+            const sourceNode = this.nodeById.get(directedEdge.sourceId) || null;
+            const targetNode = this.nodeById.get(directedEdge.targetId) || null;
             const track = this.edgeTracks.get(edge.id) || { offset: 0 };
-            const curve = computeParallelPath(source, target, track.offset);
-            const classes = ["prg-edge", edge.active ? "is-active" : "is-inactive"];
+            const curve = computeParallelPath(source, target, track.offset, sourceNode, targetNode);
+            const arrowPoints = buildArrowHeadPoints(curve);
+            const classes = ["prg-edge", edge.active ? "is-active" : "is-inactive", `is-${edge.kind || "relation"}`];
             if (this.selection.edgeId === edge.id) {
                 classes.push("is-selected");
             }
             return `
                 <g class="${classes.join(" ")}" data-edge-id="${edge.id}">
                     <path class="prg-edge-hitbox" d="${curve.path}"></path>
-                    <path class="prg-edge-line" d="${curve.path}" marker-end="url(#${this.uid}_arrow)"></path>
+                    <path class="prg-edge-line" d="${curve.path}"></path>
+                    <polygon class="prg-edge-arrow-head" points="${arrowPoints}"></polygon>
                     <rect class="prg-edge-label-bg" rx="12"></rect>
                     <text class="prg-edge-label" x="${curve.labelX}" y="${curve.labelY + 4}" text-anchor="middle">${escapeHtml(directedEdge.label)}</text>
                 </g>

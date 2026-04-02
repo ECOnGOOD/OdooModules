@@ -1,7 +1,6 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
 import { Component } from "@odoo/owl";
@@ -17,21 +16,8 @@ export class RelationGraphField extends Component {
         ...standardFieldProps,
     };
 
-    setup() {
-        this.orm = useService("orm");
-        this.action = useService("action");
-    }
-
     get partnerId() {
         return this.props.record.resId;
-    }
-
-    async openStandalone() {
-        if (!this.partnerId) {
-            return;
-        }
-        const action = await this.orm.call("res.partner", "action_open_relationship_graph", [[this.partnerId]]);
-        await this.action.doAction(action);
     }
 }
 

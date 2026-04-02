@@ -16,9 +16,16 @@ export class RelationGraphClientAction extends Component {
         ...standardActionServiceProps,
     };
 
+    get initialGraphState() {
+        return this.props.action?.context?.default_graph_state || null;
+    }
+
     get seedPartnerId() {
         return Number(
-            this.props.action?.context?.default_partner_id || this.props.action?.context?.active_id || 0
+            this.initialGraphState?.partnerId
+                || this.props.action?.context?.default_partner_id
+                || this.props.action?.context?.active_id
+                || 0
         ) || false;
     }
 }
