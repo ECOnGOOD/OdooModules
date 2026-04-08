@@ -113,6 +113,12 @@ class TestPartnerRelationGraph(TransactionCase):
         self.assertFalse(node_by_id[self.member.id]["is_company"])
         self.assertTrue(node_by_id[self.company.id]["is_company"])
         self.assertTrue(node_by_id[self.member.id]["is_focal"])
+        self.assertEqual(node_by_id[self.member.id]["structure_key"], "person")
+        self.assertEqual(node_by_id[self.member.id]["style_key"], "person")
+        self.assertEqual(node_by_id[self.company.id]["structure_key"], "company")
+        self.assertEqual(node_by_id[self.company.id]["style_key"], "company_generic")
+        self.assertFalse(payload["meta"]["has_econgood_taxonomy"])
+        self.assertEqual(payload["meta"]["legend_mode"], "collapsed")
 
         edge = payload["edges"][0]
         self.assertEqual(edge["id"], self.active_relation.id)
@@ -154,6 +160,9 @@ class TestPartnerRelationGraph(TransactionCase):
         self.assertEqual(child_edges[0]["label"], "Has contact")
         self.assertFalse(child_edges[0]["openable"])
         self.assertLess(child_edges[0]["id"], 0)
+        node_by_id = {node["id"]: node for node in payload["nodes"]}
+        self.assertEqual(node_by_id[self.company_contact.id]["structure_key"], "child_contact")
+        self.assertEqual(node_by_id[self.company_contact.id]["style_key"], "child_contact")
 
     def test_graph_payload_returns_reverse_parent_link_for_child_contact(self):
         payload = self.env["res.partner"].get_relationship_graph(partner_id=self.company_contact.id)
@@ -233,6 +242,51 @@ class TestPartnerRelationGraph(TransactionCase):
         self.assertEqual(payload["meta"]["total_node_count"], 1)
         self.assertEqual(payload["nodes"][0]["id"], self.lonely_partner.id)
         self.assertTrue(payload["nodes"][0]["is_focal"])
+
+    def test_visual_classification_returns_fallbacks_without_optional_taxonomy(self):
+        partner_model = self.env["res.partner"]
+
+        self.assertFalse(partner_model._has_graph_taxonomy_support())
+        self.assertEqual(
+            partner_model._classify_graph_partner_visuals(is_company=False, has_parent=False)["style_key"],
+            "person",
+        )
+        self.assertEqual(
+            partner_model._classify_graph_partner_visuals(is_company=True, has_parent=False)["style_key"],
+            "company_generic",
+        )
+        self.assertEqual(
+            partner_model._classify_graph_partner_visuals(is_company=False, has_parent=True)["style_key"],
+            "child_contact",
+        )
+
+    def test_visual_classification_prefers_ou_type_and_uses_stable_fallbacks(self):
+        partner_model = self.env["res.partner"]
+
+        visual = partner_model._classify_graph_partner_visuals(
+            is_company=True,
+            has_parent=False,
+            ou_type_code="local_chapter",
+            organization_kind_code="company",
+        )
+        self.assertEqual(visual["style_key"], "ou_type_local_chapter")
+        self.assertEqual(visual["style_label"], "Local Chapter")
+
+        unknown_ou_visual = partner_model._classify_graph_partner_visuals(
+            is_company=True,
+            has_parent=False,
+            ou_type_code="surprise_bucket",
+        )
+        self.assertEqual(unknown_ou_visual["style_key"], "ou_type_other")
+
+        unknown_kind_visual = partner_model._classify_graph_partner_visuals(
+            is_company=True,
+            has_parent=False,
+            organization_kind_code="surprise_kind",
+        )
+        self.assertEqual(
+            unknown_kind_visual["style_key"], "organization_kind_other_organization"
+        )
 
     def test_internal_user_can_read_graph_payload_without_sudo(self):
         internal_user = self.env["res.users"].with_context(no_reset_password=True).create(

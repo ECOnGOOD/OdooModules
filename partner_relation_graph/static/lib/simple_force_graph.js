@@ -1,6 +1,81 @@
 (function () {
     let graphCounter = 0;
 
+    const NODE_STYLE_REGISTRY = Object.freeze({
+        person: {
+            label: "Person",
+            structureKey: "person",
+            legendShape: true,
+            legendColor: false,
+        },
+        child_contact: {
+            label: "Child Contact",
+            structureKey: "child_contact",
+            legendShape: true,
+            legendColor: false,
+        },
+        company_generic: {
+            label: "Organization / Company",
+            structureKey: "company",
+            legendShape: true,
+            legendColor: true,
+        },
+        ou_type_national_association: {
+            label: "National Association",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+        ou_type_regional_association: {
+            label: "Regional Association",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+        ou_type_local_chapter: {
+            label: "Local Chapter",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+        ou_type_hub: {
+            label: "Hub",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+        ou_type_other: {
+            label: "Other OU",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+        organization_kind_company: {
+            label: "Company",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+        organization_kind_organization: {
+            label: "Organization",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+        organization_kind_municipality_public_body: {
+            label: "Municipality / Public Body",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+        organization_kind_other_organization: {
+            label: "Other Organization",
+            structureKey: "company",
+            legendShape: false,
+            legendColor: true,
+        },
+    });
+
     function escapeHtml(value) {
         return String(value ?? "")
             .replace(/&/g, "&amp;")
@@ -8,6 +83,39 @@
             .replace(/>/g, "&gt;")
             .replace(/\"/g, "&quot;")
             .replace(/'/g, "&#39;");
+    }
+
+
+    function getStructureKey(node) {
+        if (node?.structure_key) {
+            return node.structure_key;
+        }
+        if (node?.is_child_contact) {
+            return "child_contact";
+        }
+        return node?.is_company ? "company" : "person";
+    }
+
+    function getStyleKey(node) {
+        if (node?.style_key && NODE_STYLE_REGISTRY[node.style_key]) {
+            return node.style_key;
+        }
+        const structureKey = getStructureKey(node);
+        if (structureKey === "child_contact") {
+            return "child_contact";
+        }
+        if (structureKey === "person") {
+            return "person";
+        }
+        return "company_generic";
+    }
+
+    function getStyleDefinition(node) {
+        const styleKey = getStyleKey(node);
+        return {
+            key: styleKey,
+            ...(NODE_STYLE_REGISTRY[styleKey] || NODE_STYLE_REGISTRY.company_generic),
+        };
     }
 
     function polarPoint(radius, angle, cx, cy) {
@@ -55,6 +163,12 @@
                     is_focal: Boolean(node.is_focal),
                     is_expanded: Boolean(node.is_expanded),
                     is_seed: Boolean(node.is_seed),
+                    is_child_contact: Boolean(node.is_child_contact),
+                    structure_key: node.structure_key || null,
+                    style_key: node.style_key || null,
+                    style_label: node.style_label || "",
+                    organization_kind_code: node.organization_kind_code || false,
+                    ou_type_code: node.ou_type_code || false,
                 });
                 continue;
             }
@@ -63,6 +177,12 @@
             existing.is_focal = Boolean(existing.is_focal || node.is_focal);
             existing.is_expanded = Boolean(existing.is_expanded || node.is_expanded);
             existing.is_seed = Boolean(existing.is_seed || node.is_seed);
+            existing.is_child_contact = Boolean(existing.is_child_contact || node.is_child_contact);
+            existing.structure_key = existing.structure_key || node.structure_key || null;
+            existing.style_key = existing.style_key || node.style_key || null;
+            existing.style_label = existing.style_label || node.style_label || "";
+            existing.organization_kind_code = existing.organization_kind_code || node.organization_kind_code || false;
+            existing.ou_type_code = existing.ou_type_code || node.ou_type_code || false;
         }
 
         for (const edge of inputEdges) {
@@ -123,9 +243,21 @@
     }
 
     function getNodeVectorOffset(node, direction, extra = 0) {
-        if (node?.is_company) {
+        const structureKey = getStructureKey(node);
+        if (structureKey === "company") {
             const halfWidth = 32 + extra;
             const halfHeight = 18 + extra;
+            const absX = Math.abs(direction.x) || 0.0001;
+            const absY = Math.abs(direction.y) || 0.0001;
+            const scale = Math.min(halfWidth / absX, halfHeight / absY);
+            return {
+                x: direction.x * scale,
+                y: direction.y * scale,
+            };
+        }
+        if (structureKey === "child_contact") {
+            const halfWidth = 38 + extra;
+            const halfHeight = 14 + extra;
             const absX = Math.abs(direction.x) || 0.0001;
             const absY = Math.abs(direction.y) || 0.0001;
             const scale = Math.min(halfWidth / absX, halfHeight / absY);
@@ -349,12 +481,21 @@
 
     function buildNodeFootprint(node, position) {
         const padding = 10;
-        if (node.is_company) {
+        const structureKey = getStructureKey(node);
+        if (structureKey === "company") {
             return {
                 x: position.x - 32 - padding,
                 y: position.y - 18 - padding,
                 width: 64 + padding * 2,
                 height: 36 + padding * 2,
+            };
+        }
+        if (structureKey === "child_contact") {
+            return {
+                x: position.x - 38 - padding,
+                y: position.y - 14 - padding,
+                width: 76 + padding * 2,
+                height: 28 + padding * 2,
             };
         }
         return {
@@ -370,8 +511,9 @@
         const longestLine = lines.reduce((width, line) => Math.max(width, line.length), 0);
         const labelWidth = longestLine * 7.2 + 32;
         const labelHeight = lines.length * 14 + 24;
-        const shapeWidth = node?.is_company ? 78 : 64;
-        const shapeHeight = node?.is_company ? 48 : 64;
+        const structureKey = getStructureKey(node);
+        const shapeWidth = structureKey === "child_contact" ? 88 : structureKey === "company" ? 78 : 64;
+        const shapeHeight = structureKey === "child_contact" ? 38 : structureKey === "company" ? 48 : 64;
         return Math.max(shapeWidth, shapeHeight, labelWidth, labelHeight);
     }
 
@@ -1021,7 +1163,13 @@
         }
 
         renderNode(node, position) {
-            const classes = ["prg-node"];
+            const structureKey = getStructureKey(node);
+            const styleDefinition = getStyleDefinition(node);
+            const classes = [
+                "prg-node",
+                `is-structure-${structureKey}`,
+                `is-style-${styleDefinition.key}`,
+            ];
             classes.push(node.is_company ? "is-company" : "is-person");
             if (node.is_focal) {
                 classes.push("is-focal");
@@ -1035,9 +1183,12 @@
             if (this.nodeDrag?.nodeId === node.id) {
                 classes.push("is-dragging");
             }
-            const body = node.is_company
-                ? `<rect class="prg-node-shape" x="-32" y="-18" width="64" height="36" rx="12"></rect>`
-                : `<circle class="prg-node-shape" cx="0" cy="0" r="26"></circle>`;
+            let body = `<circle class="prg-node-shape" cx="0" cy="0" r="26"></circle>`;
+            if (structureKey === "company") {
+                body = `<rect class="prg-node-shape" x="-32" y="-18" width="64" height="36" rx="12"></rect>`;
+            } else if (structureKey === "child_contact") {
+                body = `<rect class="prg-node-shape" x="-38" y="-14" width="76" height="28" rx="14"></rect>`;
+            }
             const lines = splitLabelLines(node.display_name);
             const lineHeight = 14;
             const startY = lines.length === 1 ? 0 : -((lines.length - 1) * lineHeight) / 2;
@@ -1048,7 +1199,13 @@
                 )
                 .join("");
             return `
-                <g class="${classes.join(" ")}" data-node-id="${node.id}" transform="translate(${position.x} ${position.y})">
+                <g
+                    class="${classes.join(" ")}"
+                    data-node-id="${node.id}"
+                    data-structure-key="${structureKey}"
+                    data-style-key="${styleDefinition.key}"
+                    transform="translate(${position.x} ${position.y})"
+                >
                     ${body}
                     <g class="prg-node-label" data-node-label-for="${node.id}">
                         <rect class="prg-node-label-bg" rx="10" ry="10"></rect>
@@ -1094,5 +1251,6 @@
         }
     }
 
+    window.PartnerRelationGraphStyleRegistry = NODE_STYLE_REGISTRY;
     window.PartnerRelationSimpleGraph = PartnerRelationSimpleGraph;
 })();

@@ -18,6 +18,109 @@ class ResPartner(models.Model):
     _RELATION_GRAPH_CHILD_CONTACT_FILTER_ID = -1
     _RELATION_GRAPH_CHILD_CONTACT_LABEL = "Has contact"
     _RELATION_GRAPH_CHILD_CONTACT_INVERSE_LABEL = "Contact of"
+    _RELATION_GRAPH_DEFAULT_STYLE_KEY = "company_generic"
+    _RELATION_GRAPH_DEFAULT_STRUCTURE_KEY = "company"
+    _RELATION_GRAPH_STYLE_REGISTRY = OrderedDict(
+        [
+            (
+                "person",
+                {
+                    "label": "Person",
+                    "structure_key": "person",
+                },
+            ),
+            (
+                "child_contact",
+                {
+                    "label": "Child Contact",
+                    "structure_key": "child_contact",
+                },
+            ),
+            (
+                "company_generic",
+                {
+                    "label": "Organization / Company",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "ou_type_national_association",
+                {
+                    "label": "National Association",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "ou_type_regional_association",
+                {
+                    "label": "Regional Association",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "ou_type_local_chapter",
+                {
+                    "label": "Local Chapter",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "ou_type_hub",
+                {
+                    "label": "Hub",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "ou_type_other",
+                {
+                    "label": "Other OU",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "organization_kind_company",
+                {
+                    "label": "Company",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "organization_kind_organization",
+                {
+                    "label": "Organization",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "organization_kind_municipality_public_body",
+                {
+                    "label": "Municipality / Public Body",
+                    "structure_key": "company",
+                },
+            ),
+            (
+                "organization_kind_other_organization",
+                {
+                    "label": "Other Organization",
+                    "structure_key": "company",
+                },
+            ),
+        ]
+    )
+    _RELATION_GRAPH_OU_STYLE_KEYS = {
+        "national_association": "ou_type_national_association",
+        "regional_association": "ou_type_regional_association",
+        "local_chapter": "ou_type_local_chapter",
+        "hub": "ou_type_hub",
+        "other": "ou_type_other",
+    }
+    _RELATION_GRAPH_ORGANIZATION_KIND_STYLE_KEYS = {
+        "company": "organization_kind_company",
+        "organization": "organization_kind_organization",
+        "municipality_public_body": "organization_kind_municipality_public_body",
+        "other_organization": "organization_kind_other_organization",
+    }
 
     def _compute_relationship_graph_seed_id(self):
         for partner in self:
@@ -71,7 +174,9 @@ class ResPartner(models.Model):
         expanded_partners = self.search([("id", "in", expanded_partner_ids)])
         seed_partners = focal_partner | expanded_partners
         seed_partner_ids = [partner.id for partner in seed_partners]
-        selected_relation_type_ids = [relation_type_id for relation_type_id in relation_type_ids if relation_type_id > 0]
+        selected_relation_type_ids = [
+            relation_type_id for relation_type_id in relation_type_ids if relation_type_id > 0
+        ]
         has_explicit_type_filter = bool(relation_type_ids)
         include_child_contacts = bool(include_child_contacts) and (
             not has_explicit_type_filter
@@ -108,9 +213,13 @@ class ResPartner(models.Model):
             relation_type_map = self._get_graph_relation_type_map(relation_rows)
 
         relation_edges = self._build_relation_graph_edges(relation_rows, relation_type_map)
-        child_contact_edges = self._build_child_contact_graph_edges(seed_partners) if include_child_contacts else []
+        child_contact_edges = (
+            self._build_child_contact_graph_edges(seed_partners) if include_child_contacts else []
+        )
         graph_source_edges = relation_edges + child_contact_edges
-        partner_map = self._get_accessible_graph_partner_map(focal_partner.id, graph_source_edges)
+        partner_map, has_econgood_taxonomy = self._get_accessible_graph_partner_map(
+            focal_partner.id, graph_source_edges
+        )
 
         nodes = OrderedDict()
         graph_nodes = []
@@ -121,7 +230,13 @@ class ResPartner(models.Model):
             required_node_ids = [edge["source_partner_id"], edge["target_partner_id"]]
             if any(required_partner_id not in partner_map for required_partner_id in required_node_ids):
                 continue
-            new_node_count = len([required_partner_id for required_partner_id in required_node_ids if required_partner_id not in nodes])
+            new_node_count = len(
+                [
+                    required_partner_id
+                    for required_partner_id in required_node_ids
+                    if required_partner_id not in nodes
+                ]
+            )
             if graph_edges and (
                 len(graph_edges) >= self._RELATION_GRAPH_EDGE_LIMIT
                 or len(nodes) + new_node_count > self._RELATION_GRAPH_NODE_LIMIT
@@ -139,6 +254,12 @@ class ResPartner(models.Model):
                     "is_focal": node_partner_id == focal_partner.id,
                     "is_expanded": node_partner_id in expanded_set,
                     "is_seed": node_partner_id in seed_partner_ids,
+                    "structure_key": partner_data["structure_key"],
+                    "style_key": partner_data["style_key"],
+                    "style_label": partner_data["style_label"],
+                    "is_child_contact": partner_data["is_child_contact"],
+                    "organization_kind_code": partner_data["organization_kind_code"],
+                    "ou_type_code": partner_data["ou_type_code"],
                 }
                 nodes[node_partner_id] = node
                 graph_nodes.append(node)
@@ -164,10 +285,7 @@ class ResPartner(models.Model):
         if focal_partner.id not in nodes:
             focal_data = partner_map.get(
                 focal_partner.id,
-                {
-                    "display_name": focal_partner.display_name,
-                    "is_company": bool(focal_partner.is_company),
-                },
+                self._build_graph_partner_data(focal_partner, has_econgood_taxonomy),
             )
             focal_node = {
                 "id": focal_partner.id,
@@ -176,6 +294,12 @@ class ResPartner(models.Model):
                 "is_focal": True,
                 "is_expanded": focal_partner.id in expanded_set,
                 "is_seed": True,
+                "structure_key": focal_data["structure_key"],
+                "style_key": focal_data["style_key"],
+                "style_label": focal_data["style_label"],
+                "is_child_contact": focal_data["is_child_contact"],
+                "organization_kind_code": focal_data["organization_kind_code"],
+                "ou_type_code": focal_data["ou_type_code"],
             }
             nodes[focal_partner.id] = focal_node
             graph_nodes.insert(0, focal_node)
@@ -203,6 +327,8 @@ class ResPartner(models.Model):
                 "total_node_count": len(graph_nodes),
                 "total_edge_count": len(graph_edges),
                 "truncated": truncated,
+                "has_econgood_taxonomy": has_econgood_taxonomy,
+                "legend_mode": "collapsed",
             },
         }
 
@@ -289,23 +415,88 @@ class ResPartner(models.Model):
         return {relation_type["id"]: relation_type for relation_type in relation_types}
 
     @api.model
+    def _has_graph_taxonomy_support(self):
+        registry_models = getattr(self.env.registry, "models", {})
+        return (
+            "x_ou_type_id" in self._fields
+            and "x_organization_kind_id" in self._fields
+            and "res.partner.ou.type" in registry_models
+            and "res.partner.organization.kind" in registry_models
+        )
+
+    @api.model
+    def _get_graph_style_definition(self, style_key):
+        return self._RELATION_GRAPH_STYLE_REGISTRY.get(
+            style_key,
+            self._RELATION_GRAPH_STYLE_REGISTRY[self._RELATION_GRAPH_DEFAULT_STYLE_KEY],
+        )
+
+    @api.model
+    def _classify_graph_partner_visuals(
+        self,
+        is_company=False,
+        has_parent=False,
+        ou_type_code=False,
+        organization_kind_code=False,
+    ):
+        if has_parent:
+            style_key = "child_contact"
+        elif not is_company:
+            style_key = "person"
+        elif ou_type_code:
+            style_key = self._RELATION_GRAPH_OU_STYLE_KEYS.get(
+                ou_type_code, "ou_type_other"
+            )
+        elif organization_kind_code:
+            style_key = self._RELATION_GRAPH_ORGANIZATION_KIND_STYLE_KEYS.get(
+                organization_kind_code, "organization_kind_other_organization"
+            )
+        else:
+            style_key = self._RELATION_GRAPH_DEFAULT_STYLE_KEY
+        style_definition = self._get_graph_style_definition(style_key)
+        return {
+            "structure_key": style_definition["structure_key"],
+            "style_key": style_key,
+            "style_label": style_definition["label"],
+            "is_child_contact": bool(has_parent),
+            "organization_kind_code": organization_kind_code or False,
+            "ou_type_code": ou_type_code or False,
+        }
+
+    @api.model
+    def _build_graph_partner_data(self, partner, has_econgood_taxonomy=False):
+        ou_type_code = False
+        organization_kind_code = False
+        if has_econgood_taxonomy and partner.is_company and not partner.parent_id:
+            ou_type_code = partner.x_ou_type_id.code or False
+            organization_kind_code = partner.x_organization_kind_id.code or False
+        visual_data = self._classify_graph_partner_visuals(
+            is_company=bool(partner.is_company),
+            has_parent=bool(partner.parent_id),
+            ou_type_code=ou_type_code,
+            organization_kind_code=organization_kind_code,
+        )
+        return {
+            "id": partner.id,
+            "display_name": partner.display_name,
+            "is_company": bool(partner.is_company),
+            **visual_data,
+        }
+
+    @api.model
     def _get_accessible_graph_partner_map(self, focal_partner_id, relation_edges):
         partner_ids = {focal_partner_id}
         for edge in relation_edges:
             partner_ids.add(edge["source_partner_id"])
             partner_ids.add(edge["target_partner_id"])
 
-        partner_map = {}
-        for partner_id in partner_ids:
-            partner = self.search([("id", "=", partner_id)], limit=1)
-            if not partner:
-                continue
-            partner_map[partner.id] = {
-                "id": partner.id,
-                "display_name": partner.display_name,
-                "is_company": bool(partner.is_company),
-            }
-        return partner_map
+        has_econgood_taxonomy = self._has_graph_taxonomy_support()
+        partners = self.search([("id", "in", list(partner_ids))])
+        partner_map = {
+            partner.id: self._build_graph_partner_data(partner, has_econgood_taxonomy)
+            for partner in partners
+        }
+        return partner_map, has_econgood_taxonomy
 
     @api.model
     def _build_relation_graph_edges(self, relation_rows, relation_type_map):
@@ -352,7 +543,10 @@ class ResPartner(models.Model):
             return []
 
         seed_partner_ids = set(seed_partners.ids)
-        child_contacts = self.search([("parent_id", "in", list(seed_partner_ids))], order="name asc, id asc")
+        child_contacts = self.search(
+            [("parent_id", "in", list(seed_partner_ids))],
+            order="name asc, id asc",
+        )
         for child_contact in child_contacts:
             parent_partner = child_contact.parent_id
             if not parent_partner or parent_partner.id not in seed_partner_ids:

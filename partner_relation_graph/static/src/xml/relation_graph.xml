@@ -71,6 +71,7 @@
                             >
                                 <t t-esc="selectedNode.display_name" />
                             </a>
+                            <p>Type: <t t-esc="selectedNodeTypeLabel" /></p>
                         </div>
                         <div class="prg-side-section" t-if="selectedEdge">
                             <h5>Selected Relationship</h5>
@@ -100,6 +101,42 @@
                 </aside>
 
                 <div class="prg-main-panel">
+                    <div class="prg-legend-overlay" t-if="state.partnerId">
+                        <button
+                            class="btn btn-light prg-legend-toggle"
+                            type="button"
+                            t-att-aria-expanded="state.legendExpanded ? 'true' : 'false'"
+                            t-on-click="toggleLegend"
+                        >
+                            <t t-esc="state.legendExpanded ? 'Hide Legend' : 'Show Legend'" />
+                        </button>
+                        <div class="prg-legend-card" t-if="state.legendExpanded">
+                            <div class="prg-legend-section">
+                                <h5>Shapes</h5>
+                                <div class="prg-legend-item" t-foreach="legendShapeItems" t-as="item" t-key="item.key">
+                                    <svg class="prg-legend-icon" viewBox="0 0 64 32" aria-hidden="true">
+                                        <g t-att-class="legendItemClasses(item)">
+                                            <circle t-if="(item.structureKey || item.structure_key) === 'person'" class="prg-node-shape" cx="32" cy="16" r="10"></circle>
+                                            <rect t-if="(item.structureKey || item.structure_key) === 'company'" class="prg-node-shape" x="19" y="9" width="26" height="14" rx="6"></rect>
+                                            <rect t-if="(item.structureKey || item.structure_key) === 'child_contact'" class="prg-node-shape" x="14" y="10" width="36" height="12" rx="6"></rect>
+                                        </g>
+                                    </svg>
+                                    <span><t t-esc="item.label" /></span>
+                                </div>
+                            </div>
+                            <div class="prg-legend-section">
+                                <h5>Colors</h5>
+                                <div class="prg-legend-item" t-foreach="legendColorItems" t-as="item" t-key="item.key">
+                                    <svg class="prg-legend-icon" viewBox="0 0 64 32" aria-hidden="true">
+                                        <g t-att-class="legendItemClasses(item)">
+                                            <rect class="prg-node-shape" x="19" y="9" width="26" height="14" rx="6"></rect>
+                                        </g>
+                                    </svg>
+                                    <span><t t-esc="item.label" /></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="prg-main-actions" t-if="!props.standalone and state.partnerId">
                         <button class="btn btn-outline-primary" type="button" t-on-click="openStandalone">Open Full Graph</button>
                     </div>

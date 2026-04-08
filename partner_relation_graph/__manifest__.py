@@ -1,6 +1,6 @@
 {
     "name": "Partner Relation Graph",
-    "version": "18.0.1.0.8",
+    "version": "18.0.1.0.9",
     "category": "Contacts",
     "summary": "Read-only relationship graph for partner_multi_relation",
     "author": "ECOnGOOD",

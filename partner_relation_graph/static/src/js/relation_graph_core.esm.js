@@ -16,6 +16,11 @@ import {
 } from "@odoo/owl";
 
 const GraphLibrary = window.PartnerRelationSimpleGraph;
+const GraphStyleRegistry = window.PartnerRelationGraphStyleRegistry || {};
+const GraphStyleEntries = Object.entries(GraphStyleRegistry).map(([key, definition]) => ({
+    key,
+    ...definition,
+}));
 
 function makeEmptyGraph(partnerId = false) {
     return {
@@ -27,6 +32,8 @@ function makeEmptyGraph(partnerId = false) {
             total_node_count: 0,
             total_edge_count: 0,
             truncated: false,
+            has_econgood_taxonomy: false,
+            legend_mode: "collapsed",
         },
     };
 }
@@ -83,6 +90,7 @@ function normalizeInitialGraphState(value) {
         expandedPartnerIds: toIdList(state.expandedPartnerIds),
         selectedNodeId: toSingleId(state.selectedNodeId),
         selectedEdgeId: toEdgeId(state.selectedEdgeId),
+        legendExpanded: Boolean(state.legendExpanded),
         graphViewState: state.graphViewState && typeof state.graphViewState === "object"
             ? state.graphViewState
             : null,
@@ -181,6 +189,7 @@ export class RelationGraphExplorer extends Component {
             selectedNodeId: this.initialGraphState?.selectedNodeId || false,
             selectedEdgeId: this.initialGraphState?.selectedEdgeId || false,
             expandedPartnerIds: this.initialGraphState?.expandedPartnerIds || [],
+            legendExpanded: Boolean(this.initialGraphState?.legendExpanded),
             graphViewState: this.initialGraphState?.graphViewState || null,
         });
 
@@ -236,6 +245,22 @@ export class RelationGraphExplorer extends Component {
 
     get relationTypeDomainIds() {
         return this.state.relationTypeIds.filter((relationTypeId) => relationTypeId > 0);
+    }
+
+    get legendShapeItems() {
+        return GraphStyleEntries.filter((item) => item.legendShape);
+    }
+
+    get legendColorItems() {
+        const colorItems = GraphStyleEntries.filter((item) => item.legendColor);
+        if (this.state.graphData.meta?.has_econgood_taxonomy) {
+            return colorItems;
+        }
+        return colorItems.filter((item) => item.key === "company_generic");
+    }
+
+    get selectedNodeTypeLabel() {
+        return this.selectedNode?.style_label || _t("Contact");
     }
 
     getPartnerSelectorIds() {
@@ -362,6 +387,18 @@ export class RelationGraphExplorer extends Component {
         await this.openRelation(this.selectedEdge?.id);
     }
 
+    toggleLegend() {
+        this.state.legendExpanded = !this.state.legendExpanded;
+    }
+
+    legendItemClasses(item) {
+        return [
+            "prg-legend-node",
+            `is-structure-${item.structureKey || item.structure_key || "company"}`,
+            `is-style-${item.key}`,
+        ].join(" ");
+    }
+
     async openStandalone() {
         if (this.props.standalone || !this.state.partnerId) {
             return;
@@ -383,6 +420,7 @@ export class RelationGraphExplorer extends Component {
             selectedNodeId: this.state.selectedNodeId || false,
             selectedEdgeId:
                 this.state.selectedEdgeId === false ? false : this.state.selectedEdgeId,
+            legendExpanded: Boolean(this.state.legendExpanded),
             graphViewState: this.state.graphViewState || null,
         };
     }
