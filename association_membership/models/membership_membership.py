@@ -70,6 +70,10 @@ class MembershipMembership(models.Model):
     date_end = fields.Date(tracking=True, index=True)
     date_cancelled = fields.Date(tracking=True, index=True)
     cancel_reason = fields.Text(tracking=True)
+    date_welcome_sent = fields.Date(
+        tracking=True,
+        copy=False,
+    )
     membership_active = fields.Boolean(
         string="Membership Active",
         compute="_compute_membership_active",
@@ -102,6 +106,9 @@ class MembershipMembership(models.Model):
         "membership_id",
         string="Contributions",
     )
+    duplicate_contribution_year_warning = fields.Char(
+        compute="_compute_duplicate_contribution_year_warning",
+    )
     contribution_count = fields.Integer(compute="_compute_contribution_count")
     last_contribution_year = fields.Integer(
         compute="_compute_last_contribution_data",
@@ -131,7 +138,7 @@ class MembershipMembership(models.Model):
 
     def _auto_init(self):
         result = super()._auto_init()
-        today = fields.Date.context_today(self)
+        today = date.today()
         self.env.cr.execute(
             """
             UPDATE membership_membership
@@ -263,6 +270,17 @@ class MembershipMembership(models.Model):
         for record in self:
             record.membership_active = record.state in BUSINESS_ACTIVE_STATES
 
+    @api.depends("contribution_ids.membership_year")
+    def _compute_duplicate_contribution_year_warning(self):
+        for record in self:
+            duplicate_years = record._get_duplicate_contribution_years()
+            record.duplicate_contribution_year_warning = (
+                _("More than one contribution exists for year(s): %s.")
+                % ", ".join(str(year) for year in duplicate_years)
+                if duplicate_years
+                else False
+            )
+
     @api.depends("contribution_ids")
     def _compute_contribution_count(self):
         for record in self:
@@ -292,6 +310,31 @@ class MembershipMembership(models.Model):
     def _is_auto_activate_on_payment_enabled(self, company=False):
         company = company or self.env.company
         return bool(company.membership_auto_activate_on_payment)
+
+    def _get_duplicate_contribution_years(self):
+        self.ensure_one()
+        contribution_years = [
+            year
+            for year in self.contribution_ids.mapped("membership_year")
+            if year
+        ]
+        duplicates = [
+            year for year, count in Counter(contribution_years).items() if count > 1
+        ]
+        return sorted(duplicates)
+
+    @api.onchange("contribution_ids", "contribution_ids.membership_year")
+    def _onchange_contribution_ids_warning(self):
+        duplicate_years = self._get_duplicate_contribution_years()
+        if not duplicate_years:
+            return {}
+        return {
+            "warning": {
+                "title": _("Duplicate Contribution Year"),
+                "message": _("More than one contribution exists for year(s): %s.")
+                % ", ".join(str(year) for year in duplicate_years),
+            }
+        }
 
     @api.model
     def _read_group_state(self, values, domain):
@@ -621,7 +664,7 @@ class MembershipMembership(models.Model):
         )
 
     def _schedule_termination(self, **kwargs):
-        today = fields.Date.context_today(self)
+        today = date.today()
         for record in self:
             vals = record._get_default_cancel_values(
                 cancel_date=kwargs.get("date_cancelled"),
@@ -760,6 +803,18 @@ class MembershipMembership(models.Model):
             "context": {"create": False},
         }
 
+    def _render_mail_template_field(self, template, field_name):
+        self.ensure_one()
+        if not template:
+            return False
+        lang = template._render_lang([self.id]).get(self.id)
+        options = {"post_process": True} if field_name == "body_html" else {}
+        return template.with_context(lang=lang)._render_field(
+            field_name,
+            [self.id],
+            options=options,
+        ).get(self.id)
+
     def action_create_contribution(self):
         self.ensure_one()
         contribution_year = self._default_contribution_year()
@@ -781,12 +836,8 @@ class MembershipMembership(models.Model):
                 invoice_date=fields.Date.context_today(self),
             )
         return {
-            "type": "ir.actions.act_window",
-            "name": _("Contribution"),
-            "res_model": "membership.contribution",
-            "res_id": contribution.id,
-            "view_mode": "form",
-            "target": "current",
+            "type": "ir.actions.client",
+            "tag": "reload",
         }
 
     def _resolve_amount_expected(self):
@@ -822,7 +873,7 @@ class MembershipMembership(models.Model):
 
     @api.model
     def cron_terminate_expired_memberships(self):
-        today = fields.Date.context_today(self)
+        today = date.today()
         memberships = self.search(
             [
                 ("state", "=", "cancelled"),

@@ -85,39 +85,69 @@ class TestEcongoodExtraFields(TransactionCase):
             }
         )
         self.assertEqual(partner.x_nonprofit_status, "unknown")
+        self.assertFalse(partner.x_is_econgood_ou)
 
-    def test_person_cannot_store_organization_taxonomy(self):
+    def test_person_cannot_store_company_only_classification(self):
         with self.assertRaisesRegex(ValidationError, "company contacts"):
             self.env["res.partner"].create(
                 {
-                    "name": "Person With Organization Kind",
+                    "name": "Person With OU Flag",
                     "company_type": "person",
-                    "x_organization_kind_id": self.organization_kind.id,
-                }
-            )
-        with self.assertRaisesRegex(ValidationError, "company contacts"):
-            self.env["res.partner"].create(
-                {
-                    "name": "Person With OU Type",
-                    "company_type": "person",
-                    "x_ou_type_id": self.ou_type.id,
+                    "x_is_econgood_ou": True,
                 }
             )
 
-    def test_company_can_store_organization_taxonomy(self):
+    def test_company_can_store_organization_kind_when_not_ou(self):
         partner = self.env["res.partner"].create(
             {
                 "name": "Organization Partner",
                 "company_type": "company",
                 "is_company": True,
+                "x_is_econgood_ou": False,
                 "x_organization_kind_id": self.company_kind.id,
-                "x_ou_type_id": self.ou_type.id,
                 "x_nonprofit_status": "confirmed",
             }
         )
         self.assertEqual(partner.x_organization_kind_id, self.company_kind)
+        self.assertFalse(partner.x_ou_type_id)
+
+    def test_company_can_store_ou_type_when_ou_enabled(self):
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Regional Association Partner",
+                "company_type": "company",
+                "is_company": True,
+                "x_is_econgood_ou": True,
+                "x_ou_type_id": self.ou_type.id,
+            }
+        )
+        self.assertTrue(partner.x_is_econgood_ou)
         self.assertEqual(partner.x_ou_type_id, self.ou_type)
-        self.assertEqual(partner.x_nonprofit_status, "confirmed")
+        self.assertFalse(partner.x_organization_kind_id)
+
+    def test_ou_flag_and_organization_kind_are_mutually_exclusive(self):
+        with self.assertRaisesRegex(ValidationError, "Organization Kind must be empty"):
+            self.env["res.partner"].create(
+                {
+                    "name": "Invalid OU Partner",
+                    "company_type": "company",
+                    "is_company": True,
+                    "x_is_econgood_ou": True,
+                    "x_organization_kind_id": self.organization_kind.id,
+                }
+            )
+
+    def test_ou_type_requires_ou_flag(self):
+        with self.assertRaisesRegex(ValidationError, "OU Type requires"):
+            self.env["res.partner"].create(
+                {
+                    "name": "Invalid Organization Partner",
+                    "company_type": "company",
+                    "is_company": True,
+                    "x_is_econgood_ou": False,
+                    "x_ou_type_id": self.ou_type.id,
+                }
+            )
 
     def test_lookup_code_uniqueness(self):
         with self.cr.savepoint(), self.assertRaises(IntegrityError):

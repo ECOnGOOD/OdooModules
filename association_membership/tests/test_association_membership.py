@@ -160,6 +160,8 @@ class TestAssociationMembership(TransactionCase):
                             "product_id": contribution.product_id.id,
                             "quantity": 1.0,
                             "price_unit": contribution.amount_expected,
+                            "membership_id": contribution.membership_id.id,
+                            "membership_year": contribution.membership_year,
                             "membership_contribution_id": contribution.id,
                         }
                     )
@@ -168,6 +170,18 @@ class TestAssociationMembership(TransactionCase):
         )
         self.env.invalidate_all()
         return invoice
+
+    @classmethod
+    def _create_mail_template(cls, name, model_name, *, subject=False, body_html=False):
+        return cls.env["mail.template"].create(
+            {
+                "name": name,
+                "model_id": cls.env["ir.model"]._get(model_name).id,
+                "subject": subject or name,
+                "body_html": body_html or "<p>%s</p>" % name,
+                "email_from": "membership@example.com",
+            }
+        )
 
     def _make_csv_payload(self, rows):
         buffer = io.StringIO()
@@ -300,6 +314,26 @@ class TestAssociationMembership(TransactionCase):
             cancel_reason=membership.cancel_reason,
         )
         self.assertFalse(membership.membership_active)
+
+    def test_duplicate_contribution_year_warning_marks_repeated_years(self):
+        membership = self.env["membership.membership"].new(
+            {
+                "partner_id": self.member_partner.id,
+                "company_id": self.env.company.id,
+                "product_id": self.paid_product.id,
+                "contribution_ids": [
+                    Command.create({"membership_year": self.today.year}),
+                    Command.create({"membership_year": self.today.year}),
+                ],
+            }
+        )
+
+        membership._compute_duplicate_contribution_year_warning()
+        warning = membership._onchange_contribution_ids_warning()
+
+        self.assertIn(str(self.today.year), membership.duplicate_contribution_year_warning)
+        self.assertEqual(warning["warning"]["title"], "Duplicate Contribution Year")
+        self.assertIn(str(self.today.year), warning["warning"]["message"])
 
     def test_member_number_auto_generation_uses_company_format_and_is_global(self):
         other_company = self.env["res.company"].create(
@@ -454,15 +488,15 @@ class TestAssociationMembership(TransactionCase):
 
         self.assertEqual(overview_action.name, "Memberships")
         self.assertEqual(overview_action.res_model, "membership.membership")
-        self.assertEqual(overview_action.view_mode, "list,form,kanban")
+        self.assertEqual(overview_action.view_mode, "kanban,list,form")
         self.assertEqual(overview_action.domain, "[]")
         self.assertEqual(
             overview_action.view_id,
-            self.env.ref("association_membership.view_membership_membership_list"),
+            self.env.ref("association_membership.view_membership_membership_kanban"),
         )
         self.assertIn("search_default_active_memberships", overview_action.context)
         self.assertNotIn("group_by", overview_action.context)
-        self.assertIn("membership_number", overview_action.view_id.arch_db)
+        self.assertIn("o_kanban_small_column", overview_action.view_id.arch_db)
         self.assertEqual(root_menu.action, overview_action)
 
         records_menu = self.env.ref(
@@ -507,11 +541,15 @@ class TestAssociationMembership(TransactionCase):
         ).default_get(["membership_year", "invoice_partner_id"])
         contribution = self.env["membership.contribution"].new({"membership_id": membership.id})
         contribution._onchange_membership_id()
-        created_contribution = self.env["membership.contribution"].browse(contribution_action["res_id"])
+        created_contribution = self.env["membership.contribution"].search(
+            [("membership_id", "=", membership.id), ("membership_year", "=", self.today.year)],
+            limit=1,
+        )
 
         self.assertEqual(membership.invoice_partner_id, invoice_contact)
         self.assertEqual(action["context"]["default_invoice_partner_id"], invoice_contact.id)
-        self.assertEqual(contribution_action["res_model"], "membership.contribution")
+        self.assertEqual(contribution_action["type"], "ir.actions.client")
+        self.assertEqual(contribution_action["tag"], "reload")
         self.assertEqual(defaults["membership_year"], self.today.year)
         self.assertEqual(defaults["invoice_partner_id"], invoice_contact.id)
         self.assertEqual(contribution.invoice_partner_id, invoice_contact)
@@ -1065,6 +1103,180 @@ class TestAssociationMembership(TransactionCase):
         self.assertEqual(membership.date_end, self.today)
         self.assertEqual(membership.cancel_reason, "Ends now.")
 
+    def test_cancel_membership_wizard_prefills_and_sends_cancellation_message(self):
+        cancellation_template = self._create_mail_template(
+            "Membership Cancellation",
+            "membership.membership",
+            subject="Cancellation notice",
+            body_html="<p>Your membership has been cancelled.</p>",
+        )
+        self.env.company.membership_cancellation_template_id = cancellation_template
+        membership = self._create_membership(
+            self.paid_product,
+            state="active",
+            invoice_partner=self.billing_partner,
+        )
+
+        defaults = self.env["membership.cancel.wizard"].with_context(
+            default_membership_id=membership.id
+        ).default_get(
+            [
+                "cancellation_template_id",
+                "mail_partner_ids",
+                "mail_subject",
+                "mail_body",
+            ]
+        )
+        self.assertEqual(defaults["cancellation_template_id"], cancellation_template.id)
+        self.assertEqual(defaults["mail_partner_ids"], [(6, 0, membership.partner_id.ids)])
+        self.assertEqual(defaults["mail_subject"], "Cancellation notice")
+        self.assertIn("cancelled", defaults["mail_body"])
+
+        wizard = self.env["membership.cancel.wizard"].create(
+            {
+                "membership_id": membership.id,
+                "date_cancelled": self.today,
+                "date_end": self.today + timedelta(days=15),
+                "cancel_reason": "Requested by member.",
+                "cancellation_template_id": cancellation_template.id,
+                "send_cancellation_message": True,
+                "mail_partner_ids": [(6, 0, membership.partner_id.ids)],
+                "mail_subject": defaults["mail_subject"],
+                "mail_body": defaults["mail_body"],
+            }
+        )
+
+        composer_model = type(self.env["mail.compose.message"])
+        with patch.object(composer_model, "_action_send_mail", autospec=True) as send_mock:
+            wizard.action_confirm()
+
+        self.env.invalidate_all()
+        membership = self.env["membership.membership"].browse(membership.id)
+        self.assertEqual(membership.state, "cancelled")
+        self.assertTrue(send_mock.called)
+        composer = send_mock.call_args.args[0]
+        self.assertEqual(composer.template_id, cancellation_template)
+        self.assertEqual(composer.partner_ids, membership.partner_id)
+        self.assertEqual(composer.subject, "Cancellation notice")
+        self.assertIn("cancelled", composer.body)
+
+    def test_membership_activation_invoice_template_is_used_once(self):
+        activation_template = self._create_mail_template(
+            "Membership Welcome Invoice",
+            "account.move",
+            subject="Welcome to the association",
+            body_html="<p>Welcome!</p>",
+        )
+        self.env.company.membership_activation_invoice_template_id = activation_template
+        membership = self._create_membership(
+            self.paid_product,
+            state="active",
+            invoice_partner=self.billing_partner,
+        )
+        contribution = self.env["membership.contribution"].create(
+            membership._prepare_contribution_create_values(membership_year=self.today.year)
+        )
+        invoice = self._create_invoice_for_contribution(contribution)
+        plain_invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.billing_partner.id,
+                "company_id": self.env.company.id,
+                "journal_id": self.sale_journal.id,
+                "invoice_date": self.today,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "Plain Invoice",
+                            "quantity": 1.0,
+                            "price_unit": 10.0,
+                            "account_id": self.income_account.id,
+                        }
+                    )
+                ],
+            }
+        )
+
+        self.assertEqual(invoice._get_mail_template(), activation_template)
+        self.assertNotEqual(plain_invoice._get_mail_template(), activation_template)
+        self.assertFalse(membership.date_welcome_sent)
+
+        invoice._mark_membership_welcome_sent(mail_template=activation_template)
+        self.env.invalidate_all()
+
+        membership = self.env["membership.membership"].browse(membership.id)
+        invoice = self.env["account.move"].browse(invoice.id)
+        self.assertEqual(membership.date_welcome_sent, self.today)
+        self.assertNotEqual(invoice._get_mail_template(), activation_template)
+
+    def test_send_receipt_uses_configured_templates_and_invoice_contact(self):
+        membership_template = self._create_mail_template(
+            "Membership Receipt",
+            "membership.contribution",
+            subject="Membership receipt",
+            body_html="<p>Membership receipt.</p>",
+        )
+        donation_template = self._create_mail_template(
+            "Donation Receipt",
+            "membership.contribution",
+            subject="Donation receipt",
+            body_html="<p>Donation receipt.</p>",
+        )
+        self.env.company.write(
+            {
+                "membership_membership_receipt_template_id": membership_template.id,
+                "membership_donation_receipt_template_id": donation_template.id,
+            }
+        )
+        membership = self._create_membership(
+            self.paid_product,
+            state="active",
+            invoice_partner=self.billing_partner,
+        )
+        contribution = self.env["membership.contribution"].create(
+            membership._prepare_contribution_create_values(membership_year=self.today.year)
+        )
+
+        self.assertTrue(contribution.has_receipt_templates)
+        action = contribution.action_send_receipt()
+        self.assertEqual(action["res_model"], "membership.receipt.wizard")
+
+        wizard = self.env["membership.receipt.wizard"].with_context(
+            default_contribution_id=contribution.id
+        ).create({})
+        self.assertEqual(wizard.template_id, membership_template)
+        self.assertEqual(
+            set(wizard.available_template_ids.ids),
+            {membership_template.id, donation_template.id},
+        )
+
+        wizard.template_id = donation_template
+        composer_action = wizard.action_open_composer()
+        composer = self.env["mail.compose.message"].browse(composer_action["res_id"])
+        self.assertEqual(composer.template_id, donation_template)
+        self.assertEqual(composer.partner_ids, self.billing_partner)
+        self.assertEqual(composer._evaluate_res_ids(), [contribution.id])
+
+    def test_send_receipt_requires_configured_templates(self):
+        self.env.company.write(
+            {
+                "membership_membership_receipt_template_id": False,
+                "membership_donation_receipt_template_id": False,
+            }
+        )
+        membership = self._create_membership(
+            self.paid_product,
+            state="active",
+            invoice_partner=self.billing_partner,
+        )
+        contribution = self.env["membership.contribution"].create(
+            membership._prepare_contribution_create_values(membership_year=self.today.year)
+        )
+
+        self.assertFalse(contribution.has_receipt_templates)
+        with self.assertRaises(UserError):
+            contribution.action_send_receipt()
+
     def test_product_amount_prefers_variant_sales_price(self):
         class DummyTemplate:
             _fields = {"list_price": object()}
@@ -1112,7 +1324,11 @@ class TestAssociationMembership(TransactionCase):
                 )
                 membership.company_id.membership_invoicing_strategy = strategy
                 action = membership.action_create_contribution()
-                contribution = self.env["membership.contribution"].browse(action["res_id"])
+                self.assertEqual(action["tag"], "reload")
+                contribution = self.env["membership.contribution"].search(
+                    [("membership_id", "=", membership.id), ("membership_year", "=", self.today.year)],
+                    limit=1,
+                )
                 self.assertEqual(contribution.membership_year, self.today.year)
                 if expect_invoice:
                     self.assertTrue(contribution.invoice_id)
@@ -1136,7 +1352,11 @@ class TestAssociationMembership(TransactionCase):
         send_model = type(self.env["account.move.send"])
         with patch.object(send_model, "_generate_and_send_invoices", autospec=True) as send_mock:
             action = membership.action_create_contribution()
-        contribution = self.env["membership.contribution"].browse(action["res_id"])
+        self.assertEqual(action["tag"], "reload")
+        contribution = self.env["membership.contribution"].search(
+            [("membership_id", "=", membership.id), ("membership_year", "=", self.today.year)],
+            limit=1,
+        )
         self.assertTrue(contribution.invoice_id)
         self.assertEqual(contribution.invoice_id.state, "posted")
         self.assertTrue(send_mock.called)

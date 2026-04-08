@@ -20,6 +20,11 @@ class ResPartner(models.Model):
     )
 
     # Organization classification
+    x_is_econgood_ou = fields.Boolean(
+        string="ECOnGOOD OU",
+        help="Enable this for ECOnGOOD organizational units such as national, regional, local chapter, or hub records.",
+        default=False,
+    )
     x_organization_kind_id = fields.Many2one(
         comodel_name="res.partner.organization.kind",
         string="Organization Kind",
@@ -61,7 +66,16 @@ class ResPartner(models.Model):
     def _onchange_company_type_clear_org_fields_for_people(self):
         for partner in self:
             if partner.company_type == "person":
+                partner.x_is_econgood_ou = False
                 partner.x_organization_kind_id = False
+                partner.x_ou_type_id = False
+
+    @api.onchange("x_is_econgood_ou")
+    def _onchange_x_is_econgood_ou(self):
+        for partner in self:
+            if partner.x_is_econgood_ou:
+                partner.x_organization_kind_id = False
+            else:
                 partner.x_ou_type_id = False
 
     @api.constrains("x_employee_count", "x_inhabitant_count")
@@ -108,14 +122,29 @@ class ResPartner(models.Model):
                     _("ECOnGOOD Email Address is not a valid email.")
                 )
 
-    @api.constrains("company_type", "x_organization_kind_id", "x_ou_type_id")
+    @api.constrains(
+        "company_type",
+        "x_is_econgood_ou",
+        "x_organization_kind_id",
+        "x_ou_type_id",
+    )
     def _check_company_classification_fields(self):
         for partner in self:
             if partner.company_type == "person" and (
-                partner.x_organization_kind_id or partner.x_ou_type_id
+                partner.x_is_econgood_ou
+                or partner.x_organization_kind_id
+                or partner.x_ou_type_id
             ):
                 raise ValidationError(
                     _(
-                        "Organization Kind and OU Type can only be set on company contacts."
+                        "ECOnGOOD OU, Organization Kind, and OU Type can only be set on company contacts."
                     )
+                )
+            if partner.x_is_econgood_ou and partner.x_organization_kind_id:
+                raise ValidationError(
+                    _("Organization Kind must be empty when ECOnGOOD OU is enabled.")
+                )
+            if not partner.x_is_econgood_ou and partner.x_ou_type_id:
+                raise ValidationError(
+                    _("OU Type requires ECOnGOOD OU to be enabled.")
                 )

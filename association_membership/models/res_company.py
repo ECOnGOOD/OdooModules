@@ -52,6 +52,22 @@ class ResCompany(models.Model):
         default="draft",
         required=True,
     )
+    membership_activation_invoice_template_id = fields.Many2one(
+        "mail.template",
+        string="Activation Invoice Email Template",
+    )
+    membership_cancellation_template_id = fields.Many2one(
+        "mail.template",
+        string="Cancellation Email Template",
+    )
+    membership_membership_receipt_template_id = fields.Many2one(
+        "mail.template",
+        string="Membership Receipt Email Template",
+    )
+    membership_donation_receipt_template_id = fields.Many2one(
+        "mail.template",
+        string="Donation Receipt Email Template",
+    )
     member_number_prefix = fields.Char(
         string="Member Number Prefix",
         default="MEM/%(year)s/",
@@ -105,6 +121,10 @@ class ResCompany(models.Model):
         "member_number_padding",
         "member_number_prefix",
         "membership_default_contribution_year",
+        "membership_activation_invoice_template_id",
+        "membership_cancellation_template_id",
+        "membership_membership_receipt_template_id",
+        "membership_donation_receipt_template_id",
     )
     def _check_member_number_settings(self):
         for company in self:
@@ -123,9 +143,41 @@ class ResCompany(models.Model):
                     )
                     % {"prefix": company.member_number_prefix}
                 ) from error
+            company._check_membership_mail_template_model(
+                company.membership_activation_invoice_template_id,
+                "account.move",
+            )
+            company._check_membership_mail_template_model(
+                company.membership_cancellation_template_id,
+                "membership.membership",
+            )
+            company._check_membership_mail_template_model(
+                company.membership_membership_receipt_template_id,
+                "membership.contribution",
+            )
+            company._check_membership_mail_template_model(
+                company.membership_donation_receipt_template_id,
+                "membership.contribution",
+            )
 
     def _render_member_number_prefix(self, target_date=False):
         self.ensure_one()
         sequence_date = fields.Date.to_date(target_date or fields.Date.today())
         prefix = self.member_number_prefix or ""
         return prefix % {"year": sequence_date.year}
+
+    def _check_membership_mail_template_model(self, template, expected_model):
+        self.ensure_one()
+        if not template:
+            return
+        actual_model = template.model_id.model or template.model
+        if actual_model != expected_model:
+            raise ValidationError(
+                _(
+                    "%(template)s must use model %(model)s."
+                )
+                % {
+                    "template": template.display_name,
+                    "model": expected_model,
+                }
+            )

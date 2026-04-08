@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="action_report_membership_contribution_receipt" model="ir.actions.report">
+        <field name="name">Membership Contribution Receipt</field>
+        <field name="model">membership.contribution</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">association_membership.report_membership_contribution_receipt_document</field>
+        <field name="report_file">association_membership.report_membership_contribution_receipt_document</field>
+        <field name="print_report_name">'Receipt - %s' % ((object.membership_id.partner_id.display_name or 'Contribution').replace('/', '-'))</field>
+    </record>
+
+    <template id="report_membership_contribution_receipt_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>Contribution Receipt</h2>
+                        <p>
+                            This receipt confirms the recorded contribution for the member below.
+                        </p>
+                        <table class="table table-sm o_main_table">
+                            <tbody>
+                                <tr>
+                                    <td><strong>Member</strong></td>
+                                    <td><span t-field="o.membership_id.partner_id" /></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Invoice Contact</strong></td>
+                                    <td><span t-field="o.invoice_partner_id" /></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Membership Number</strong></td>
+                                    <td><span t-esc="o.membership_id.membership_number or '-'" /></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Year</strong></td>
+                                    <td><span t-esc="o.membership_year_display or o.membership_year" /></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Product</strong></td>
+                                    <td><span t-field="o.product_id" /></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Expected Amount</strong></td>
+                                    <td><span t-field="o.amount_expected" t-options='{"widget": "monetary", "display_currency": o.currency_id}' /></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Paid Amount</strong></td>
+                                    <td><span t-field="o.amount_paid" t-options='{"widget": "monetary", "display_currency": o.currency_id}' /></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Billing Status</strong></td>
+                                    <td><span t-field="o.billing_status" /></td>
+                                </tr>
+                                <tr t-if="o.invoice_id">
+                                    <td><strong>Invoice</strong></td>
+                                    <td><span t-field="o.invoice_id" /></td>
+                                </tr>
+                                <tr t-if="o.date_invoice">
+                                    <td><strong>Invoice Date</strong></td>
+                                    <td><span t-field="o.date_invoice" /></td>
+                                </tr>
+                                <tr t-if="o.note">
+                                    <td><strong>Notes</strong></td>
+                                    <td><span t-field="o.note" /></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

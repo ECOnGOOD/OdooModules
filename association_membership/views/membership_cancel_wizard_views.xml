@@ -10,6 +10,15 @@
                     <field name="date_cancelled" />
                     <field name="date_end" />
                     <field name="cancel_reason" />
+                    <field
+                        name="send_cancellation_message"
+                        invisible="not cancellation_template_id"
+                    />
+                </group>
+                <group invisible="not send_cancellation_message">
+                    <field name="mail_partner_ids" widget="many2many_tags" />
+                    <field name="mail_subject" />
+                    <field name="mail_body" widget="html" />
                 </group>
                 <footer>
                     <button name="action_confirm" string="Confirm" type="object" class="btn-primary" />

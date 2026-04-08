@@ -11,6 +11,7 @@ Adds ECOnGOOD-specific partner fields to `res.partner` and extends the contact f
   - `x_employee_count`
   - `x_inhabitant_count`
 - Organization/legal fields:
+  - `x_is_econgood_ou`
   - `x_organization_kind_id`
   - `x_ou_type_id`
   - `x_nonprofit_status`
@@ -26,7 +27,9 @@ Adds ECOnGOOD-specific partner fields to `res.partner` and extends the contact f
 - Employee and inhabitant counts must be non-negative.
 - Signed dates cannot be in the future.
 - ECOnGOOD email must be a valid email format.
-- Organization Kind and OU Type are only allowed on company contacts.
+- ECOnGOOD OU, Organization Kind, and OU Type are only allowed on company contacts.
+- `x_is_econgood_ou=True` requires `x_organization_kind_id` to stay empty.
+- `x_ou_type_id` requires `x_is_econgood_ou=True`.
 
 ## Seeded partner vocabularies
 
@@ -46,6 +49,7 @@ Adds ECOnGOOD-specific partner fields to `res.partner` and extends the contact f
 
 - `base`
 - `contacts`
+- `association_membership`
 - `partner_company_type`
 - `partner_contact_gender`
 - `partner_contact_birthdate`

@@ -66,7 +66,18 @@
         <field name="model">membership.contribution</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button
+                        name="action_send_receipt"
+                        string="Send Receipt"
+                        type="object"
+                        class="oe_highlight"
+                        groups="association_membership.group_membership_manager"
+                        invisible="not has_receipt_templates"
+                    />
+                </header>
                 <sheet>
+                    <field name="has_receipt_templates" invisible="1" />
                     <group>
                         <group>
                             <field name="membership_id" />
@@ -121,5 +132,18 @@
         <field name="view_mode">list,form,pivot</field>
         <field name="view_id" ref="association_membership.view_membership_contribution_list" />
         <field name="search_view_id" ref="association_membership.view_membership_contribution_search" />
+    </record>
+
+    <record id="action_membership_contribution_send_receipt" model="ir.actions.server">
+        <field name="name">Send Receipt</field>
+        <field name="state">code</field>
+        <field name="model_id" ref="association_membership.model_membership_contribution" />
+        <field name="binding_model_id" ref="association_membership.model_membership_contribution" />
+        <field name="binding_view_types">list</field>
+        <field name="code"><![CDATA[
+if len(records) != 1:
+    raise UserError('Please select exactly one contribution.')
+action = records.action_send_receipt()
+        ]]></field>
     </record>
 </odoo>

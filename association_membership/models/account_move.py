@@ -1,8 +1,37 @@
-from odoo import api, models
+from odoo import api, fields, models
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
+
+    def _membership_pending_welcome_memberships(self):
+        self.ensure_one()
+        if self.move_type != "out_invoice":
+            return self.env["membership.membership"]
+        return self.line_ids.mapped("membership_id").filtered(
+            lambda membership: not membership.date_welcome_sent
+        )
+
+    def _membership_activation_mail_template(self):
+        self.ensure_one()
+        memberships = self._membership_pending_welcome_memberships()
+        if not memberships:
+            return False
+        return memberships[:1].company_id.membership_activation_invoice_template_id
+
+    def _get_mail_template(self):
+        template = self[:1]._membership_activation_mail_template() if len(self) == 1 else False
+        return template or super()._get_mail_template()
+
+    def _mark_membership_welcome_sent(self, mail_template=False):
+        self.ensure_one()
+        template = self._membership_activation_mail_template()
+        if not (template and mail_template == template):
+            return False
+        memberships = self._membership_pending_welcome_memberships()
+        if memberships:
+            memberships.write({"date_welcome_sent": fields.Date.context_today(self)})
+        return True
 
     @api.model_create_multi
     def create(self, vals_list):

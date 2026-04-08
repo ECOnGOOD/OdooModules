@@ -8,6 +8,7 @@ __pycache__/
 *.conf
 /filestore/
 /sessions/
+*/migrations/
 
 # OS generated files
 .DS_Store

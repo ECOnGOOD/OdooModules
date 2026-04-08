@@ -29,3 +29,7 @@ msgstr "Type d'unite organisationnelle"
 
 msgid "Nonprofit Status"
 msgstr "Statut associatif"
+
+msgid "ECOnGOOD OU"
+msgstr "ECOnGOOD OU"
+

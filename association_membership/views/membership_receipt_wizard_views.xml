@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_membership_receipt_wizard_form" model="ir.ui.view">
+        <field name="name">membership.receipt.wizard.form</field>
+        <field name="model">membership.receipt.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Send Receipt">
+                <group>
+                    <field name="contribution_id" />
+                    <field name="available_template_ids" invisible="1" />
+                    <field name="template_id" />
+                </group>
+                <footer>
+                    <button
+                        name="action_open_composer"
+                        string="Continue"
+                        type="object"
+                        class="btn-primary"
+                    />
+                    <button string="Discard" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

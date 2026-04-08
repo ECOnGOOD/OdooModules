@@ -225,8 +225,24 @@
                                 class="oe_highlight"
                                 groups="association_membership.group_membership_manager"
                             />
-                            <field name="contribution_ids" readonly="1">
-                                <list create="0" edit="0" delete="0">
+                            <field name="duplicate_contribution_year_warning" invisible="1" />
+                            <div
+                                class="alert alert-warning"
+                                role="alert"
+                                invisible="not duplicate_contribution_year_warning"
+                            >
+                                <field
+                                    name="duplicate_contribution_year_warning"
+                                    nolabel="1"
+                                    readonly="1"
+                                />
+                            </div>
+                            <field
+                                name="contribution_ids"
+                                mode="list,form"
+                                context="{'default_membership_id': id, 'form_view_ref': 'association_membership.view_membership_contribution_form', 'form_view_initial_mode': 'edit'}"
+                            >
+                                <list create="0" delete="0" open_form_view="1">
                                     <field name="membership_year_display" string="Year" />
                                     <field name="amount_expected" />
                                     <field name="amount_paid" />
@@ -246,8 +262,8 @@
     <record id="action_members_overview" model="ir.actions.act_window">
         <field name="name">Memberships</field>
         <field name="res_model">membership.membership</field>
-        <field name="view_mode">list,form,kanban</field>
-        <field name="view_id" ref="association_membership.view_membership_membership_list" />
+        <field name="view_mode">kanban,list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_kanban" />
         <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
         <field name="domain">[]</field>
         <field name="context">{'search_default_active_memberships': 1}</field>
@@ -256,8 +272,8 @@
     <record id="action_membership_membership" model="ir.actions.act_window">
         <field name="name">Membership Records</field>
         <field name="res_model">membership.membership</field>
-        <field name="view_mode">list,form,kanban</field>
-        <field name="view_id" ref="association_membership.view_membership_membership_list" />
+        <field name="view_mode">kanban,list,form</field>
+        <field name="view_id" ref="association_membership.view_membership_membership_kanban" />
         <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
         <field name="context">{'search_default_active_memberships': 1}</field>
     </record>

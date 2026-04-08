@@ -109,6 +109,9 @@ class MembershipContribution(models.Model):
         readonly=True,
     )
     invoice_partner_id = fields.Many2one("res.partner", string="Invoice Contact")
+    has_receipt_templates = fields.Boolean(
+        compute="_compute_has_receipt_templates",
+    )
     date_invoice = fields.Date(
         string="Invoice Date",
         related="invoice_id.invoice_date",
@@ -180,6 +183,17 @@ class MembershipContribution(models.Model):
         for record in self:
             record.membership_year_text = str(record.membership_year) if record.membership_year else False
 
+    @api.depends(
+        "company_id.membership_membership_receipt_template_id",
+        "company_id.membership_donation_receipt_template_id",
+    )
+    def _compute_has_receipt_templates(self):
+        for record in self:
+            record.has_receipt_templates = bool(
+                record.company_id.membership_membership_receipt_template_id
+                or record.company_id.membership_donation_receipt_template_id
+            )
+
     def _inverse_membership_year_text(self):
         for record in self:
             record.membership_year = self._normalize_membership_year_value(record.membership_year_text)
@@ -198,6 +212,49 @@ class MembershipContribution(models.Model):
             "default_membership_year_filter": default_year,
         }
         return action
+
+    def _get_receipt_template_options(self):
+        self.ensure_one()
+        company = self.company_id
+        options = []
+        if company.membership_membership_receipt_template_id:
+            options.append(
+                (
+                    company.membership_membership_receipt_template_id.id,
+                    _("Membership Receipt"),
+                )
+            )
+        if company.membership_donation_receipt_template_id:
+            options.append(
+                (
+                    company.membership_donation_receipt_template_id.id,
+                    _("Donation Receipt"),
+                )
+            )
+        return options
+
+    def _get_receipt_partner_ids(self):
+        self.ensure_one()
+        return self.invoice_partner_id or self.membership_id._get_invoice_partner()
+
+    def action_send_receipt(self):
+        self.ensure_one()
+        if not self._get_receipt_template_options():
+            raise UserError(
+                _(
+                    "Configure at least one receipt email template in Membership Settings first."
+                )
+            )
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Send Receipt"),
+            "res_model": "membership.receipt.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {
+                "default_contribution_id": self.id,
+            },
+        }
 
     @api.model
     def _prepare_membership_contribution_values(self, vals, membership=False):

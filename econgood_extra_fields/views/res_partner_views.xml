@@ -9,10 +9,16 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <xpath expr="//field[@name='partner_company_type_id']" position="after">
-                <field name="x_organization_kind_id" invisible="not is_company"/>
+            <xpath expr="//field[@name='partner_company_type_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <xpath expr="//div[field[@name='current_membership_number_display']]" position="after">
+                <field name="x_is_econgood_ou" invisible="not is_company"/>
+                <field name="x_ou_type_id" invisible="not is_company or not x_is_econgood_ou"/>
+                <field name="x_organization_kind_id" invisible="not is_company or x_is_econgood_ou"/>
+                <field name="partner_company_type_id" invisible="not is_company"/>
                 <field name="x_nonprofit_status" invisible="not is_company"/>
-                <field name="x_ou_type_id" invisible="not is_company"/>
             </xpath>
 
             <xpath expr="//field[@name='website']" position="after">

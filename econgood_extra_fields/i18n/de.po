@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 18.0\n"
-"POT-Creation-Date: 2026-04-02 00:00+0000\n"
-"PO-Revision-Date: 2026-04-02 00:00+0000\n"
+"POT-Creation-Date: 2026-04-03 00:00+0000\n"
+"PO-Revision-Date: 2026-04-03 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: de\n"
@@ -21,6 +21,12 @@ msgstr "Anzahl der Mitarbeitenden"
 msgid "Number of Inhabitants"
 msgstr "Anzahl der Einwohner"
 
+msgid "ECOnGOOD OU"
+msgstr "ECOnGOOD OE"
+
+msgid "Enable this for ECOnGOOD organizational units such as national, regional, local chapter, or hub records."
+msgstr "Aktivieren Sie dies fuer ECOnGOOD-Organisationseinheiten wie nationale, regionale, Local-Chapter- oder Hub-Datensaetze."
+
 msgid "Organization Kind"
 msgstr "Organisationsart"
 
@@ -28,16 +34,16 @@ msgid "OU Type"
 msgstr "OE-Typ"
 
 msgid "Nonprofit Status"
-msgstr "Gemeinnützigkeitsstatus"
+msgstr "Gemeinnuetzigkeitsstatus"
 
 msgid "Unknown"
 msgstr "Unbekannt"
 
 msgid "Confirmed nonprofit"
-msgstr "Gemeinnützig bestätigt"
+msgstr "Gemeinnuetzig bestaetigt"
 
 msgid "Not nonprofit"
-msgstr "Nicht gemeinnützig"
+msgstr "Nicht gemeinnuetzig"
 
 msgid "Code of Conduct Signed On"
 msgstr "Verhaltenskodex unterzeichnet am"
@@ -61,7 +67,7 @@ msgid "Socials"
 msgstr "Soziale Netzwerke"
 
 msgid "Employee count (FTE)."
-msgstr "Anzahl der Mitarbeitenden (VZÄ)."
+msgstr "Anzahl der Mitarbeitenden (VZAE)."
 
 msgid "Population count if this partner represents a region or commune."
 msgstr "Einwohnerzahl, falls dieser Kontakt eine Region oder Gemeinde darstellt."
@@ -79,10 +85,16 @@ msgid "Privacy Agreement Signed On cannot be in the future."
 msgstr "Das Datum "Datenschutzvereinbarung unterzeichnet am" darf nicht in der Zukunft liegen."
 
 msgid "ECOnGOOD Email Address is not a valid email."
-msgstr "Die ECOnGOOD-E-Mail-Adresse ist keine gültige E-Mail."
+msgstr "Die ECOnGOOD-E-Mail-Adresse ist keine gueltige E-Mail."
 
-msgid "Organization Kind and OU Type can only be set on company contacts."
-msgstr "Organisationsart und OE-Typ dürfen nur bei Firmenkontakten gesetzt werden."
+msgid "ECOnGOOD OU, Organization Kind, and OU Type can only be set on company contacts."
+msgstr "ECOnGOOD OE, Organisationsart und OE-Typ duerfen nur bei Firmenkontakten gesetzt werden."
+
+msgid "Organization Kind must be empty when ECOnGOOD OU is enabled."
+msgstr "Die Organisationsart muss leer sein, wenn ECOnGOOD OE aktiviert ist."
+
+msgid "OU Type requires ECOnGOOD OU to be enabled."
+msgstr "Der OE-Typ erfordert eine aktivierte ECOnGOOD OE."
 
 msgid "Details &amp; Legal"
 msgstr "Details &amp; Rechtliches"
