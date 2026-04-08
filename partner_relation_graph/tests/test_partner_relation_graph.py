@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from odoo import fields
 from odoo.tests.common import TransactionCase
 
@@ -99,7 +101,6 @@ class TestPartnerRelationGraph(TransactionCase):
                 "date_end": fields.Date.today().replace(year=fields.Date.today().year - 1),
             }
         )
-        cls.child_contact_filter_id = cls.env["res.partner"]._RELATION_GRAPH_CHILD_CONTACT_FILTER_ID
 
     def test_graph_payload_defaults_to_active_direct_relations(self):
         payload = self.env["res.partner"].get_relationship_graph(partner_id=self.member.id)
@@ -113,12 +114,8 @@ class TestPartnerRelationGraph(TransactionCase):
         self.assertFalse(node_by_id[self.member.id]["is_company"])
         self.assertTrue(node_by_id[self.company.id]["is_company"])
         self.assertTrue(node_by_id[self.member.id]["is_focal"])
-        self.assertEqual(node_by_id[self.member.id]["structure_key"], "person")
-        self.assertEqual(node_by_id[self.member.id]["style_key"], "person")
-        self.assertEqual(node_by_id[self.company.id]["structure_key"], "company")
-        self.assertEqual(node_by_id[self.company.id]["style_key"], "company_generic")
-        self.assertFalse(payload["meta"]["has_econgood_taxonomy"])
-        self.assertEqual(payload["meta"]["legend_mode"], "collapsed")
+        self.assertFalse(node_by_id[self.member.id]["is_child_contact"])
+        self.assertFalse(node_by_id[self.company.id]["is_child_contact"])
 
         edge = payload["edges"][0]
         self.assertEqual(edge["id"], self.active_relation.id)
@@ -161,8 +158,8 @@ class TestPartnerRelationGraph(TransactionCase):
         self.assertFalse(child_edges[0]["openable"])
         self.assertLess(child_edges[0]["id"], 0)
         node_by_id = {node["id"]: node for node in payload["nodes"]}
-        self.assertEqual(node_by_id[self.company_contact.id]["structure_key"], "child_contact")
-        self.assertEqual(node_by_id[self.company_contact.id]["style_key"], "child_contact")
+        self.assertTrue(node_by_id[self.company_contact.id]["is_child_contact"])
+        self.assertFalse(node_by_id[self.company_contact.id]["is_company"])
 
     def test_graph_payload_returns_reverse_parent_link_for_child_contact(self):
         payload = self.env["res.partner"].get_relationship_graph(partner_id=self.company_contact.id)
@@ -213,17 +210,6 @@ class TestPartnerRelationGraph(TransactionCase):
         self.assertEqual(child_edge_targets, {self.company_contact.id, self.second_hop_contact.id})
         self.assertIn(self.second_hop_contact.id, {node["id"] for node in payload["nodes"]})
 
-    def test_child_contact_filter_can_be_selected_on_its_own(self):
-        payload = self.env["res.partner"].get_relationship_graph(
-            partner_id=self.company.id,
-            relation_type_ids=[self.child_contact_filter_id],
-            include_child_contacts=True,
-        )
-
-        self.assertEqual(payload["meta"]["total_edge_count"], 1)
-        self.assertEqual(payload["edges"][0]["kind"], "child_contact")
-        self.assertEqual(payload["edges"][0]["target"], self.company_contact.id)
-
     def test_explicit_relation_type_filter_can_hide_child_contacts(self):
         payload = self.env["res.partner"].get_relationship_graph(
             partner_id=self.company.id,
@@ -242,51 +228,6 @@ class TestPartnerRelationGraph(TransactionCase):
         self.assertEqual(payload["meta"]["total_node_count"], 1)
         self.assertEqual(payload["nodes"][0]["id"], self.lonely_partner.id)
         self.assertTrue(payload["nodes"][0]["is_focal"])
-
-    def test_visual_classification_returns_fallbacks_without_optional_taxonomy(self):
-        partner_model = self.env["res.partner"]
-
-        self.assertFalse(partner_model._has_graph_taxonomy_support())
-        self.assertEqual(
-            partner_model._classify_graph_partner_visuals(is_company=False, has_parent=False)["style_key"],
-            "person",
-        )
-        self.assertEqual(
-            partner_model._classify_graph_partner_visuals(is_company=True, has_parent=False)["style_key"],
-            "company_generic",
-        )
-        self.assertEqual(
-            partner_model._classify_graph_partner_visuals(is_company=False, has_parent=True)["style_key"],
-            "child_contact",
-        )
-
-    def test_visual_classification_prefers_ou_type_and_uses_stable_fallbacks(self):
-        partner_model = self.env["res.partner"]
-
-        visual = partner_model._classify_graph_partner_visuals(
-            is_company=True,
-            has_parent=False,
-            ou_type_code="local_chapter",
-            organization_kind_code="company",
-        )
-        self.assertEqual(visual["style_key"], "ou_type_local_chapter")
-        self.assertEqual(visual["style_label"], "Local Chapter")
-
-        unknown_ou_visual = partner_model._classify_graph_partner_visuals(
-            is_company=True,
-            has_parent=False,
-            ou_type_code="surprise_bucket",
-        )
-        self.assertEqual(unknown_ou_visual["style_key"], "ou_type_other")
-
-        unknown_kind_visual = partner_model._classify_graph_partner_visuals(
-            is_company=True,
-            has_parent=False,
-            organization_kind_code="surprise_kind",
-        )
-        self.assertEqual(
-            unknown_kind_visual["style_key"], "organization_kind_other_organization"
-        )
 
     def test_internal_user_can_read_graph_payload_without_sudo(self):
         internal_user = self.env["res.users"].with_context(no_reset_password=True).create(
@@ -331,3 +272,19 @@ class TestPartnerRelationGraph(TransactionCase):
         self.assertEqual(action["tag"], "partner_relation_graph.client_action")
         self.assertEqual(action["context"]["default_partner_id"], self.member.id)
         self.assertEqual(action["context"]["default_graph_state"], graph_state)
+
+    def test_module_contains_no_company_specific_taxonomy_references(self):
+        module_root = Path(__file__).resolve().parents[1]
+        checked_files = [
+            module_root / "models" / "res_partner.py",
+            module_root / "static" / "src" / "js" / "relation_graph_core.esm.js",
+            module_root / "static" / "lib" / "simple_force_graph.js",
+            module_root / "static" / "src" / "xml" / "relation_graph.xml",
+            module_root / "static" / "src" / "scss" / "relation_graph.scss",
+        ]
+        forbidden_tokens = ["econgood", "x_ou_type_id", "x_organization_kind_id"]
+
+        for checked_file in checked_files:
+            contents = checked_file.read_text()
+            for forbidden_token in forbidden_tokens:
+                self.assertNotIn(forbidden_token, contents)

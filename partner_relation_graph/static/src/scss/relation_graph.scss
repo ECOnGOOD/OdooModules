@@ -146,19 +146,6 @@
     color: #3d3148;
 }
 
-.prg-side-link {
-    display: inline-flex;
-    align-items: center;
-    color: #3d3148;
-    text-decoration: none;
-}
-
-.prg-side-link:hover,
-.prg-side-link:focus {
-    color: #875a7b;
-    text-decoration: underline;
-}
-
 .prg-side-actions {
     display: flex;
     flex-wrap: wrap;
@@ -520,124 +507,34 @@
     stroke-width: 2;
 }
 
-.prg-node.is-style-person .prg-node-shape,
-.prg-legend-node.is-style-person .prg-node-shape {
+.prg-node.is-structure-person .prg-node-shape,
+.prg-legend-node.is-structure-person .prg-node-shape {
     fill: #efe7f6;
     stroke: #7a6489;
 }
 
-.prg-node.is-style-person .prg-node-caption {
+.prg-node.is-structure-person .prg-node-caption {
     fill: #483755;
 }
 
-.prg-node.is-style-child_contact .prg-node-shape,
-.prg-legend-node.is-style-child_contact .prg-node-shape {
+.prg-node.is-structure-child_contact .prg-node-shape,
+.prg-legend-node.is-structure-child_contact .prg-node-shape {
     fill: #f9ecdf;
     stroke: #b27d58;
 }
 
-.prg-node.is-style-child_contact .prg-node-caption {
+.prg-node.is-structure-child_contact .prg-node-caption {
     fill: #5b4432;
 }
 
-.prg-node.is-style-company_generic .prg-node-shape,
-.prg-legend-node.is-style-company_generic .prg-node-shape {
+.prg-node.is-structure-company .prg-node-shape,
+.prg-legend-node.is-structure-company .prg-node-shape {
     fill: #edf2ea;
     stroke: #6f846f;
 }
 
-.prg-node.is-style-company_generic .prg-node-caption {
+.prg-node.is-structure-company .prg-node-caption {
     fill: #33473a;
-}
-
-.prg-node.is-style-ou_type_national_association .prg-node-shape,
-.prg-legend-node.is-style-ou_type_national_association .prg-node-shape {
-    fill: #e4edf8;
-    stroke: #5c7ea6;
-}
-
-.prg-node.is-style-ou_type_national_association .prg-node-caption {
-    fill: #314c68;
-}
-
-.prg-node.is-style-ou_type_regional_association .prg-node-shape,
-.prg-legend-node.is-style-ou_type_regional_association .prg-node-shape {
-    fill: #e4f1ee;
-    stroke: #4b8578;
-}
-
-.prg-node.is-style-ou_type_regional_association .prg-node-caption {
-    fill: #24554a;
-}
-
-.prg-node.is-style-ou_type_local_chapter .prg-node-shape,
-.prg-legend-node.is-style-ou_type_local_chapter .prg-node-shape {
-    fill: #eaf5df;
-    stroke: #72944c;
-}
-
-.prg-node.is-style-ou_type_local_chapter .prg-node-caption {
-    fill: #41562a;
-}
-
-.prg-node.is-style-ou_type_hub .prg-node-shape,
-.prg-legend-node.is-style-ou_type_hub .prg-node-shape {
-    fill: #f8edda;
-    stroke: #b08b46;
-}
-
-.prg-node.is-style-ou_type_hub .prg-node-caption {
-    fill: #664b19;
-}
-
-.prg-node.is-style-ou_type_other .prg-node-shape,
-.prg-legend-node.is-style-ou_type_other .prg-node-shape {
-    fill: #ebe8f3;
-    stroke: #7d7392;
-}
-
-.prg-node.is-style-ou_type_other .prg-node-caption {
-    fill: #4e4564;
-}
-
-.prg-node.is-style-organization_kind_company .prg-node-shape,
-.prg-legend-node.is-style-organization_kind_company .prg-node-shape {
-    fill: #e3eef3;
-    stroke: #5f8798;
-}
-
-.prg-node.is-style-organization_kind_company .prg-node-caption {
-    fill: #31505d;
-}
-
-.prg-node.is-style-organization_kind_organization .prg-node-shape,
-.prg-legend-node.is-style-organization_kind_organization .prg-node-shape {
-    fill: #eee7f4;
-    stroke: #86689a;
-}
-
-.prg-node.is-style-organization_kind_organization .prg-node-caption {
-    fill: #563a68;
-}
-
-.prg-node.is-style-organization_kind_municipality_public_body .prg-node-shape,
-.prg-legend-node.is-style-organization_kind_municipality_public_body .prg-node-shape {
-    fill: #e6f0ef;
-    stroke: #5a8c88;
-}
-
-.prg-node.is-style-organization_kind_municipality_public_body .prg-node-caption {
-    fill: #2f5652;
-}
-
-.prg-node.is-style-organization_kind_other_organization .prg-node-shape,
-.prg-legend-node.is-style-organization_kind_other_organization .prg-node-shape {
-    fill: #f2ece6;
-    stroke: #9d7b5f;
-}
-
-.prg-node.is-style-organization_kind_other_organization .prg-node-caption {
-    fill: #614633;
 }
 
 .prg-node.is-focal .prg-node-shape {

@@ -1,81 +1,6 @@
 (function () {
     let graphCounter = 0;
 
-    const NODE_STYLE_REGISTRY = Object.freeze({
-        person: {
-            label: "Person",
-            structureKey: "person",
-            legendShape: true,
-            legendColor: false,
-        },
-        child_contact: {
-            label: "Child Contact",
-            structureKey: "child_contact",
-            legendShape: true,
-            legendColor: false,
-        },
-        company_generic: {
-            label: "Organization / Company",
-            structureKey: "company",
-            legendShape: true,
-            legendColor: true,
-        },
-        ou_type_national_association: {
-            label: "National Association",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-        ou_type_regional_association: {
-            label: "Regional Association",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-        ou_type_local_chapter: {
-            label: "Local Chapter",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-        ou_type_hub: {
-            label: "Hub",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-        ou_type_other: {
-            label: "Other OU",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-        organization_kind_company: {
-            label: "Company",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-        organization_kind_organization: {
-            label: "Organization",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-        organization_kind_municipality_public_body: {
-            label: "Municipality / Public Body",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-        organization_kind_other_organization: {
-            label: "Other Organization",
-            structureKey: "company",
-            legendShape: false,
-            legendColor: true,
-        },
-    });
-
     function escapeHtml(value) {
         return String(value ?? "")
             .replace(/&/g, "&amp;")
@@ -87,35 +12,10 @@
 
 
     function getStructureKey(node) {
-        if (node?.structure_key) {
-            return node.structure_key;
-        }
         if (node?.is_child_contact) {
             return "child_contact";
         }
         return node?.is_company ? "company" : "person";
-    }
-
-    function getStyleKey(node) {
-        if (node?.style_key && NODE_STYLE_REGISTRY[node.style_key]) {
-            return node.style_key;
-        }
-        const structureKey = getStructureKey(node);
-        if (structureKey === "child_contact") {
-            return "child_contact";
-        }
-        if (structureKey === "person") {
-            return "person";
-        }
-        return "company_generic";
-    }
-
-    function getStyleDefinition(node) {
-        const styleKey = getStyleKey(node);
-        return {
-            key: styleKey,
-            ...(NODE_STYLE_REGISTRY[styleKey] || NODE_STYLE_REGISTRY.company_generic),
-        };
     }
 
     function polarPoint(radius, angle, cx, cy) {
@@ -164,11 +64,6 @@
                     is_expanded: Boolean(node.is_expanded),
                     is_seed: Boolean(node.is_seed),
                     is_child_contact: Boolean(node.is_child_contact),
-                    structure_key: node.structure_key || null,
-                    style_key: node.style_key || null,
-                    style_label: node.style_label || "",
-                    organization_kind_code: node.organization_kind_code || false,
-                    ou_type_code: node.ou_type_code || false,
                 });
                 continue;
             }
@@ -178,11 +73,6 @@
             existing.is_expanded = Boolean(existing.is_expanded || node.is_expanded);
             existing.is_seed = Boolean(existing.is_seed || node.is_seed);
             existing.is_child_contact = Boolean(existing.is_child_contact || node.is_child_contact);
-            existing.structure_key = existing.structure_key || node.structure_key || null;
-            existing.style_key = existing.style_key || node.style_key || null;
-            existing.style_label = existing.style_label || node.style_label || "";
-            existing.organization_kind_code = existing.organization_kind_code || node.organization_kind_code || false;
-            existing.ou_type_code = existing.ou_type_code || node.ou_type_code || false;
         }
 
         for (const edge of inputEdges) {
@@ -1164,12 +1054,7 @@
 
         renderNode(node, position) {
             const structureKey = getStructureKey(node);
-            const styleDefinition = getStyleDefinition(node);
-            const classes = [
-                "prg-node",
-                `is-structure-${structureKey}`,
-                `is-style-${styleDefinition.key}`,
-            ];
+            const classes = ["prg-node", `is-structure-${structureKey}`];
             classes.push(node.is_company ? "is-company" : "is-person");
             if (node.is_focal) {
                 classes.push("is-focal");
@@ -1203,7 +1088,6 @@
                     class="${classes.join(" ")}"
                     data-node-id="${node.id}"
                     data-structure-key="${structureKey}"
-                    data-style-key="${styleDefinition.key}"
                     transform="translate(${position.x} ${position.y})"
                 >
                     ${body}
@@ -1251,6 +1135,5 @@
         }
     }
 
-    window.PartnerRelationGraphStyleRegistry = NODE_STYLE_REGISTRY;
     window.PartnerRelationSimpleGraph = PartnerRelationSimpleGraph;
 })();

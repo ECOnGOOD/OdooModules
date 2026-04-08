@@ -16,11 +16,21 @@ import {
 } from "@odoo/owl";
 
 const GraphLibrary = window.PartnerRelationSimpleGraph;
-const GraphStyleRegistry = window.PartnerRelationGraphStyleRegistry || {};
-const GraphStyleEntries = Object.entries(GraphStyleRegistry).map(([key, definition]) => ({
-    key,
-    ...definition,
-}));
+const LEGEND_SHAPE_ITEMS = [
+    { key: "person", label: _t("Person"), structureKey: "person" },
+    { key: "company", label: _t("Organization / Company"), structureKey: "company" },
+    { key: "child_contact", label: _t("Child Contact"), structureKey: "child_contact" },
+];
+
+function getNodeTypeLabel(node) {
+    if (!node) {
+        return _t("Contact");
+    }
+    if (node.is_child_contact) {
+        return _t("Child Contact");
+    }
+    return node.is_company ? _t("Organization / Company") : _t("Person");
+}
 
 function makeEmptyGraph(partnerId = false) {
     return {
@@ -32,8 +42,6 @@ function makeEmptyGraph(partnerId = false) {
             total_node_count: 0,
             total_edge_count: 0,
             truncated: false,
-            has_econgood_taxonomy: false,
-            legend_mode: "collapsed",
         },
     };
 }
@@ -248,19 +256,11 @@ export class RelationGraphExplorer extends Component {
     }
 
     get legendShapeItems() {
-        return GraphStyleEntries.filter((item) => item.legendShape);
-    }
-
-    get legendColorItems() {
-        const colorItems = GraphStyleEntries.filter((item) => item.legendColor);
-        if (this.state.graphData.meta?.has_econgood_taxonomy) {
-            return colorItems;
-        }
-        return colorItems.filter((item) => item.key === "company_generic");
+        return LEGEND_SHAPE_ITEMS;
     }
 
     get selectedNodeTypeLabel() {
-        return this.selectedNode?.style_label || _t("Contact");
+        return getNodeTypeLabel(this.selectedNode);
     }
 
     getPartnerSelectorIds() {
@@ -392,11 +392,7 @@ export class RelationGraphExplorer extends Component {
     }
 
     legendItemClasses(item) {
-        return [
-            "prg-legend-node",
-            `is-structure-${item.structureKey || item.structure_key || "company"}`,
-            `is-style-${item.key}`,
-        ].join(" ");
+        return ["prg-legend-node", `is-structure-${item.structureKey || "company"}`].join(" ");
     }
 
     async openStandalone() {
