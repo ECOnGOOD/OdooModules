@@ -26,7 +26,7 @@
                         <field name="partner_id" />
                         <field name="company_id" />
                         <field name="status" />
-                        <field name="amount_expected" />
+                        <field name="amount" />
                         <field name="invoice_id" />
                         <field name="message" />
                     </list>

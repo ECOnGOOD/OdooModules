@@ -232,19 +232,15 @@ class MembershipImportWizard(models.TransientModel):
         if membership_year:
             contribution_updates = {}
             if row.get("amount_expected") not in (None, "", False):
-                contribution_updates["amount_expected"] = self._parse_float(
+                contribution_updates["amount"] = self._parse_float(
                     row.get("amount_expected"),
                     _("expected amount"),
                 )
-            if row.get("amount_paid") not in (None, "", False):
-                contribution_updates["amount_paid"] = self._parse_float(
-                    row.get("amount_paid"),
-                    _("paid amount"),
+            elif row.get("amount") not in (None, "", False):
+                contribution_updates["amount"] = self._parse_float(
+                    row.get("amount"),
+                    _("amount"),
                 )
-            if row.get("billing_status") not in (None, "", False):
-                contribution_updates["billing_status"] = row.get("billing_status")
-            if row.get("is_free") not in (None, "", False):
-                contribution_updates["is_free"] = self._parse_bool(row.get("is_free"))
             if invoice_partner:
                 contribution_updates["invoice_partner_id"] = invoice_partner.id
             contribution = contribution_model.search(

@@ -59,9 +59,7 @@ class MembershipRenewalWizard(models.TransientModel):
             return _("Created contribution.")
         if strategy == "draft":
             return _("Created contribution and draft invoice.")
-        if strategy == "auto_confirm":
-            return _("Created contribution and confirmed invoice.")
-        return _("Created contribution and sent invoice.")
+        return _("Created contribution and confirmed invoice.")
 
     def _build_result_values(self, item, status, message, invoice=False):
         return {
@@ -70,7 +68,7 @@ class MembershipRenewalWizard(models.TransientModel):
             "company_id": item["membership"].company_id.id,
             "status": status,
             "message": message,
-            "amount_expected": item["amount_expected"],
+            "amount": item["amount"],
             "invoice_id": invoice.id if invoice else False,
         }
 
@@ -87,11 +85,11 @@ class MembershipRenewalWizard(models.TransientModel):
         grouped_items = {}
 
         for membership in eligible_memberships:
-            amount_expected = membership._resolve_amount_expected()
-            is_free = membership._resolve_is_free(amount_value=amount_expected)
+            amount = membership.amount or 0.0
+            is_free = float(amount or 0.0) == 0.0
             item = {
                 "membership": membership,
-                "amount_expected": amount_expected,
+                "amount": amount,
                 "invoice_partner": membership._get_invoice_partner(),
                 "is_free": is_free,
                 "strategy": membership.company_id.membership_invoicing_strategy,
@@ -103,7 +101,7 @@ class MembershipRenewalWizard(models.TransientModel):
                             membership.env["membership.contribution"].create(
                                 membership._prepare_contribution_create_values(
                                     self.target_year,
-                                    amount_expected=0.0,
+                                    amount=0.0,
                                     invoice_partner_id=item["invoice_partner"].id,
                                 )
                             )
@@ -164,7 +162,7 @@ class MembershipRenewalWizard(models.TransientModel):
                             [
                                 item["membership"]._prepare_contribution_create_values(
                                     self.target_year,
-                                    amount_expected=item["amount_expected"],
+                                    amount=item["amount"],
                                     invoice_partner_id=item["invoice_partner"].id,
                                 )
                                 for item in group
@@ -230,7 +228,7 @@ class MembershipRenewalWizardLine(models.TransientModel):
         readonly=True,
     )
     message = fields.Char(readonly=True)
-    amount_expected = fields.Monetary(readonly=True)
+    amount = fields.Monetary(readonly=True)
     currency_id = fields.Many2one(
         "res.currency",
         related="membership_id.currency_id",

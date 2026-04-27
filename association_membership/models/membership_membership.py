@@ -93,13 +93,17 @@ class MembershipMembership(models.Model):
         compute="_compute_membership_number_preview",
         string="Membership Number (Preview)",
     )
-    amount_override = fields.Monetary(tracking=True)
-    has_amount_override = fields.Boolean(copy=False)
     currency_id = fields.Many2one(
         "res.currency",
         related="company_id.currency_id",
         store=True,
         readonly=True,
+    )
+    amount = fields.Monetary(
+        compute="_compute_amount",
+        store=True,
+        readonly=False,
+        tracking=True,
     )
     contribution_ids = fields.One2many(
         "membership.contribution",
@@ -271,6 +275,11 @@ class MembershipMembership(models.Model):
         for record in self:
             record.membership_active = record.state in BUSINESS_ACTIVE_STATES
 
+    @api.depends("product_id")
+    def _compute_amount(self):
+        for record in self:
+            record.amount = record.product_id.list_price or 0.0
+
     @api.depends("contribution_ids.membership_year")
     def _compute_duplicate_contribution_year_warning(self):
         for record in self:
@@ -376,10 +385,6 @@ class MembershipMembership(models.Model):
             )
             if not self.env.context.get("skip_membership_number_override_flag"):
                 vals.setdefault("override_membership_number", bool(vals["membership_number"]))
-        if "amount_override" in vals:
-            vals["has_amount_override"] = self._has_explicit_amount_override_value(
-                vals["amount_override"]
-            )
         if vals.get("state") in {"cancelled", "terminated"}:
             cancel_defaults = self._build_cancel_values(
                 cancel_date=vals.get("date_cancelled"),
@@ -400,15 +405,6 @@ class MembershipMembership(models.Model):
         if not self.partner_id:
             return
         self.invoice_partner_id = self._resolve_default_invoice_partner(self.partner_id)
-
-    @api.onchange("product_id")
-    def _onchange_product_id(self):
-        if not self.product_id:
-            self.amount_override = 0.0
-            self.has_amount_override = False
-            return
-        self.amount_override = self._get_product_amount(self.product_id)
-        self.has_amount_override = True
 
     @api.model
     def _membership_product_domain(self, company=False):
@@ -510,23 +506,6 @@ class MembershipMembership(models.Model):
         }
 
     @api.model
-    def _has_explicit_amount_override_value(self, value):
-        return value is not False and value is not None and value != ""
-
-    @api.model
-    def _get_product_amount(self, product):
-        if not product:
-            return 0.0
-        if "lst_price" in product._fields and product.lst_price not in (False, None):
-            return product.lst_price
-        if "list_price" in product._fields and product.list_price not in (False, None):
-            return product.list_price
-        template = product.product_tmpl_id if "product_tmpl_id" in product._fields else self.env["product.template"]
-        if template and "list_price" in template._fields and template.list_price not in (False, None):
-            return template.list_price
-        return 0.0
-
-    @api.model
     def _normalize_membership_number_value(self, value):
         if value in (False, None):
             return False
@@ -625,6 +604,17 @@ class MembershipMembership(models.Model):
         records._sync_optional_partner_relations()
         return records
 
+    def unlink(self):
+        for record in self:
+            if record.state != "draft":
+                raise UserError(
+                    _(
+                        "Only memberships in Draft state can be deleted. "
+                        "Cancel or terminate the membership instead."
+                    )
+                )
+        return super().unlink()
+
     def write(self, vals):
         if "state" in vals and not self.env.context.get("allow_membership_state_write"):
             raise UserError(_("Use the membership actions instead of writing the state directly."))
@@ -649,7 +639,7 @@ class MembershipMembership(models.Model):
             "waiting": {"draft", "active"},
             "active": {"cancelled", "terminated", "draft"},
             "cancelled": {"active", "terminated", "draft"},
-            "terminated": {"waiting", "draft"},
+            "terminated": {"draft"},
         }
 
     def _get_invoice_partner(self):
@@ -730,14 +720,6 @@ class MembershipMembership(models.Model):
                         "cancel_reason": False,
                     }
                 )
-            elif record.state == "terminated" and new_state == "waiting":
-                vals.update(
-                    {
-                        "date_cancelled": kwargs.get("date_cancelled", False),
-                        "date_end": kwargs.get("date_end", False),
-                        "cancel_reason": kwargs.get("cancel_reason", False),
-                    }
-                )
             record.with_context(allow_membership_state_write=True).write(vals)
         return True
 
@@ -775,10 +757,6 @@ class MembershipMembership(models.Model):
 
     def action_revert_to_draft(self):
         self._do_transition("draft")
-        return True
-
-    def action_reopen_waiting(self):
-        self._do_transition("waiting")
         return True
 
     def action_cancel(self):
@@ -856,18 +834,6 @@ class MembershipMembership(models.Model):
             "type": "ir.actions.client",
             "tag": "reload",
         }
-
-    def _resolve_amount_expected(self):
-        self.ensure_one()
-        if self.has_amount_override or self.amount_override not in (False, None):
-            return self.amount_override or 0.0
-        return self._get_product_amount(self.product_id)
-
-    def _resolve_is_free(self, amount_value=False):
-        self.ensure_one()
-        if amount_value not in (False, None, ""):
-            return float(amount_value or 0.0) == 0.0
-        return float(self._resolve_amount_expected() or 0.0) == 0.0
 
     @api.model
     def _cron_target_year(self, company=False):

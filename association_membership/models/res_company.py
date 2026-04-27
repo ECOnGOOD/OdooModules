@@ -5,8 +5,7 @@ from odoo.exceptions import ValidationError
 INVOICING_STRATEGY_SELECTION = [
     ("manual", "Manual"),
     ("draft", "Draft"),
-    ("auto_confirm", "Auto Confirm"),
-    ("confirm_send", "Confirm & Send"),
+    ("confirm", "Confirm"),
 ]
 
 
@@ -38,10 +37,6 @@ class ResCompany(models.Model):
         string="Renewal Year Offset",
         default=1,
     )
-    membership_cron_auto_post = fields.Boolean(
-        string="Auto-post invoices created by the scheduled renewal",
-        default=False,
-    )
     membership_default_contribution_year = fields.Integer(
         string="Default Contribution Year",
         default=lambda self: fields.Date.today().year,
@@ -64,14 +59,6 @@ class ResCompany(models.Model):
         "mail.template",
         string="Cancellation Email Template",
     )
-    membership_membership_receipt_template_id = fields.Many2one(
-        "mail.template",
-        string="Membership Receipt Email Template",
-    )
-    membership_donation_receipt_template_id = fields.Many2one(
-        "mail.template",
-        string="Donation Receipt Email Template",
-    )
     member_number_prefix = fields.Char(
         string="Member Number Prefix",
         default="MEM/%(year)s/",
@@ -88,31 +75,6 @@ class ResCompany(models.Model):
             raise_if_not_found=False,
         )
 
-    def _auto_init(self):
-        result = super()._auto_init()
-        current_year = fields.Date.today().year
-        self.env.cr.execute(
-            """
-            UPDATE res_company
-               SET membership_default_contribution_year = %s
-             WHERE membership_default_contribution_year IS NULL
-                OR membership_default_contribution_year = 0
-            """,
-            [current_year],
-        )
-        self.env.cr.execute(
-            """
-            UPDATE res_company
-               SET membership_invoicing_strategy = CASE
-                    WHEN COALESCE(membership_cron_auto_post, FALSE) THEN 'auto_confirm'
-                    ELSE 'draft'
-               END
-             WHERE membership_invoicing_strategy IS NULL
-                OR membership_invoicing_strategy = ''
-            """
-        )
-        return result
-
     def _membership_product_category(self):
         self.ensure_one()
         return self.membership_product_category_id or self._default_membership_product_category()
@@ -128,8 +90,6 @@ class ResCompany(models.Model):
         "membership_activation_invoice_template_id",
         "membership_welcome_template_id",
         "membership_cancellation_template_id",
-        "membership_membership_receipt_template_id",
-        "membership_donation_receipt_template_id",
     )
     def _check_member_number_settings(self):
         for company in self:
@@ -159,14 +119,6 @@ class ResCompany(models.Model):
             company._check_membership_mail_template_model(
                 company.membership_cancellation_template_id,
                 "membership.membership",
-            )
-            company._check_membership_mail_template_model(
-                company.membership_membership_receipt_template_id,
-                "membership.contribution",
-            )
-            company._check_membership_mail_template_model(
-                company.membership_donation_receipt_template_id,
-                "membership.contribution",
             )
 
     def _get_membership_number_sequence(self):

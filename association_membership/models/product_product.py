@@ -1,8 +1,8 @@
 from odoo import api, fields, models
 
 
-class ProductProduct(models.Model):
-    _inherit = "product.product"
+class ProductTemplate(models.Model):
+    _inherit = "product.template"
 
     is_membership_product = fields.Boolean(
         compute="_compute_is_membership_product",
@@ -16,14 +16,13 @@ class ProductProduct(models.Model):
 
     def _compute_is_membership_product(self):
         category = self._get_membership_category()
-        allowed_categories = (
-            self.env["product.category"].search([("id", "child_of", category.id)])
-            if category
-            else self.env["product.category"]
-        )
-        allowed_ids = set(allowed_categories.ids)
+        allowed_ids = set(
+            self.env["product.category"]
+            .search([("id", "child_of", category.id)])
+            .ids
+        ) if category else set()
         for record in self:
-            record.is_membership_product = bool(category and record.categ_id.id in allowed_ids)
+            record.is_membership_product = bool(record.categ_id.id in allowed_ids)
 
     @api.model
     def _search_is_membership_product(self, operator, value):
@@ -36,3 +35,16 @@ class ProductProduct(models.Model):
         if operator in ("!=", "<>"):
             return ["!", *domain] if bool(value) else domain
         return [("id", "=", 0)]
+
+
+class ProductProduct(models.Model):
+    _inherit = "product.product"
+
+    is_membership_product = fields.Boolean(
+        related="product_tmpl_id.is_membership_product",
+        store=False,
+    )
+
+    @api.model
+    def _get_membership_category(self, company=False):
+        return self.env["product.template"]._get_membership_category(company=company)

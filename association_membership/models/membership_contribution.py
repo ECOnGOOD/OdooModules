@@ -44,28 +44,25 @@ class MembershipContribution(models.Model):
         compute="_compute_membership_year_text",
         inverse="_inverse_membership_year_text",
     )
-    is_free = fields.Boolean(required=True, default=False)
-    manual_amount_expected = fields.Monetary(
-        string="Manual Expected Amount",
+    amount = fields.Monetary(
         default=0.0,
         copy=False,
     )
-    amount_expected = fields.Monetary(
-        compute="_compute_billing_fields",
-        inverse="_inverse_amount_expected",
-        store=True,
-    )
+    is_free = fields.Boolean(compute="_compute_is_free", store=True)
     invoice_id = fields.Many2one("account.move", copy=False)
     refund_move_id = fields.Many2one("account.move", copy=False)
-    manual_billing_status = fields.Selection(
-        selection=CONTRIBUTION_BILLING_STATUS,
-        default="to_invoice",
+    invoice_line_id = fields.Many2one("account.move.line", copy=False)
+    tax_receipt_id = fields.Many2one(
+        "donation.tax.receipt",
+        string="Tax Receipt",
         copy=False,
+        readonly=True,
     )
+    amount_invoiced = fields.Monetary(compute="_compute_amount_invoiced", store=True)
+    amount_paid = fields.Monetary(compute="_compute_amount_paid", store=True)
     billing_status = fields.Selection(
         selection=CONTRIBUTION_BILLING_STATUS,
-        compute="_compute_billing_fields",
-        inverse="_inverse_billing_status",
+        compute="_compute_billing_status",
         store=True,
     )
     company_id = fields.Many2one(
@@ -80,7 +77,6 @@ class MembershipContribution(models.Model):
         store=True,
         readonly=True,
     )
-    invoice_line_id = fields.Many2one("account.move.line", copy=False)
     currency_id = fields.Many2one(
         "res.currency",
         related="membership_id.currency_id",
@@ -88,20 +84,6 @@ class MembershipContribution(models.Model):
         readonly=True,
     )
     note = fields.Text()
-    amount_invoiced = fields.Monetary(
-        compute="_compute_billing_fields",
-        store=True,
-    )
-    manual_amount_paid = fields.Monetary(
-        string="Manual Paid Amount",
-        default=0.0,
-        copy=False,
-    )
-    amount_paid = fields.Monetary(
-        compute="_compute_billing_fields",
-        inverse="_inverse_amount_paid",
-        store=True,
-    )
     product_id = fields.Many2one(
         "product.product",
         related="membership_id.product_id",
@@ -109,9 +91,6 @@ class MembershipContribution(models.Model):
         readonly=True,
     )
     invoice_partner_id = fields.Many2one("res.partner", string="Invoice Contact")
-    has_receipt_templates = fields.Boolean(
-        compute="_compute_has_receipt_templates",
-    )
     date_invoice = fields.Date(
         string="Invoice Date",
         related="invoice_id.invoice_date",
@@ -132,33 +111,6 @@ class MembershipContribution(models.Model):
             "Only one contribution per membership and year is allowed.",
         )
     ]
-
-    def _auto_init(self):
-        result = super()._auto_init()
-        self._migrate_manual_amount_expected_values()
-        return result
-
-    def _migrate_manual_amount_expected_values(self):
-        self.env.cr.execute(
-            """
-            SELECT column_name
-              FROM information_schema.columns
-             WHERE table_schema = current_schema()
-               AND table_name = 'membership_contribution'
-               AND column_name IN ('amount_expected', 'manual_amount_expected')
-            """
-        )
-        available_columns = {row[0] for row in self.env.cr.fetchall()}
-        if {"amount_expected", "manual_amount_expected"} - available_columns:
-            return
-        self.env.cr.execute(
-            """
-            UPDATE membership_contribution
-               SET manual_amount_expected = amount_expected
-             WHERE amount_expected IS NOT NULL
-               AND (manual_amount_expected IS NULL OR manual_amount_expected = 0)
-            """
-        )
 
     @api.model
     def _default_membership_year(self):
@@ -183,20 +135,71 @@ class MembershipContribution(models.Model):
         for record in self:
             record.membership_year_text = str(record.membership_year) if record.membership_year else False
 
-    @api.depends(
-        "company_id.membership_membership_receipt_template_id",
-        "company_id.membership_donation_receipt_template_id",
-    )
-    def _compute_has_receipt_templates(self):
-        for record in self:
-            record.has_receipt_templates = bool(
-                record.company_id.membership_membership_receipt_template_id
-                or record.company_id.membership_donation_receipt_template_id
-            )
-
     def _inverse_membership_year_text(self):
         for record in self:
             record.membership_year = self._normalize_membership_year_value(record.membership_year_text)
+
+    @api.depends("amount")
+    def _compute_is_free(self):
+        for record in self:
+            record.is_free = float(record.amount or 0.0) == 0.0
+
+    @api.depends("invoice_id", "invoice_line_id.price_subtotal")
+    def _compute_amount_invoiced(self):
+        for record in self:
+            if record.invoice_id and record.invoice_line_id:
+                record.amount_invoiced = record.invoice_line_id.price_subtotal
+            else:
+                record.amount_invoiced = 0.0
+
+    @api.depends(
+        "invoice_id",
+        "invoice_id.state",
+        "invoice_id.payment_state",
+        "invoice_id.amount_total",
+        "invoice_id.amount_residual",
+        "amount_invoiced",
+    )
+    def _compute_amount_paid(self):
+        for record in self:
+            invoice = record.invoice_id
+            if not invoice or not record.amount_invoiced:
+                record.amount_paid = 0.0
+                continue
+            total = invoice.amount_total or 0.0
+            if total:
+                paid_ratio = max(
+                    0.0,
+                    min(1.0, (total - invoice.amount_residual) / total),
+                )
+            else:
+                paid_ratio = 1.0 if invoice.payment_state in ("in_payment", "paid") else 0.0
+            record.amount_paid = record.currency_id.round(record.amount_invoiced * paid_ratio)
+
+    @api.depends(
+        "is_free",
+        "invoice_id",
+        "invoice_id.state",
+        "invoice_id.payment_state",
+        "refund_move_id",
+        "refund_move_id.state",
+    )
+    def _compute_billing_status(self):
+        for record in self:
+            if record.is_free:
+                record.billing_status = "waived"
+            elif record.refund_move_id and record.refund_move_id.state == "posted":
+                record.billing_status = "refunded"
+            elif not record.invoice_id:
+                record.billing_status = "to_invoice"
+            elif record.invoice_id.state == "cancel":
+                record.billing_status = "cancelled"
+            elif record.invoice_id.payment_state in ("in_payment", "paid"):
+                record.billing_status = "paid"
+            elif record.invoice_id.payment_state == "partial":
+                record.billing_status = "partial"
+            else:
+                record.billing_status = "invoiced"
 
     @api.model
     def action_open_default_year_contributions(self):
@@ -213,49 +216,6 @@ class MembershipContribution(models.Model):
         }
         return action
 
-    def _get_receipt_template_options(self):
-        self.ensure_one()
-        company = self.company_id
-        options = []
-        if company.membership_membership_receipt_template_id:
-            options.append(
-                (
-                    company.membership_membership_receipt_template_id.id,
-                    _("Membership Receipt"),
-                )
-            )
-        if company.membership_donation_receipt_template_id:
-            options.append(
-                (
-                    company.membership_donation_receipt_template_id.id,
-                    _("Donation Receipt"),
-                )
-            )
-        return options
-
-    def _get_receipt_partner_ids(self):
-        self.ensure_one()
-        return self.invoice_partner_id or self.membership_id._get_invoice_partner()
-
-    def action_send_receipt(self):
-        self.ensure_one()
-        if not self._get_receipt_template_options():
-            raise UserError(
-                _(
-                    "Configure at least one receipt email template in Membership Settings first."
-                )
-            )
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Send Receipt"),
-            "res_model": "membership.receipt.wizard",
-            "view_mode": "form",
-            "target": "new",
-            "context": {
-                "default_contribution_id": self.id,
-            },
-        }
-
     @api.model
     def _prepare_membership_contribution_values(self, vals, membership=False):
         vals = vals.copy()
@@ -263,19 +223,8 @@ class MembershipContribution(models.Model):
         vals["membership_year"] = self._normalize_membership_year_value(
             vals.get("membership_year") or self._default_membership_year()
         )
-        if "amount_expected" in vals:
-            vals["manual_amount_expected"] = vals.pop("amount_expected")
-        vals.setdefault("manual_amount_expected", membership._resolve_amount_expected())
-        is_free = bool(vals["is_free"]) if "is_free" in vals else membership._resolve_is_free(
-            amount_value=vals.get("manual_amount_expected")
-        )
-        vals["is_free"] = is_free
-        if "amount_paid" in vals:
-            vals["manual_amount_paid"] = vals.pop("amount_paid")
-        vals.setdefault("manual_amount_paid", 0.0)
-        if "billing_status" in vals:
-            vals["manual_billing_status"] = vals.pop("billing_status")
-        vals.setdefault("manual_billing_status", "waived" if is_free else "to_invoice")
+        if "amount" not in vals:
+            vals["amount"] = membership.amount or 0.0
         vals.setdefault("invoice_partner_id", membership._get_invoice_partner().id)
         if vals.get("invoice_line_id") and not vals.get("invoice_id"):
             line = self.env["account.move.line"].browse(vals["invoice_line_id"])
@@ -287,96 +236,10 @@ class MembershipContribution(models.Model):
         vals = vals.copy()
         if "membership_year" in vals:
             vals["membership_year"] = self._normalize_membership_year_value(vals["membership_year"])
-        if "amount_expected" in vals:
-            vals["manual_amount_expected"] = vals.pop("amount_expected")
-        if "amount_paid" in vals:
-            vals["manual_amount_paid"] = vals.pop("amount_paid")
-        if "billing_status" in vals:
-            vals["manual_billing_status"] = vals.pop("billing_status")
-        if "manual_amount_expected" in vals:
-            vals["is_free"] = float(vals["manual_amount_expected"] or 0.0) == 0.0
-            if vals["is_free"]:
-                vals.setdefault("manual_amount_expected", 0.0)
-                vals.setdefault("manual_amount_paid", 0.0)
-                vals.setdefault("manual_billing_status", "waived")
-            elif "manual_billing_status" not in vals:
-                vals["manual_billing_status"] = "to_invoice"
         if vals.get("invoice_line_id") and not vals.get("invoice_id"):
             line = self.env["account.move.line"].browse(vals["invoice_line_id"])
             vals["invoice_id"] = line.move_id.id
-        if vals.get("is_free"):
-            vals.setdefault("manual_amount_expected", 0.0)
-            vals.setdefault("manual_amount_paid", 0.0)
-            vals.setdefault("manual_billing_status", "waived")
         return vals
-
-    @api.depends(
-        "is_free",
-        "manual_amount_expected",
-        "manual_amount_paid",
-        "manual_billing_status",
-        "invoice_id.state",
-        "invoice_id.payment_state",
-        "invoice_id.amount_total",
-        "invoice_id.amount_residual",
-        "invoice_line_id.price_subtotal",
-        "refund_move_id.state",
-    )
-    def _compute_billing_fields(self):
-        for record in self:
-            line_amount = (
-                record.invoice_line_id.price_subtotal
-                if record.invoice_id and record.invoice_line_id
-                else 0.0
-            )
-            record.amount_invoiced = line_amount if record.invoice_id else 0.0
-            if record.invoice_id:
-                record.amount_expected = record.amount_invoiced
-                if record.amount_invoiced:
-                    total = record.invoice_id.amount_total or 0.0
-                    if total:
-                        paid_ratio = max(
-                            0.0,
-                            min(1.0, (total - record.invoice_id.amount_residual) / total),
-                        )
-                    else:
-                        paid_ratio = 1.0 if record.invoice_id.payment_state in ("in_payment", "paid") else 0.0
-                    record.amount_paid = record.currency_id.round(record.amount_invoiced * paid_ratio)
-                else:
-                    record.amount_paid = 0.0
-            elif record.is_free:
-                record.amount_expected = 0.0
-                record.amount_paid = 0.0
-            else:
-                record.amount_expected = record.manual_amount_expected
-                record.amount_paid = record.manual_amount_paid
-
-            if record.is_free:
-                record.billing_status = "waived"
-            elif record.refund_move_id and record.refund_move_id.state == "posted":
-                record.billing_status = "refunded"
-            elif not record.invoice_id:
-                record.billing_status = record.manual_billing_status or "to_invoice"
-            elif record.invoice_id.state == "cancel":
-                record.billing_status = "cancelled"
-            elif record.invoice_id.payment_state in ("in_payment", "paid"):
-                record.billing_status = "paid"
-            elif record.invoice_id.payment_state == "partial":
-                record.billing_status = "partial"
-            else:
-                record.billing_status = "invoiced"
-
-    def _inverse_amount_expected(self):
-        for record in self:
-            record.manual_amount_expected = 0.0 if record.is_free else record.amount_expected
-
-    def _inverse_amount_paid(self):
-        for record in self:
-            record.manual_amount_paid = 0.0 if record.is_free else record.amount_paid
-
-    def _inverse_billing_status(self):
-        for record in self:
-            record.manual_billing_status = "waived" if record.is_free else (record.billing_status or "to_invoice")
 
     @api.constrains("company_id", "membership_id")
     def _check_company_matches_membership(self):
@@ -416,9 +279,7 @@ class MembershipContribution(models.Model):
             and not contribution.invoice_line_id
         )._sync_accounting_links_from_lines()
         if self.env.context.get("create_membership_invoice"):
-            strategy = self.env.context.get("membership_invoicing_strategy")
-            if not strategy:
-                strategy = "auto_confirm" if self.env.context.get("membership_invoice_auto_post") else "draft"
+            strategy = self.env.context.get("membership_invoicing_strategy") or "draft"
             records._apply_invoicing_strategy(
                 strategy=strategy,
                 invoice_date=self.env.context.get("membership_invoice_date"),
@@ -480,7 +341,7 @@ class MembershipContribution(models.Model):
                             "name": contribution.product_id.display_name,
                             "product_id": contribution.product_id.id,
                             "quantity": 1.0,
-                            "price_unit": contribution.amount_expected,
+                            "price_unit": contribution.amount,
                             "membership_id": contribution.membership_id.id,
                             "membership_year": contribution.membership_year,
                         }
@@ -503,11 +364,6 @@ class MembershipContribution(models.Model):
             invoices |= invoice
         return invoices
 
-    def _send_membership_invoices(self):
-        send_model = self.env["account.move.send"]
-        for invoice in self.mapped("invoice_id").filtered(lambda move: move.state == "posted"):
-            send_model._generate_and_send_invoices(invoice, sending_methods=["email"])
-
     def _apply_invoicing_strategy(self, strategy=False, invoice_date=False):
         invoices = self.env["account.move"]
         company_map = defaultdict(lambda: self.env["membership.contribution"])
@@ -518,11 +374,9 @@ class MembershipContribution(models.Model):
             if current_strategy == "manual":
                 continue
             created_invoices = contributions._create_membership_invoices(
-                auto_post=current_strategy in {"auto_confirm", "confirm_send"},
+                auto_post=current_strategy == "confirm",
                 invoice_date=invoice_date,
             )
-            if current_strategy == "confirm_send":
-                contributions.filtered(lambda contribution: contribution.invoice_id in created_invoices)._send_membership_invoices()
             invoices |= created_invoices
         return invoices
 
@@ -557,3 +411,40 @@ class MembershipContribution(models.Model):
                     "refund": refund_move.display_name,
                 }
             )
+
+    def _is_tax_receipt_eligible(self, invoice):
+        self.ensure_one()
+        if self.tax_receipt_id:
+            return False
+        if not self.product_id.tax_receipt_ok:
+            return False
+        partner = self.invoice_partner_id or self.membership_id._get_invoice_partner()
+        option = partner.commercial_partner_id.tax_receipt_option
+        return option == "each"
+
+    def _prepare_tax_receipt_values(self, invoice):
+        self.ensure_one()
+        partner = self.invoice_partner_id or self.membership_id._get_invoice_partner()
+        return {
+            "company_id": self.company_id.id,
+            "currency_id": self.company_id.currency_id.id,
+            "donation_date": invoice.invoice_date or fields.Date.context_today(self),
+            "amount": self.amount_paid or self.amount_invoiced or self.amount,
+            "type": "each",
+            "partner_id": partner.commercial_partner_id.id,
+        }
+
+    def _maybe_issue_tax_receipt(self, invoice):
+        self.ensure_one()
+        if not self._is_tax_receipt_eligible(invoice):
+            return self.env["donation.tax.receipt"]
+        receipt = self.env["donation.tax.receipt"].create(self._prepare_tax_receipt_values(invoice))
+        self.tax_receipt_id = receipt.id
+        self.membership_id.message_post(
+            body=_("Tax receipt %(receipt)s issued for contribution %(year)s.")
+            % {
+                "receipt": receipt.display_name,
+                "year": self.membership_year,
+            }
+        )
+        return receipt

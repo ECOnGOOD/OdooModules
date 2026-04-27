@@ -40,18 +40,6 @@
                                 domain="[('model', '=', 'membership.membership')]"
                             />
                         </setting>
-                        <setting string="Membership Receipt Email Template">
-                            <field
-                                name="membership_membership_receipt_template_id"
-                                domain="[('model', '=', 'membership.contribution')]"
-                            />
-                        </setting>
-                        <setting string="Donation Receipt Email Template">
-                            <field
-                                name="membership_donation_receipt_template_id"
-                                domain="[('model', '=', 'membership.contribution')]"
-                            />
-                        </setting>
                     </block>
                     <block title="Member Numbers">
                         <setting string="Member Number Prefix">

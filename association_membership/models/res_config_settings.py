@@ -39,14 +39,6 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.membership_cancellation_template_id",
         readonly=False,
     )
-    membership_membership_receipt_template_id = fields.Many2one(
-        related="company_id.membership_membership_receipt_template_id",
-        readonly=False,
-    )
-    membership_donation_receipt_template_id = fields.Many2one(
-        related="company_id.membership_donation_receipt_template_id",
-        readonly=False,
-    )
     member_number_prefix = fields.Char(
         related="company_id.member_number_prefix",
         readonly=False,

@@ -42,7 +42,7 @@ class MembershipActivateWizard(models.TransientModel):
             defaults["invoice_id"] = invoice.id
             defaults["has_draft_invoice"] = True
             defaults["confirm_invoice"] = True
-            defaults["send_invoice_email"] = strategy == "confirm_send"
+            defaults["send_invoice_email"] = False
 
         invoice_partner = membership._get_invoice_partner()
         defaults["mail_partner_ids"] = [(6, 0, invoice_partner.ids)] if invoice_partner else []
