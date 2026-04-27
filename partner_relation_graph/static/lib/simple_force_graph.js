@@ -409,11 +409,159 @@
 
     function estimateLevelSpacing(nodes) {
         if (!nodes?.length) {
-            return 108;
+            return 116;
         }
         const averageExtent =
             nodes.reduce((sum, node) => sum + estimateNodeExtent(node), 0) / nodes.length;
-        return Math.max(104, Math.min(176, averageExtent * 0.96));
+        return Math.max(112, Math.min(220, averageExtent * 1.05));
+    }
+
+    function labelHasKeyword(label, keyword) {
+        const normalized = String(label || "").toLowerCase();
+        if (keyword === "child") {
+            return /\bchild(?:ren)?\b/.test(normalized);
+        }
+        return /\bparent\b/.test(normalized);
+    }
+
+    function getDirectedEdgeLabel(edge, currentNodeId, neighborNodeId) {
+        if (!edge || !currentNodeId || !neighborNodeId) {
+            return "";
+        }
+        if (edge.source === currentNodeId && edge.target === neighborNodeId) {
+            return edge.label || "";
+        }
+        if (edge.target === currentNodeId && edge.source === neighborNodeId) {
+            return edge.inverse_label || edge.label || "";
+        }
+        return "";
+    }
+
+    function getHierarchyAngleForEdge(edge, currentNodeId, neighborNodeId) {
+        if (!edge || !currentNodeId || !neighborNodeId) {
+            return null;
+        }
+        if (!(edge.source === currentNodeId && edge.target === neighborNodeId) &&
+            !(edge.target === currentNodeId && edge.source === neighborNodeId)) {
+            return null;
+        }
+        if (edge.kind === "child_contact") {
+            if (edge.target === currentNodeId) {
+                return Math.PI / 2;
+            }
+            if (edge.source === currentNodeId) {
+                return -Math.PI / 2;
+            }
+        }
+        const directedLabel = getDirectedEdgeLabel(edge, currentNodeId, neighborNodeId);
+        if (labelHasKeyword(directedLabel, "child")) {
+            return Math.PI / 2;
+        }
+        if (labelHasKeyword(directedLabel, "parent")) {
+            return -Math.PI / 2;
+        }
+        return null;
+    }
+
+    function getPreferredAnchoredAngle(node, neighborIds, edges) {
+        if (!node || !neighborIds?.length) {
+            return null;
+        }
+        const neighborIdSet = new Set(neighborIds);
+        let x = 0;
+        let y = 0;
+        let matches = 0;
+        for (const edge of edges || []) {
+            const hierarchyAngle =
+                getHierarchyAngleForEdge(edge, node.id, edge.source === node.id ? edge.target : edge.source);
+            const neighborId = edge.source === node.id ? edge.target : edge.source;
+            if (!neighborIdSet.has(neighborId) || hierarchyAngle === null) {
+                continue;
+            }
+            x += Math.cos(hierarchyAngle);
+            y += Math.sin(hierarchyAngle);
+            matches += 1;
+        }
+        return matches ? Math.atan2(y, x) : null;
+    }
+
+    function getDeterministicUnitVector(leftNodeId, rightNodeId) {
+        const seed = Math.abs(leftNodeId * 92821 + rightNodeId * 68917) % 360;
+        const angle = (seed / 360) * Math.PI * 2;
+        return {
+            x: Math.cos(angle),
+            y: Math.sin(angle),
+        };
+    }
+
+    function estimatePairClearance(leftNode, rightNode) {
+        return (estimateNodeExtent(leftNode) + estimateNodeExtent(rightNode)) * 0.58 + 18;
+    }
+
+    function relaxLayoutDeterministically(nodes, positions, basePositions, lockedIds) {
+        const orderedNodes = (nodes || []).slice().sort((left, right) => left.id - right.id);
+        for (let iteration = 0; iteration < 10; iteration += 1) {
+            let changed = false;
+            for (let leftIndex = 0; leftIndex < orderedNodes.length; leftIndex += 1) {
+                const leftNode = orderedNodes[leftIndex];
+                const leftPosition = positions.get(leftNode.id);
+                if (!leftPosition) {
+                    continue;
+                }
+                for (let rightIndex = leftIndex + 1; rightIndex < orderedNodes.length; rightIndex += 1) {
+                    const rightNode = orderedNodes[rightIndex];
+                    const rightPosition = positions.get(rightNode.id);
+                    if (!rightPosition) {
+                        continue;
+                    }
+                    const minimumDistance = estimatePairClearance(leftNode, rightNode);
+                    const dx = rightPosition.x - leftPosition.x;
+                    const dy = rightPosition.y - leftPosition.y;
+                    const distance = Math.hypot(dx, dy);
+                    if (distance >= minimumDistance) {
+                        continue;
+                    }
+                    const direction = distance > 0.001
+                        ? { x: dx / distance, y: dy / distance }
+                        : getDeterministicUnitVector(leftNode.id, rightNode.id);
+                    const overlap = minimumDistance - Math.max(distance, 0.001);
+                    const leftLocked = lockedIds.has(leftNode.id);
+                    const rightLocked = lockedIds.has(rightNode.id);
+                    if (leftLocked && rightLocked) {
+                        continue;
+                    }
+                    const leftShare = leftLocked ? 0 : rightLocked ? 1 : 0.5;
+                    const rightShare = rightLocked ? 0 : leftLocked ? 1 : 0.5;
+                    positions.set(leftNode.id, {
+                        x: leftPosition.x - direction.x * overlap * leftShare,
+                        y: leftPosition.y - direction.y * overlap * leftShare,
+                    });
+                    positions.set(rightNode.id, {
+                        x: rightPosition.x + direction.x * overlap * rightShare,
+                        y: rightPosition.y + direction.y * overlap * rightShare,
+                    });
+                    changed = true;
+                }
+            }
+            for (const node of orderedNodes) {
+                if (lockedIds.has(node.id)) {
+                    continue;
+                }
+                const position = positions.get(node.id);
+                const basePosition = basePositions.get(node.id) || position;
+                if (!position || !basePosition) {
+                    continue;
+                }
+                positions.set(node.id, {
+                    x: position.x * 0.88 + basePosition.x * 0.12,
+                    y: position.y * 0.88 + basePosition.y * 0.12,
+                });
+            }
+            if (!changed) {
+                break;
+            }
+        }
+        return positions;
     }
 
     function toNumberAttribute(element, attributeName) {
@@ -541,6 +689,7 @@
             if (!viewState || typeof viewState !== "object") {
                 return;
             }
+            this.preserveKnownPositions = true;
             const parsePositions = (items) => {
                 const positions = new Map();
                 for (const item of items || []) {
@@ -634,9 +783,11 @@
 
         setData(data) {
             const previousLayout = this.layout ? new Map(this.layout) : new Map();
+            const preserveKnownPositions = Boolean(this.preserveKnownPositions);
+            this.preserveKnownPositions = false;
             this.data = normalizeGraphData(data);
             this.pruneManualPositions();
-            this.layout = this.computeLayout(previousLayout);
+            this.layout = this.computeLayout(previousLayout, preserveKnownPositions);
             this.edgeTracks = buildEdgeTracks(this.data.edges || []);
             this.nodeById = new Map((this.data.nodes || []).map((node) => [node.id, node]));
             const focalId = this.data.meta?.focal_partner_id || null;
@@ -678,8 +829,9 @@
             }
             const { width, height } = this.measureContainer();
             this.lastMeasuredSize = { width, height };
-            const paddingX = Math.max(56, width * 0.08);
-            const paddingY = Math.max(56, height * 0.1);
+            const edgePadding = Math.max(56, Math.min(width, height) * 0.08);
+            const paddingX = edgePadding;
+            const paddingY = edgePadding;
             let minX = Infinity;
             let minY = Infinity;
             let maxX = -Infinity;
@@ -711,7 +863,7 @@
             };
         }
 
-        computeLayout(previousLayout = new Map()) {
+        computeLayout(previousLayout = new Map(), preserveKnownPositions = false) {
             const nodes = this.data.nodes || [];
             const edges = this.data.edges || [];
             const focalId = this.data.meta?.focal_partner_id || nodes[0]?.id;
@@ -768,27 +920,39 @@
                         : Math.max(baseRadius + Math.max(0, depth - 1) * radiusStep, requiredRadius);
                 const missingNodes = level
                     .slice()
-                    .sort((left, right) => left.display_name.localeCompare(right.display_name))
+                    .sort(
+                        (left, right) =>
+                            left.display_name.localeCompare(right.display_name) || left.id - right.id
+                    )
                     .filter((node) => !positions.has(node.id) && !knownPositions.has(node.id));
                 const slice = (Math.PI * 2) / Math.max(missingNodes.length, 1);
                 missingNodes.forEach((node, index) => {
                     const positionedNeighbors = [...(adjacency.get(node.id) || [])]
-                        .map((neighborId) => positions.get(neighborId) || knownPositions.get(neighborId))
-                        .filter(Boolean);
+                        .map((neighborId) => ({
+                            id: neighborId,
+                            position: positions.get(neighborId) || knownPositions.get(neighborId),
+                        }))
+                        .filter((item) => Boolean(item.position));
                     if (positionedNeighbors.length) {
                         const anchor = positionedNeighbors.reduce(
-                            (accumulator, position) => ({
-                                x: accumulator.x + position.x,
-                                y: accumulator.y + position.y,
+                            (accumulator, item) => ({
+                                x: accumulator.x + item.position.x,
+                                y: accumulator.y + item.position.y,
                             }),
                             { x: 0, y: 0 }
                         );
                         const centerX = anchor.x / positionedNeighbors.length;
                         const centerY = anchor.y / positionedNeighbors.length;
+                        const preferredAngle = getPreferredAnchoredAngle(
+                            node,
+                            positionedNeighbors.map((item) => item.id),
+                            edges
+                        );
                         const outwardAngle =
-                            Math.abs(centerX) < 1 && Math.abs(centerY) < 1
+                            preferredAngle ??
+                            (Math.abs(centerX) < 1 && Math.abs(centerY) < 1
                                 ? -Math.PI / 2
-                                : Math.atan2(centerY, centerX);
+                                : Math.atan2(centerY, centerX));
                         const arcSpan =
                             missingNodes.length <= 1
                                 ? 0
@@ -823,7 +987,16 @@
                     positions.set(node.id, { ...knownPositions.get(node.id) });
                 }
             }
-            return positions;
+            const lockedIds = new Set([
+                focalId,
+                this.selection?.nodeId || null,
+                ...this.manualNodePositions.keys(),
+                ...(preserveKnownPositions ? [...knownPositions.keys()] : []),
+            ]);
+            const basePositions = new Map(
+                [...positions.entries()].map(([nodeId, position]) => [nodeId, { ...position }])
+            );
+            return relaxLayoutDeterministically(nodes, positions, basePositions, lockedIds);
         }
 
         scheduleRender() {

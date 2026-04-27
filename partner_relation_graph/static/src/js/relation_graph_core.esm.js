@@ -74,6 +74,15 @@ function toFilterIdList(values) {
         );
 }
 
+function getSelectedOptionValues(selectElement) {
+    if (!selectElement) {
+        return [];
+    }
+    return Array.from(selectElement.options || [])
+        .filter((option) => option.selected)
+        .map((option) => option.value);
+}
+
 function normalizeInitialGraphState(value) {
     if (!value) {
         return null;
@@ -187,6 +196,7 @@ export class RelationGraphExplorer extends Component {
         const initialPartnerId = this.initialGraphState?.partnerId || toSingleId(this.props.seedPartnerId);
         this.state = useState({
             partnerId: initialPartnerId,
+            partnerDisplayName: "",
             includeInactive: Boolean(this.initialGraphState?.includeInactive),
             relationTypeIds: this.initialGraphState?.relationTypeIds || [],
             showChildContacts: this.initialGraphState?.showChildContacts ?? true,
@@ -215,6 +225,7 @@ export class RelationGraphExplorer extends Component {
             const nextPartnerId = toSingleId(nextProps.seedPartnerId);
             if (nextPartnerId !== this.state.partnerId) {
                 this.state.partnerId = nextPartnerId;
+                this.state.partnerDisplayName = "";
                 this.state.expandedPartnerIds = [];
                 this.state.graphViewState = null;
                 this.clearSelection();
@@ -229,6 +240,14 @@ export class RelationGraphExplorer extends Component {
 
     get partnerSelectorIds() {
         return this.state.partnerId ? [this.state.partnerId] : [];
+    }
+
+    get partnerSelectorValue() {
+        if (this.state.partnerDisplayName) {
+            return this.state.partnerDisplayName;
+        }
+        const focalNode = this.state.graphData.nodes.find((node) => node.is_focal);
+        return focalNode?.display_name || "";
     }
 
     get selectedNode() {
@@ -285,14 +304,16 @@ export class RelationGraphExplorer extends Component {
         this.state.loading = true;
         this.state.error = "";
         try {
-            const payload = await this.orm.call("res.partner", "get_relationship_graph", [
-                this.state.partnerId,
-                this.state.includeInactive,
-                this.state.relationTypeDomainIds,
-                this.state.expandedPartnerIds,
-                this.includeChildContacts,
-            ]);
+            const payload = await this.orm.call("res.partner", "get_relationship_graph", [], {
+                partner_id: this.state.partnerId,
+                include_inactive: this.state.includeInactive,
+                relation_type_ids: [...this.relationTypeDomainIds],
+                expanded_partner_ids: [...this.state.expandedPartnerIds],
+                include_child_contacts: this.includeChildContacts,
+            });
             this.state.graphData = payload;
+            const focalNode = payload.nodes.find((node) => node.is_focal) || null;
+            this.state.partnerDisplayName = focalNode?.display_name || this.state.partnerDisplayName;
             if (!payload.nodes.find((node) => node.id === this.state.selectedNodeId)) {
                 this.state.selectedNodeId = false;
             }
@@ -302,6 +323,7 @@ export class RelationGraphExplorer extends Component {
         } catch (error) {
             this.state.error = error?.message || _t("Could not load the relationship graph.");
             this.state.graphData = makeEmptyGraph(this.state.partnerId);
+            this.state.partnerDisplayName = "";
             this.notification.add(this.state.error, { type: "danger" });
         } finally {
             this.state.loading = false;
@@ -316,6 +338,7 @@ export class RelationGraphExplorer extends Component {
 
     async onPartnerUpdate(ids) {
         this.state.partnerId = ids[0] || false;
+        this.state.partnerDisplayName = "";
         this.state.expandedPartnerIds = [];
         this.state.graphViewState = null;
         this.clearSelection();
@@ -335,9 +358,13 @@ export class RelationGraphExplorer extends Component {
     }
 
     async onRelationTypeChange(event) {
-        this.state.relationTypeIds = toFilterIdList(
-            Array.from(event.target.selectedOptions).map((option) => option.value)
-        );
+        const selectElement = event?.currentTarget || event?.target;
+        let selectedValues = getSelectedOptionValues(selectElement);
+        if (!selectedValues.length && typeof window !== "undefined") {
+            await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+            selectedValues = getSelectedOptionValues(selectElement);
+        }
+        this.state.relationTypeIds = toFilterIdList(selectedValues);
         this.state.expandedPartnerIds = [];
         this.state.graphViewState = null;
         this.clearSelection();

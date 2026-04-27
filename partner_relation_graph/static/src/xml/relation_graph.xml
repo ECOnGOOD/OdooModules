@@ -27,12 +27,13 @@
                                 getIds.bind="getPartnerSelectorIds"
                                 multiSelect="false"
                                 fieldString="'Contact'"
+                                value="partnerSelectorValue"
                                 placeholder="'Select a contact'"
                             />
                         </div>
                         <div class="prg-side-section">
                             <h5>Relation Types</h5>
-                            <select class="form-select prg-type-select prg-side-select" multiple="multiple" t-on-change="onRelationTypeChange">
+                            <select class="form-select prg-type-select prg-side-select" multiple="multiple" t-on-input="onRelationTypeChange" t-on-change="onRelationTypeChange">
                                 <option
                                     t-foreach="state.relationTypes"
                                     t-as="relationType"
