@@ -56,6 +56,10 @@ class ResCompany(models.Model):
         "mail.template",
         string="Activation Invoice Email Template",
     )
+    membership_welcome_template_id = fields.Many2one(
+        "mail.template",
+        string="Welcome Email Template",
+    )
     membership_cancellation_template_id = fields.Many2one(
         "mail.template",
         string="Cancellation Email Template",
@@ -122,6 +126,7 @@ class ResCompany(models.Model):
         "member_number_prefix",
         "membership_default_contribution_year",
         "membership_activation_invoice_template_id",
+        "membership_welcome_template_id",
         "membership_cancellation_template_id",
         "membership_membership_receipt_template_id",
         "membership_donation_receipt_template_id",
@@ -148,6 +153,10 @@ class ResCompany(models.Model):
                 "account.move",
             )
             company._check_membership_mail_template_model(
+                company.membership_welcome_template_id,
+                "membership.membership",
+            )
+            company._check_membership_mail_template_model(
                 company.membership_cancellation_template_id,
                 "membership.membership",
             )
@@ -159,6 +168,27 @@ class ResCompany(models.Model):
                 company.membership_donation_receipt_template_id,
                 "membership.contribution",
             )
+
+    def _get_membership_number_sequence(self):
+        self.ensure_one()
+        code = "association.membership.number.seq"
+        sequence = self.env["ir.sequence"].sudo().search(
+            [("code", "=", code), ("company_id", "=", self.id)], limit=1
+        )
+        if not sequence:
+            global_seq = self.env["ir.sequence"].sudo().search(
+                [("code", "=", code), ("company_id", "=", False)], limit=1
+            )
+            sequence = self.env["ir.sequence"].sudo().create(
+                {
+                    "name": "Membership Number Counter (%s)" % self.name,
+                    "code": code,
+                    "company_id": self.id,
+                    "padding": global_seq.padding if global_seq else 1,
+                    "number_next": global_seq.number_next_actual if global_seq else 1,
+                }
+            )
+        return sequence
 
     def _render_member_number_prefix(self, target_date=False):
         self.ensure_one()

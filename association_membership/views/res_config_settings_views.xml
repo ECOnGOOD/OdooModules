@@ -28,6 +28,12 @@
                                 domain="[('model', '=', 'account.move')]"
                             />
                         </setting>
+                        <setting string="Welcome Email Template">
+                            <field
+                                name="membership_welcome_template_id"
+                                domain="[('model', '=', 'membership.membership')]"
+                            />
+                        </setting>
                         <setting string="Cancellation Email Template">
                             <field
                                 name="membership_cancellation_template_id"
@@ -53,6 +59,9 @@
                         </setting>
                         <setting string="Member Number Padding">
                             <field name="member_number_padding" />
+                        </setting>
+                        <setting string="Next Member Number">
+                            <field name="member_number_next" />
                         </setting>
                     </block>
                 </app>

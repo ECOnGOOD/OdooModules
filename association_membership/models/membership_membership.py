@@ -245,15 +245,16 @@ class MembershipMembership(models.Model):
 
     @api.depends("membership_number", "company_id")
     def _compute_membership_number_preview(self):
-        sequence = self.env["ir.sequence"].sudo().search(
-            [("code", "=", "association.membership.number.seq")],
-            limit=1,
-        )
-        next_counter = str(sequence.number_next_actual) if sequence else False
+        sequence_by_company = {}
         for record in self:
             if record.membership_number:
                 record.membership_number_preview = record.membership_number
                 continue
+            company_id = record.company_id.id
+            if company_id not in sequence_by_company:
+                sequence_by_company[company_id] = record.company_id._get_membership_number_sequence()
+            sequence = sequence_by_company[company_id]
+            next_counter = str(sequence.number_next_actual) if sequence else False
             if not next_counter:
                 record.membership_number_preview = False
                 continue
@@ -398,9 +399,7 @@ class MembershipMembership(models.Model):
     def _onchange_partner_id(self):
         if not self.partner_id:
             return
-        default_invoice_partner = self._resolve_default_invoice_partner(self.partner_id)
-        if not self.invoice_partner_id or self.invoice_partner_id == self._origin.partner_id:
-            self.invoice_partner_id = default_invoice_partner
+        self.invoice_partner_id = self._resolve_default_invoice_partner(self.partner_id)
 
     @api.onchange("product_id")
     def _onchange_product_id(self):
@@ -562,7 +561,8 @@ class MembershipMembership(models.Model):
                 self._raise_membership_number_conflict(number, conflict)
 
     def _next_membership_number_counter(self):
-        counter = self.env["ir.sequence"].sudo().next_by_code("association.membership.number.seq")
+        sequence = self.company_id._get_membership_number_sequence()
+        counter = sequence.sudo().next_by_id()
         if not counter:
             raise UserError(_("The membership number counter is not configured."))
         return str(counter)
@@ -647,9 +647,9 @@ class MembershipMembership(models.Model):
         return {
             "draft": {"waiting"},
             "waiting": {"draft", "active"},
-            "active": {"cancelled", "terminated"},
-            "cancelled": {"active", "terminated"},
-            "terminated": {"waiting"},
+            "active": {"cancelled", "terminated", "draft"},
+            "cancelled": {"active", "terminated", "draft"},
+            "terminated": {"waiting", "draft"},
         }
 
     def _get_invoice_partner(self):
@@ -714,6 +714,14 @@ class MembershipMembership(models.Model):
                 )
                 if kwargs.get("date_end"):
                     vals["date_end"] = kwargs["date_end"]
+            elif new_state == "draft":
+                vals.update(
+                    {
+                        "date_cancelled": False,
+                        "date_end": False,
+                        "cancel_reason": False,
+                    }
+                )
             elif record.state == "cancelled" and new_state == "active":
                 vals.update(
                     {
@@ -738,8 +746,17 @@ class MembershipMembership(models.Model):
         return True
 
     def action_activate(self):
-        self._do_transition("active")
-        return True
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Activate Membership"),
+            "res_model": "membership.activate.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {
+                "default_membership_id": self.id,
+            },
+        }
 
     def action_activate_from_payment(self, invoice=False):
         waiting_memberships = self.filtered(lambda membership: membership.state == "waiting")

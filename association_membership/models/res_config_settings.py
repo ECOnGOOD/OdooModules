@@ -31,6 +31,10 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.membership_activation_invoice_template_id",
         readonly=False,
     )
+    membership_welcome_template_id = fields.Many2one(
+        related="company_id.membership_welcome_template_id",
+        readonly=False,
+    )
     membership_cancellation_template_id = fields.Many2one(
         related="company_id.membership_cancellation_template_id",
         readonly=False,
@@ -51,6 +55,23 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.member_number_padding",
         readonly=False,
     )
+    member_number_next = fields.Integer(
+        string="Next Member Number",
+        compute="_compute_member_number_next",
+        inverse="_inverse_member_number_next",
+    )
+
+    @api.depends("company_id")
+    def _compute_member_number_next(self):
+        for record in self:
+            sequence = record.company_id._get_membership_number_sequence()
+            record.member_number_next = sequence.number_next_actual if sequence else 1
+
+    def _inverse_member_number_next(self):
+        for record in self:
+            if record.member_number_next >= 1:
+                sequence = record.company_id._get_membership_number_sequence()
+                sequence.sudo().write({"number_next": record.member_number_next})
 
     @api.depends("membership_default_contribution_year")
     def _compute_membership_default_contribution_year_text(self):

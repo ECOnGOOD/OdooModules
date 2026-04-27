@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_membership_activate_wizard_form" model="ir.ui.view">
+        <field name="name">membership.activate.wizard.form</field>
+        <field name="model">membership.activate.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Activate Membership">
+                <group>
+                    <field name="membership_id" />
+                </group>
+                <group string="Invoice" invisible="not has_draft_invoice">
+                    <field name="has_draft_invoice" invisible="1" />
+                    <field name="invoice_id" readonly="1" />
+                    <field name="confirm_invoice" />
+                    <field name="send_invoice_email" invisible="not confirm_invoice" />
+                </group>
+                <group string="Welcome Message">
+                    <field name="send_welcome_message" />
+                    <field
+                        name="welcome_template_id"
+                        invisible="not send_welcome_message"
+                        options="{'no_create': True}"
+                    />
+                </group>
+                <group invisible="not send_welcome_message">
+                    <field name="mail_partner_ids" widget="many2many_tags" />
+                    <field name="mail_subject" />
+                    <field name="mail_body" widget="html" />
+                </group>
+                <footer>
+                    <button name="action_confirm" string="Activate" type="object" class="btn-primary" />
+                    <button string="Discard" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

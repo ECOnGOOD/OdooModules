@@ -149,7 +149,7 @@
                         string="Revert to Draft"
                         type="object"
                         groups="association_membership.group_membership_manager"
-                        invisible="state != 'waiting'"
+                        invisible="state == 'draft'"
                     />
                     <button
                         name="action_reopen_waiting"
@@ -217,13 +217,14 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Contributions">
+                        <page string="Contributions" invisible="state == 'draft'">
                             <button
                                 name="action_create_contribution"
                                 string="Create Contribution"
                                 type="object"
                                 class="oe_highlight"
                                 groups="association_membership.group_membership_manager"
+                                invisible="state == 'draft'"
                             />
                             <field name="duplicate_contribution_year_warning" invisible="1" />
                             <div
@@ -266,7 +267,7 @@
         <field name="view_id" ref="association_membership.view_membership_membership_kanban" />
         <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
         <field name="domain">[]</field>
-        <field name="context">{'search_default_active_memberships': 1}</field>
+        <field name="context">{}</field>
     </record>
 
     <record id="action_membership_membership" model="ir.actions.act_window">
@@ -275,6 +276,6 @@
         <field name="view_mode">kanban,list,form</field>
         <field name="view_id" ref="association_membership.view_membership_membership_kanban" />
         <field name="search_view_id" ref="association_membership.view_membership_membership_search" />
-        <field name="context">{'search_default_active_memberships': 1}</field>
+        <field name="context">{}</field>
     </record>
 </odoo>
