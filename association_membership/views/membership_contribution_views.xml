@@ -20,28 +20,7 @@
         </field>
     </record>
 
-    <record id="view_membership_contribution_unpaid_list" model="ir.ui.view">
-        <field name="name">membership.contribution.unpaid.list</field>
-        <field name="model">membership.contribution</field>
-        <field name="arch" type="xml">
-            <list>
-                <field name="membership_id" />
-                <field name="partner_id" />
-                <field name="invoice_partner_id" />
-                <field name="invoice_partner_email" />
-                <field name="company_id" />
-                <field name="product_id" optional="hide" />
-                <field name="membership_year_display" string="Year" />
-                <field name="amount" />
-                <field name="amount_paid" />
-                <field name="billing_status" />
-                <field name="invoice_id" />
-                <field name="date_invoice" optional="show" />
-            </list>
-        </field>
-    </record>
-
-    <record id="view_membership_contribution_search" model="ir.ui.view">
+<record id="view_membership_contribution_search" model="ir.ui.view">
         <field name="name">membership.contribution.search</field>
         <field name="model">membership.contribution</field>
         <field name="arch" type="xml">
