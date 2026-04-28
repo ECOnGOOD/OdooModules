@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <template id="zuwendungsbestaetigung_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page" style="font-size: 11pt;">
+                        <h2 class="text-center mb-2" style="font-weight: bold;">
+                            Bestätigung über Geldzuwendungen / Mitgliedsbeitrag
+                        </h2>
+                        <p class="text-center mb-4" style="font-size: 9pt;">
+                            im Sinne des § 10b des Einkommensteuergesetzes an eine der in § 5 Abs. 1 Nr. 9 des Körperschaftsteuergesetzes bezeichneten Körperschaften, Personenvereinigungen oder Vermögensmassen
+                        </p>
+
+                        <div class="mb-3">
+                            <strong>Aussteller (steuerbegünstigte Einrichtung):</strong>
+                            <div>
+                                <span t-field="o.company_id.partner_id.display_name" />
+                                <br />
+                                <span t-field="o.company_id.partner_id.street" />
+                                <br />
+                                <span t-field="o.company_id.partner_id.zip" />
+                                <span> </span>
+                                <span t-field="o.company_id.partner_id.city" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <strong>Name und Anschrift des Zuwendenden:</strong>
+                            <div>
+                                <span t-field="o.partner_id.display_name" />
+                                <br />
+                                <span t-field="o.partner_id.street" />
+                                <br />
+                                <span t-field="o.partner_id.zip" />
+                                <span> </span>
+                                <span t-field="o.partner_id.city" />
+                            </div>
+                        </div>
+
+                        <table class="table table-bordered mb-3">
+                            <tr>
+                                <th>Betrag der Zuwendung — in Ziffern</th>
+                                <th>— in Buchstaben</th>
+                                <th>Tag der Zuwendung</th>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span
+                                        t-field="o.amount"
+                                        t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"
+                                    />
+                                </td>
+                                <td>
+                                    <span t-field="o.de_amount_in_words" />
+                                </td>
+                                <td>
+                                    <span
+                                        t-field="o.donation_date"
+                                        t-options="{'widget': 'date'}"
+                                    />
+                                </td>
+                            </tr>
+                        </table>
+
+                        <p class="mb-3">
+                            <strong>Es handelt sich um den Verzicht auf die Erstattung von Aufwendungen:</strong>
+                            <span t-if="o.de_verzicht_aufwendungen"> Ja [X] / Nein [ ]</span>
+                            <span t-else=""> Ja [ ] / Nein [X]</span>
+                        </p>
+
+                        <p class="mb-3" t-if="o.company_id.de_receipt_is_membership">
+                            Bei dem oben genannten Betrag handelt es sich um einen Mitgliedsbeitrag, der nicht für Zwecke gemäß § 10b Abs. 1 Satz 8 EStG (Sport, Heimatpflege, Tierzucht, Pflanzenzucht, Karneval, Modellbau u. ä.) verwendet wird.
+                        </p>
+
+                        <p class="mb-3">
+                            Wir sind wegen Förderung
+                            <strong><span t-field="o.company_id.de_charitable_purpose" /></strong>
+                            nach dem Freistellungsbescheid bzw. nach der Anlage zum Körperschaftsteuerbescheid des Finanzamtes
+                            <strong><span t-field="o.company_id.de_finanzamt_name" /></strong>,
+                            StNr. <strong><span t-field="o.company_id.de_steuernummer" /></strong>,
+                            vom
+                            <strong>
+                                <span
+                                    t-field="o.company_id.de_freistellungsbescheid_date"
+                                    t-options="{'widget': 'date'}"
+                                />
+                            </strong>
+                            für den letzten Veranlagungszeitraum
+                            <strong><span t-field="o.company_id.de_freistellungsbescheid_year" /></strong>
+                            nach § 5 Abs. 1 Nr. 9 des Körperschaftsteuergesetzes von der Körperschaftsteuer und nach § 3 Nr. 6 des Gewerbesteuergesetzes von der Gewerbesteuer befreit.
+                        </p>
+
+                        <p class="mb-4">
+                            Es wird bestätigt, dass die Zuwendung nur zur Förderung
+                            <strong><span t-field="o.company_id.de_charitable_purpose" /></strong>
+                            verwendet wird.
+                        </p>
+
+                        <p style="font-size: 9pt;" class="mb-4">
+                            <strong>Hinweis:</strong>
+                            Wer vorsätzlich oder grob fahrlässig eine unrichtige Zuwendungsbestätigung erstellt oder veranlasst, dass Zuwendungen nicht zu den in der Zuwendungsbestätigung angegebenen steuerbegünstigten Zwecken verwendet werden, haftet für die entgangene Steuer (§ 10b Abs. 4 EStG, § 9 Abs. 3 KStG, § 9 Nr. 5 GewStG).
+                        </p>
+
+                        <div class="row mt-5">
+                            <div class="col-6">
+                                <p>
+                                    Ort, Datum:
+                                    <span class="ml-2">__________________________</span>
+                                </p>
+                            </div>
+                            <div class="col-6">
+                                <p>
+                                    <span t-field="o.company_id.de_signatory_name" />
+                                    <br />
+                                    <span t-field="o.company_id.de_signatory_role" />
+                                </p>
+                                <p style="border-top: 1px solid black; padding-top: 4px;">
+                                    Unterschrift
+                                </p>
+                            </div>
+                        </div>
+
+                        <p class="text-end mt-3" style="font-size: 9pt;">
+                            Bestätigungsnummer: <span t-field="o.number" />
+                        </p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

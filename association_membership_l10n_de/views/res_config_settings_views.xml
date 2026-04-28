@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_res_config_settings_membership_de" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.membership.de</field>
+        <field name="model">res.config.settings</field>
+        <field
+            name="inherit_id"
+            ref="association_membership.view_res_config_settings_membership"
+        />
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='association_membership']" position="inside">
+                <block title="Zuwendungsbestätigung (DE)">
+                    <setting string="Finanzamt">
+                        <field name="de_finanzamt_name" />
+                    </setting>
+                    <setting string="Steuernummer">
+                        <field name="de_steuernummer" />
+                    </setting>
+                    <setting string="Datum Freistellungsbescheid">
+                        <field name="de_freistellungsbescheid_date" />
+                    </setting>
+                    <setting string="Veranlagungszeitraum">
+                        <field name="de_freistellungsbescheid_year" />
+                    </setting>
+                    <setting string="Förderungszweck">
+                        <field name="de_charitable_purpose" />
+                    </setting>
+                    <setting string="Empfänge umfassen Mitgliedsbeiträge">
+                        <field name="de_receipt_is_membership" />
+                    </setting>
+                    <setting string="Unterzeichner Name">
+                        <field name="de_signatory_name" />
+                    </setting>
+                    <setting string="Unterzeichner Rolle">
+                        <field name="de_signatory_role" />
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

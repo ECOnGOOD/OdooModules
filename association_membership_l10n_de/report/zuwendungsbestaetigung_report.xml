@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="report_zuwendungsbestaetigung" model="ir.actions.report">
+        <field name="name">Zuwendungsbestätigung</field>
+        <field name="model">donation.tax.receipt</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">association_membership_l10n_de.zuwendungsbestaetigung_document</field>
+        <field name="report_file">association_membership_l10n_de.zuwendungsbestaetigung_document</field>
+        <field
+            name="print_report_name"
+        >'Zuwendungsbestaetigung-'+(object.number or '').replace('/','_')</field>
+        <field name="binding_model_id" ref="donation_base.model_donation_tax_receipt" />
+        <field name="binding_type">report</field>
+        <field name="attachment_use" eval="True" />
+    </record>
+</odoo>
