@@ -14,26 +14,26 @@
             </xpath>
 
             <xpath expr="//div[field[@name='current_membership_number_display']]" position="after">
-                <field name="x_is_econgood_ou" invisible="not is_company"/>
-                <field name="x_ou_type_id" invisible="not is_company or not x_is_econgood_ou"/>
-                <field name="x_organization_kind_id" invisible="not is_company or x_is_econgood_ou"/>
+                <field name="is_econgood_ou" invisible="not is_company"/>
+                <field name="ou_type_id" invisible="not is_company or not is_econgood_ou"/>
+                <field name="organization_kind_id" invisible="not is_company or is_econgood_ou"/>
                 <field name="partner_company_type_id" invisible="not is_company"/>
-                <field name="x_nonprofit_status" invisible="not is_company"/>
+                <field name="nonprofit_status" invisible="not is_company"/>
             </xpath>
 
             <xpath expr="//field[@name='website']" position="after">
-                <field name="x_socials"/>
+                <field name="socials"/>
             </xpath>
 
             <xpath expr="//field[@name='title']" position="after">
-                <field name="x_letter_salutation"/>
+                <field name="letter_salutation"/>
             </xpath>
 
             <page name="internal_notes" position="inside">
                 <group>
                     <group name="import_notes" string="Import Notes">
-                        <field name="x_legacy_id_smartwe"/>
-                        <field name="x_legacy_id_formidable"/>
+                        <field name="legacy_id_smartwe"/>
+                        <field name="legacy_id_formidable"/>
                     </group>
                 </group>
             </page>
@@ -46,14 +46,14 @@
                             <field name="birthdate_date" invisible="is_company"/>
                             <field name="age" invisible="not birthdate_date"/>
 
-                            <field name="x_employee_count" invisible="not is_company"/>
-                            <field name="x_inhabitant_count" invisible="not is_company"/>
+                            <field name="employee_count" invisible="not is_company"/>
+                            <field name="inhabitant_count" invisible="not is_company"/>
                         </group>
 
                         <group string="Legal Agreements &amp; Account">
-                            <field name="x_email_econgood" widget="email"/>
-                            <field name="x_code_of_conduct_signed_date"/>
-                            <field name="x_privacy_agreement_signed_date"/>
+                            <field name="email_econgood" widget="email"/>
+                            <field name="code_of_conduct_signed_date"/>
+                            <field name="privacy_agreement_signed_date"/>
                         </group>
                     </group>
                 </page>
