@@ -29,7 +29,7 @@ The module relies on `donation_base` for the receipt artifact:
 1. Mark eligible products with `tax_receipt_ok = True` on the product form.
 2. Set the partner's `tax_receipt_option` (None / Each / Annual).
 
-**Per-payment receipts ("Each")** — automatic. When an invoice with a contribution line is marked paid, eligible contributions auto-create a `donation.tax.receipt` and stamp it on `contribution.tax_receipt_id`.
+**Per-payment receipts ("Each")** — automatic. When an invoice with a contribution line is marked paid, eligible contributions auto-create a `donation.tax.receipt` and stamp it on `contribution.tax_receipt_id`. Bulk send via the OCA list-action "Print Tax Receipts" on `Accounting → Donations → Tax Receipts`.
 
 **Annual receipts ("Annual")** — manual at year-end via OCA's wizard at `Accounting → Donations → Annual Tax Receipts`. The module hooks into `donation.tax.receipt.update_tax_receipt_annual_dict`: each annual partner's paid contributions for the chosen window are aggregated into one annual receipt per partner. Contributions covered by the new receipt get `tax_receipt_id` stamped; already-stamped contributions are skipped on subsequent runs. Stamping uses calendar-year scope (Jan 1 – Dec 31 of the receipt's `donation_date`).
 
@@ -38,18 +38,18 @@ The module relies on `donation_base` for the receipt artifact:
 States and allowed transitions:
 
 ```
-draft  ──→ waiting
-waiting ──→ draft │ active
-active ──→ cancelled │ terminated │ draft
-cancelled ──→ active │ terminated │ draft
-terminated ──→ waiting │ draft
+draft      ──→ waiting
+waiting    ──→ draft │ active
+active     ──→ cancelled │ terminated │ draft
+cancelled  ──→ active │ terminated │ draft
+terminated ──→ draft
 ```
 
-- `draft` is editable scratch; the Contributions tab is hidden.
+- `draft` is editable scratch; the Contributions tab is hidden. Memberships can only be deleted from this state.
 - `waiting` allows contribution creation and invoicing.
 - `active` is the steady state.
 - `cancelled` is "scheduled to end at `date_end`" — still business-active.
-- `terminated` is the final state; the renewal cron leaves these alone.
+- `terminated` is the final state. Reverting to `draft` is the only way out (and clears cancellation fields).
 
 ## Workflows
 
@@ -69,8 +69,9 @@ terminated ──→ waiting │ draft
 
 ### Renewal
 
-- **Manual:** `Membership → Configuration → Renewal` opens the renewal wizard. Pick target year, companies (default = all allowed), optional product filter, optional dry-run, and optional invoice date. The wizard groups eligible memberships by `(invoice partner, company, year, currency)` and creates one invoice per group, atomically.
-- **Cron:** `Membership Renewal` runs annually (default November 15) and processes all companies non-dry. Termination cron runs daily, moving expired-cancelled memberships to terminated.
+`Membership → Configuration → Renewal` opens the renewal wizard. Pick target year, companies (default = all allowed), optional product filter, optional dry-run, and optional invoice date. The wizard groups eligible memberships by `(invoice partner, company, year, currency)` and creates one invoice per group, atomically.
+
+A scheduled `Membership Renewal` cron exists but is disabled by default — annual renewal is intended to be operator-triggered. The `Membership Termination` cron runs daily and is enabled; it moves expired-cancelled memberships to `terminated`.
 
 ### Cancellation
 
