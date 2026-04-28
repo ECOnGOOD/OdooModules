@@ -43,7 +43,9 @@ class AccountMoveLine(models.Model):
     def create(self, vals_list):
         prepared_vals = [self._prepare_membership_metadata_values(vals) for vals in vals_list]
         lines = super().create(prepared_vals)
-        lines._sync_membership_contributions()
+        contributions = lines.mapped("membership_contribution_id")
+        if contributions:
+            contributions._sync_accounting_links_from_lines()
         return lines
 
     def write(self, vals):
@@ -57,20 +59,6 @@ class AccountMoveLine(models.Model):
     def unlink(self):
         contributions = self.mapped("membership_contribution_id")
         result = super().unlink()
-        contributions._sync_accounting_links_from_lines()
+        if contributions:
+            contributions._sync_accounting_links_from_lines()
         return result
-
-    def _sync_membership_contributions(self):
-        contributions = self.mapped("membership_contribution_id")
-        for line in self.filtered("membership_contribution_id"):
-            values = {}
-            if line.move_id.move_type == "out_invoice":
-                values = {
-                    "invoice_id": line.move_id.id,
-                    "invoice_line_id": line.id,
-                }
-            elif line.move_id.move_type == "out_refund":
-                values = {"refund_move_id": line.move_id.id}
-            if values:
-                line.membership_contribution_id.write(values)
-        contributions._sync_accounting_links_from_lines()

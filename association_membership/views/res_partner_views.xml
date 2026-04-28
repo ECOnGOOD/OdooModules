@@ -42,9 +42,6 @@
                             groups="association_membership.group_membership_manager"
                         />
                     </div>
-                    <group>
-                        <field name="tax_receipt_option" />
-                    </group>
                     <separator string="Memberships" />
                     <field name="membership_ids" readonly="1" nolabel="1">
                         <list create="0" edit="0" delete="0">

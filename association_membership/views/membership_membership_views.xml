@@ -73,6 +73,24 @@
         </field>
     </record>
 
+    <record id="view_membership_membership_cancellations_list" model="ir.ui.view">
+        <field name="name">membership.membership.cancellations.list</field>
+        <field name="model">membership.membership</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="membership_number" />
+                <field name="partner_id" />
+                <field name="company_id" />
+                <field name="product_id" />
+                <field name="state" />
+                <field name="date_start" />
+                <field name="date_cancelled" />
+                <field name="date_end" />
+                <field name="cancel_reason" />
+            </list>
+        </field>
+    </record>
+
     <record id="view_membership_membership_search" model="ir.ui.view">
         <field name="name">membership.membership.search</field>
         <field name="model">membership.membership</field>
@@ -105,6 +123,11 @@
                     name="terminated_memberships"
                     string="Terminated"
                     domain="[('state', '=', 'terminated')]"
+                />
+                <filter
+                    name="recent_starts"
+                    string="Started in last 90 days"
+                    domain="[('date_start', '&gt;=', (context_today() - relativedelta(days=90)).strftime('%Y-%m-%d'))]"
                 />
                 <group expand="0" string="Group By">
                     <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />

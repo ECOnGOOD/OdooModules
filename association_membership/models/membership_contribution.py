@@ -91,6 +91,11 @@ class MembershipContribution(models.Model):
         readonly=True,
     )
     invoice_partner_id = fields.Many2one("res.partner", string="Invoice Contact")
+    invoice_partner_email = fields.Char(
+        related="invoice_partner_id.email",
+        readonly=True,
+        string="Invoice Email",
+    )
     date_invoice = fields.Date(
         string="Invoice Date",
         related="invoice_id.invoice_date",

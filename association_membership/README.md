@@ -107,4 +107,6 @@ For partners with `tax_receipt_option = 'annual'`: open `Accounting → Donation
 ./run_tests.sh association_membership
 ```
 
-The test suite is currently a minimal smoke pass after the donation refactor — additional scenarios should be added as the module grows.
+## Design Notes
+
+See [docs/design-notes.md](docs/design-notes.md) for the rationale behind decisions that aren't obvious from the code — including a few features that were considered, implemented, and reverted (with re-add recipes).
