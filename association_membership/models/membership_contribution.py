@@ -58,17 +58,22 @@ class MembershipContribution(models.Model):
         copy=False,
         readonly=True,
     )
-    amount_invoiced = fields.Monetary(compute="_compute_amount_invoiced", store=True)
-    amount_paid = fields.Monetary(compute="_compute_amount_paid", store=True)
+    amount_invoiced = fields.Monetary(compute="_compute_amount_invoiced", store=True, readonly=False)
+    amount_paid = fields.Monetary(compute="_compute_amount_paid", store=True, readonly=False)
     billing_status = fields.Selection(
         selection=CONTRIBUTION_BILLING_STATUS,
         compute="_compute_billing_status",
         store=True,
+        readonly=False,
     )
     company_id = fields.Many2one(
         "res.company",
         related="membership_id.company_id",
         store=True,
+        readonly=True,
+    )
+    membership_invoicing_strategy = fields.Selection(
+        related="company_id.membership_invoicing_strategy",
         readonly=True,
     )
     partner_id = fields.Many2one(
@@ -147,6 +152,8 @@ class MembershipContribution(models.Model):
     @api.depends("invoice_id", "invoice_line_id.price_subtotal")
     def _compute_amount_invoiced(self):
         for record in self:
+            if record.membership_invoicing_strategy == "manual":
+                continue
             if record.invoice_id and record.invoice_line_id:
                 record.amount_invoiced = record.invoice_line_id.price_subtotal
             else:
@@ -162,6 +169,8 @@ class MembershipContribution(models.Model):
     )
     def _compute_amount_paid(self):
         for record in self:
+            if record.membership_invoicing_strategy == "manual":
+                continue
             invoice = record.invoice_id
             if not invoice or not record.amount_invoiced:
                 record.amount_paid = 0.0
@@ -186,6 +195,8 @@ class MembershipContribution(models.Model):
     )
     def _compute_billing_status(self):
         for record in self:
+            if record.membership_invoicing_strategy == "manual":
+                continue
             if record.is_free:
                 record.billing_status = "waived"
             elif record.refund_move_id and record.refund_move_id.state == "posted":
@@ -448,3 +459,15 @@ class MembershipContribution(models.Model):
             }
         )
         return receipt
+
+    def action_mark_as_paid(self):
+        manual_contributions = self.filtered(lambda c: c.membership_invoicing_strategy == "manual")
+        if len(manual_contributions) != len(self):
+            raise UserError(_("You can only manually mark contributions as paid when the company invoicing strategy is set to 'manual'."))
+        for record in manual_contributions:
+            record.write({
+                "amount_invoiced": record.amount,
+                "amount_paid": record.amount,
+                "billing_status": "paid",
+            })
+        return True

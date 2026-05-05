@@ -66,10 +66,14 @@
         <field name="model">membership.contribution</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_mark_as_paid" type="object" string="Mark as Paid" invisible="billing_status == 'paid' or membership_invoicing_strategy != 'manual'" />
+                </header>
                 <sheet>
                     <group>
                         <group>
                             <field name="membership_id" />
+                            <field name="membership_invoicing_strategy" invisible="1" />
                             <field name="membership_year_text" string="Membership Year" />
                             <field name="partner_id" readonly="1" />
                             <field name="invoice_partner_id" />
@@ -84,9 +88,9 @@
                             <field name="refund_move_id" />
                             <field name="date_refund" readonly="1" />
                             <field name="amount" />
-                            <field name="amount_invoiced" readonly="1" />
-                            <field name="amount_paid" />
-                            <field name="billing_status" />
+                            <field name="amount_invoiced" readonly="membership_invoicing_strategy != 'manual'" />
+                            <field name="amount_paid" readonly="membership_invoicing_strategy != 'manual'" />
+                            <field name="billing_status" readonly="membership_invoicing_strategy != 'manual'" />
                             <field name="tax_receipt_id" readonly="1" />
                         </group>
                     </group>
@@ -114,6 +118,14 @@
         <field name="model_id" ref="association_membership.model_membership_contribution" />
         <field name="state">code</field>
         <field name="code">action = model.action_open_default_year_contributions()</field>
+    </record>
+
+    <record id="action_mark_contribution_as_paid" model="ir.actions.server">
+        <field name="name">Mark as Paid</field>
+        <field name="model_id" ref="association_membership.model_membership_contribution" />
+        <field name="binding_model_id" ref="association_membership.model_membership_contribution" />
+        <field name="state">code</field>
+        <field name="code">records.action_mark_as_paid()</field>
     </record>
 
     <record id="action_membership_contribution" model="ir.actions.act_window">
