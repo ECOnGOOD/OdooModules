@@ -8,6 +8,15 @@
         groups="association_membership.group_membership_manager"
     />
 
+    <menuitem
+        id="menu_membership_members"
+        name="Members"
+        parent="association_membership.menu_membership_root"
+        action="association_membership.action_membership_members"
+        sequence="5"
+        groups="association_membership.group_membership_manager"
+    />
+
     <record id="menu_membership_memberships" model="ir.ui.menu">
         <field name="name">Membership Records</field>
         <field name="parent_id" ref="association_membership.menu_membership_root" />

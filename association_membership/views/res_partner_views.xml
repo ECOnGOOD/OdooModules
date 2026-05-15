@@ -1,75 +1,74 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" ?>
 <odoo>
     <record id="view_partner_form_membership_numbers" model="ir.ui.view">
         <field name="name">res.partner.form.membership.numbers</field>
         <field name="model">res.partner</field>
-        <field name="priority" eval="5" />
-        <field name="inherit_id" ref="base.view_partner_form" />
+        <field name="priority" eval="5"/>
+        <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <field name="vat" position="after">
-                <label
-                    for="current_membership_number_display"
-                    string="Membership"
-                    class="o_form_label"
-                    invisible="not current_membership_number_display"
-                />
+                <label for="current_membership_number_display" string="Membership" class="o_form_label" invisible="not current_membership_number_display"/>
                 <div class="o_row" invisible="not current_membership_number_display">
-                    <field
-                        name="current_membership_number_display"
-                        nolabel="1"
-                        readonly="1"
-                        class="text-body"
-                    />
+                    <field name="current_membership_number_display" nolabel="1" readonly="1" class="text-body"/>
                 </div>
             </field>
         </field>
     </record>
-
     <record id="view_partner_form_membership" model="ir.ui.view">
         <field name="name">res.partner.form.membership</field>
         <field name="model">res.partner</field>
-        <field name="inherit_id" ref="base.view_partner_form" />
+        <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
                 <page string="Memberships">
                     <div class="oe_button_box" name="membership_partner_button_box">
-                        <button
-                            name="action_create_membership"
-                            string="Create Membership"
-                            type="object"
-                            class="oe_stat_button"
-                            icon="fa-plus"
-                            groups="association_membership.group_membership_manager"
-                        />
+                        <button name="action_create_membership" string="Create Membership" type="object" class="oe_stat_button" icon="fa-plus" groups="association_membership.group_membership_manager"/>
                     </div>
-                    <separator string="Memberships" />
+                    <separator string="Memberships"/>
                     <field name="membership_ids" readonly="1" nolabel="1">
                         <list create="0" edit="0" delete="0">
-                            <field name="membership_number" />
-                            <field name="product_id" />
-                            <field name="company_id" />
-                            <field name="state" />
-                            <field name="date_start" />
-                            <field name="date_end" />
-                            <field name="invoice_partner_id" optional="hide" />
-                            <field name="date_cancelled" optional="hide" />
+                            <field name="membership_number"/>
+                            <field name="product_id"/>
+                            <field name="company_id"/>
+                            <field name="state"/>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="invoice_partner_id" optional="hide"/>
+                            <field name="date_cancelled" optional="hide"/>
                         </list>
                     </field>
-                    <separator string="Contributions" />
+                    <separator string="Contributions"/>
                     <field name="membership_contribution_ids" readonly="1" nolabel="1">
                         <list create="0" edit="0" delete="0">
-                            <field name="membership_id" />
-                            <field name="membership_year_display" string="Year" />
-                            <field name="billing_status" />
-                            <field name="amount" />
-                            <field name="amount_paid" />
-                            <field name="invoice_id" />
-                            <field name="refund_move_id" optional="hide" />
+                            <field name="membership_id"/>
+                            <field name="membership_year_display" string="Year"/>
+                            <field name="billing_status"/>
+                            <field name="amount"/>
+                            <field name="amount_paid"/>
+                            <field name="invoice_id"/>
+                            <field name="refund_move_id" optional="hide"/>
                         </list>
                     </field>
                 </page>
             </xpath>
         </field>
     </record>
-
+    <record id="action_membership_members" model="ir.actions.act_window">
+        <field name="name">Members</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('membership_ids', '!=', False)]</field>
+        <field name="context">{'search_default_filter_active_members': 1}</field>
+    </record>
+    <record id="view_res_partner_filter_membership" model="ir.ui.view">
+        <field name="name">res.partner.search.membership</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter string="Active Members" name="filter_active_members" domain="[('membership_ids.state', '=', 'active')]"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>
