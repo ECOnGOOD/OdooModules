@@ -463,7 +463,12 @@ class MembershipContribution(models.Model):
     def action_mark_as_paid(self):
         manual_contributions = self.filtered(lambda c: c.membership_invoicing_strategy == "manual")
         if len(manual_contributions) != len(self):
-            raise UserError(_("You can only manually mark contributions as paid when the company invoicing strategy is set to 'manual'."))
+            raise UserError(
+                _(
+                    "You can only manually mark contributions as paid "
+                    "when the company invoicing strategy is set to 'manual'."
+                )
+            )
         for record in manual_contributions:
             record.write({
                 "amount_invoiced": record.amount,

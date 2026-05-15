@@ -19,7 +19,7 @@ class MembershipCancelWizard(models.TransientModel):
     )
     date_end = fields.Date(
         required=True,
-        default=lambda self: date(fields.Date.today().year, 12, 31),
+        default=lambda self: date(fields.Date.context_today(self).year, 12, 31),
     )
     cancel_reason = fields.Text()
     cancellation_template_id = fields.Many2one(

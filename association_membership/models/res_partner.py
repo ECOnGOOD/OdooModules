@@ -101,7 +101,9 @@ class ResPartner(models.Model):
             "target": "current",
             "context": {
                 "default_partner_id": self.id,
-                "default_invoice_partner_id": self.env["membership.membership"]._resolve_default_invoice_partner(self).id,
+                "default_invoice_partner_id": self.env["membership.membership"]
+                ._resolve_default_invoice_partner(self)
+                .id,
                 "default_company_id": self.env.company.id,
             },
         }

@@ -1,9 +1,9 @@
-from . import membership_membership
-from . import membership_contribution
-from . import product_product
-from . import res_partner
-from . import account_move
-from . import account_move_line
-from . import donation_tax_receipt
-from . import res_company
-from . import res_config_settings
+from . import membership_membership  # noqa: F401
+from . import membership_contribution  # noqa: F401
+from . import product_product  # noqa: F401
+from . import res_partner  # noqa: F401
+from . import account_move  # noqa: F401
+from . import account_move_line  # noqa: F401
+from . import donation_tax_receipt  # noqa: F401
+from . import res_company  # noqa: F401
+from . import res_config_settings  # noqa: F401

@@ -142,7 +142,7 @@ class MembershipMembership(models.Model):
 
     def _auto_init(self):
         result = super()._auto_init()
-        today = date.today()
+        today = fields.Date.context_today(self)
         self.env.cr.execute(
             """
             UPDATE membership_membership
@@ -654,7 +654,7 @@ class MembershipMembership(models.Model):
         )
 
     def _schedule_termination(self, **kwargs):
-        today = date.today()
+        today = fields.Date.context_today(self)
         for record in self:
             vals = record._get_default_cancel_values(
                 cancel_date=kwargs.get("date_cancelled"),
@@ -856,7 +856,7 @@ class MembershipMembership(models.Model):
 
     @api.model
     def cron_terminate_expired_memberships(self):
-        today = date.today()
+        today = fields.Date.context_today(self)
         memberships = self.search(
             [
                 ("state", "=", "cancelled"),
@@ -878,18 +878,53 @@ class MembershipMembership(models.Model):
             return
         relation_type = self._get_membership_relation_type()
         relation_model = self.env["res.partner.relation"]
+
+        pairs = []
+        for record in self:
+            if record.partner_id and record.company_id.partner_id and relation_type:
+                pairs.append((record.partner_id.id, record.company_id.partner_id.id))
+
+        if not pairs:
+            return
+
+        domain = [("type_id", "=", relation_type.id)]
+        pair_domain = []
+        for left, right in set(pairs):
+            pair_domain.extend(["&", ("left_partner_id", "=", left), ("right_partner_id", "=", right)])
+        for i in range(len(set(pairs)) - 1):
+            pair_domain.insert(0, "|")
+        domain.extend(pair_domain)
+
+        existing_relations = relation_model.search(domain)
+        relation_map = {
+            (rel.left_partner_id.id, rel.right_partner_id.id): rel
+            for rel in existing_relations
+        }
+
+        terminated_records = self.filtered(lambda r: r.state == "terminated")
+        sibling_map = {}
+        if terminated_records:
+            sibling_domain = [
+                ("id", "not in", terminated_records.ids),
+                ("partner_id", "in", terminated_records.mapped("partner_id").ids),
+                ("company_id", "in", terminated_records.mapped("company_id").ids),
+                ("state", "in", BUSINESS_ACTIVE_STATES),
+            ]
+            siblings = self.search(sibling_domain)
+            for sib in siblings:
+                sibling_map.setdefault((sib.partner_id.id, sib.company_id.id), []).append(sib)
+
+        relations_to_create = []
+        created_pairs = set()
+
         for record in self:
             company_partner = record.company_id.partner_id
             if not record.partner_id or not company_partner or not relation_type:
                 continue
-            relation = relation_model.search(
-                [
-                    ("left_partner_id", "=", record.partner_id.id),
-                    ("right_partner_id", "=", company_partner.id),
-                    ("type_id", "=", relation_type.id),
-                ],
-                limit=1,
-            )
+
+            pair_key = (record.partner_id.id, company_partner.id)
+            relation = relation_map.get(pair_key)
+
             if record.state in BUSINESS_ACTIVE_STATES:
                 values = {
                     "left_partner_id": record.partner_id.id,
@@ -900,27 +935,23 @@ class MembershipMembership(models.Model):
                 }
                 if relation:
                     relation.write(values)
-                else:
-                    relation_model.create(values)
+                elif pair_key not in created_pairs:
+                    relations_to_create.append(values)
+                    created_pairs.add(pair_key)
             elif record.state == "terminated" and relation:
-                sibling_membership = self.search(
-                    [
-                        ("id", "!=", record.id),
-                        ("partner_id", "=", record.partner_id.id),
-                        ("company_id", "=", record.company_id.id),
-                        ("state", "in", BUSINESS_ACTIVE_STATES),
-                        "|",
-                        ("date_end", "=", False),
-                        ("date_end", ">=", record.date_end or fields.Date.context_today(record)),
-                    ],
-                    limit=1,
-                )
-                if not sibling_membership:
-                    relation.write(
-                        {
-                            "date_end": record.date_end or fields.Date.context_today(record)
-                        }
-                    )
+                siblings = sibling_map.get((record.partner_id.id, record.company_id.id), [])
+                active_sibling = False
+                record_end = record.date_end or fields.Date.context_today(record)
+                for sib in siblings:
+                    if not sib.date_end or sib.date_end >= record_end:
+                        active_sibling = True
+                        break
+
+                if not active_sibling:
+                    relation.write({"date_end": record_end})
+
+        if relations_to_create:
+            relation_model.create(relations_to_create)
 
     @api.model
     def _get_membership_relation_type(self):
