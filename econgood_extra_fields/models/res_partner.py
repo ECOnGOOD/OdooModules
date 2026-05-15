@@ -44,6 +44,16 @@ class ResPartner(models.Model):
         required=True,
     )
 
+    is_municipality = fields.Boolean(
+        compute="_compute_is_municipality",
+        store=False,
+    )
+
+    is_admin_user = fields.Boolean(
+        compute="_compute_is_admin_user",
+        store=False,
+    )
+
     # Legal/Compliance Dates
     code_of_conduct_signed_date = fields.Date(
         string="Code of Conduct Signed On",
@@ -77,6 +87,19 @@ class ResPartner(models.Model):
                 partner.organization_kind_id = False
             else:
                 partner.ou_type_id = False
+
+    @api.depends("organization_kind_id")
+    def _compute_is_municipality(self):
+        for partner in self:
+            partner.is_municipality = (
+                partner.organization_kind_id 
+                and partner.organization_kind_id.code == "municipality_public_body"
+            )
+
+    def _compute_is_admin_user(self):
+        is_admin = self.env.user.has_group("base.group_system")
+        for partner in self:
+            partner.is_admin_user = is_admin
 
     @api.constrains("employee_count", "inhabitant_count")
     def _check_non_negative_counts(self):
@@ -115,12 +138,15 @@ class ResPartner(models.Model):
     @api.constrains("email_econgood")
     def _check_email_econgood(self):
         for partner in self:
-            if partner.email_econgood and not EMAIL_REGEX.match(
-                partner.email_econgood.strip()
-            ):
-                raise ValidationError(
-                    _("ECOnGOOD Email Address is not a valid email.")
-                )
+            if partner.email_econgood:
+                if not EMAIL_REGEX.match(partner.email_econgood.strip()):
+                    raise ValidationError(
+                        _("ECOnGOOD Email Address is not a valid email.")
+                    )
+                if not partner.email_econgood.strip().lower().endswith("@econgood.org"):
+                    raise ValidationError(
+                        _("ECOnGOOD Email Address must end with @econgood.org")
+                    )
 
     @api.constrains(
         "company_type",

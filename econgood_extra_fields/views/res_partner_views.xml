@@ -1,20 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <record id="view_partner_form_econgood_inherit" model="ir.ui.view">
         <field name="name">res.partner.form.econgood.inherit</field>
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
-            <!--Hide personal information page since its data is used in Demographics-->
+            <!-- Hide personal information page since its data is used in Demographics -->
             <xpath expr="//page[@name='personal_information_page']" position="attributes">
                 <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- Hide Sales & Purchase for non-admins -->
+            <xpath expr="//page[@name='sales_purchases']" position="attributes">
+                <attribute name="groups">base.group_system</attribute>
             </xpath>
 
             <xpath expr="//field[@name='partner_company_type_id']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
 
+            <!-- Header fields -->
             <xpath expr="//div[field[@name='current_membership_number_display']]" position="after">
-                <field name="is_econgood_ou" invisible="not is_company"/>
                 <field name="ou_type_id" invisible="not is_company or not is_econgood_ou"/>
                 <field name="organization_kind_id" invisible="not is_company or is_econgood_ou"/>
                 <field name="partner_company_type_id" invisible="not is_company"/>
@@ -29,31 +35,51 @@
                 <field name="letter_salutation"/>
             </xpath>
 
-            <page name="internal_notes" position="inside">
+            <xpath expr="//field[@name='email']" position="after">
+                <field name="email_econgood" widget="email"/>
+            </xpath>
+
+            <!-- Reorganize Notebook -->
+            <xpath expr="//notebook/page[@name='accounting']" position="inside">
                 <group>
-                    <group name="import_notes" string="Import Notes">
-                        <field name="legacy_id_smartwe"/>
-                        <field name="legacy_id_formidable"/>
+                    <group string="Sales" name="sale">
+                        <field name="user_id"/>
+                        <field name="property_payment_term_id"/>
+                        <field name="customer_payment_mode_id"/>
+                    </group>
+                    <group string="Fiscal Information" name="fiscal_information">
+                        <field name="property_account_position_id"/>
+                        <field name="tax_receipt_option"/>
                     </group>
                 </group>
-            </page>
+            </xpath>
 
-            <xpath expr="//notebook" position="inside">
-                <page string="Details &amp; Legal">
+            <xpath expr="//notebook/page[@name='accounting']" position="after">
+                <page string="Additional Information">
                     <group>
-                        <group string="Demographics">
+                        <group>
+                            <separator string="Demographics"/>
                             <field name="gender" invisible="is_company"/>
                             <field name="birthdate_date" invisible="is_company"/>
                             <field name="age" invisible="not birthdate_date"/>
 
                             <field name="employee_count" invisible="not is_company"/>
-                            <field name="inhabitant_count" invisible="not is_company"/>
-                        </group>
+                            <field name="inhabitant_count" invisible="not is_municipality"/>
 
-                        <group string="Legal Agreements &amp; Account">
-                            <field name="email_econgood" widget="email"/>
+                            <separator string="Legal Agreements"/>
                             <field name="code_of_conduct_signed_date"/>
                             <field name="privacy_agreement_signed_date"/>
+                        </group>
+
+                        <group string="Misc">
+                            <field name="ref"/>
+                            <field name="company_registry" invisible="not is_company"/>
+                            <field name="company_ids" widget="many2many_tags" groups="base.group_multi_company" options="{'no_create': True}"/>
+                            <field name="industry_id" invisible="not is_company"/>
+                            <field name="legacy_id_smartwe"/>
+                            <field name="legacy_id_formidable"/>
+                            <field name="is_admin_user" invisible="1"/>
+                            <field name="is_econgood_ou" invisible="not is_company" readonly="not is_admin_user"/>
                         </group>
                     </group>
                 </page>

@@ -9,6 +9,8 @@
         'base',
         'contacts',
         'association_membership',
+        'account',
+        'account_payment_mode',
         'partner_company_type',  # Depends on OCA module
         'partner_contact_gender',  # Depends on OCA module
         'partner_contact_birthdate',  # Depends on OCA module
