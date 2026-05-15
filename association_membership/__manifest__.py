@@ -10,6 +10,7 @@
         "contacts",
         "donation_base",
         "mail",
+        "partner_contact_address_default",
         "product",
     ],
     "data": [

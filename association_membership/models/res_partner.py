@@ -104,6 +104,9 @@ class ResPartner(models.Model):
                 "default_invoice_partner_id": self.env["membership.membership"]
                 ._resolve_default_invoice_partner(self)
                 .id,
+                "default_communication_partner_id": self.env["membership.membership"]
+                ._resolve_default_communication_partner(self)
+                .id,
                 "default_company_id": self.env.company.id,
             },
         }

@@ -79,7 +79,7 @@ class MembershipImportWizard(models.TransientModel):
             return False
         return fields.Date.to_date(value)
 
-    def _find_or_create_partner(self, external_ref, name):
+    def _find_or_create_partner(self, external_ref, name, **kwargs):
         partner_model = self.env["res.partner"].with_context(active_test=False)
         partner = self.env["res.partner"]
         if external_ref:
@@ -89,8 +89,13 @@ class MembershipImportWizard(models.TransientModel):
             if len(candidates) > 1:
                 raise ValidationError(_("Ambiguous partner match for '%s'.") % name)
             partner = candidates[:1]
+
+        update_vals = {}
+        for key, value in kwargs.items():
+            if value and hasattr(partner_model, key):
+                update_vals[key] = value
+
         if partner:
-            update_vals = {}
             if external_ref and not partner.ref:
                 update_vals["ref"] = external_ref
             if name and not partner.name:
@@ -99,8 +104,12 @@ class MembershipImportWizard(models.TransientModel):
                 partner.write(update_vals)
             return partner
         if not name:
-            raise ValidationError(_("A partner name is required when no existing partner can be matched."))
-        return partner_model.create({"name": name, "ref": external_ref or False})
+            raise ValidationError(
+                _("A partner name is required when no existing partner can be matched.")
+            )
+        create_vals = {"name": name, "ref": external_ref or False}
+        create_vals.update(update_vals)
+        return partner_model.create(create_vals)
 
     def _find_membership_product(self, row):
         code = row.get("product_code") or row.get("product_default_code")
@@ -163,17 +172,40 @@ class MembershipImportWizard(models.TransientModel):
     def _apply_row(self, row):
         membership_model = self.env["membership.membership"]
         contribution_model = self.env["membership.contribution"]
+
+        partner_kwargs = {}
+        if "letter_salutation" in row:
+            partner_kwargs["letter_salutation"] = row.get("letter_salutation")
+
         partner = self._find_or_create_partner(
             row.get("partner_external_ref"),
             row.get("partner_name"),
+            **partner_kwargs
         )
         invoice_partner_ref = row.get("invoice_partner_external_ref")
         invoice_partner_name = row.get("invoice_partner_name") or row.get("invoice_partner")
         invoice_partner = (
-            self._find_or_create_partner(invoice_partner_ref, invoice_partner_name)
+            self._find_or_create_partner(
+                invoice_partner_ref, invoice_partner_name, parent_id=partner.id
+            )
             if invoice_partner_ref or invoice_partner_name
             else self.env["res.partner"]
         )
+
+        comm_partner_ref = row.get("communication_partner_external_ref")
+        comm_partner_name = (
+            row.get("communication_partner_name") or row.get("communication_partner")
+        )
+        comm_partner = (
+            self._find_or_create_partner(
+                comm_partner_ref, comm_partner_name, parent_id=partner.id
+            )
+            if comm_partner_ref or comm_partner_name
+            else self.env["res.partner"]
+        )
+
+        if comm_partner and not partner.partner_contact_id:
+            partner.partner_contact_id = comm_partner.id
         product = self._find_membership_product(row)
         date_start = self._parse_date(row.get("date_start"), _("start date"))
         if not date_start:
@@ -188,6 +220,8 @@ class MembershipImportWizard(models.TransientModel):
         }
         if invoice_partner:
             membership_vals["invoice_partner_id"] = invoice_partner.id
+        if comm_partner:
+            membership_vals["communication_partner_id"] = comm_partner.id
         if "membership_number" in row:
             membership_number = membership_model._normalize_membership_number_value(
                 row.get("membership_number")

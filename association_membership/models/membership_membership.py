@@ -39,6 +39,13 @@ class MembershipMembership(models.Model):
         tracking=True,
         index=True,
     )
+    communication_partner_id = fields.Many2one(
+        "res.partner",
+        string="Communication Contact",
+        tracking=True,
+        index=True,
+        domain="['|', ('id', '=', partner_id), ('parent_id', '=', partner_id)]",
+    )
     company_id = fields.Many2one(
         "res.company",
         required=True,
@@ -358,6 +365,13 @@ class MembershipMembership(models.Model):
         return self.env["res.partner"].browse(invoice_partner_id) or partner
 
     @api.model
+    def _resolve_default_communication_partner(self, partner):
+        if not partner:
+            return self.env["res.partner"]
+        comm_partner_id = partner.address_get(["contact"]).get("contact")
+        return self.env["res.partner"].browse(comm_partner_id) or partner
+
+    @api.model
     def _normalize_state_value(self, value):
         return value
 
@@ -369,11 +383,12 @@ class MembershipMembership(models.Model):
         apply_invoice_partner_default=False,
     ):
         vals = vals.copy()
-        if apply_invoice_partner_default and vals.get("partner_id") and not vals.get(
-            "invoice_partner_id"
-        ):
+        if apply_invoice_partner_default and vals.get("partner_id"):
             partner = self.env["res.partner"].browse(vals["partner_id"])
-            vals["invoice_partner_id"] = self._resolve_default_invoice_partner(partner).id
+            if not vals.get("invoice_partner_id"):
+                vals["invoice_partner_id"] = self._resolve_default_invoice_partner(partner).id
+            if not vals.get("communication_partner_id"):
+                vals["communication_partner_id"] = self._resolve_default_communication_partner(partner).id
         if for_create:
             vals.setdefault("company_id", self.env.company.id)
             vals.setdefault("date_start", fields.Date.context_today(self))
@@ -405,6 +420,7 @@ class MembershipMembership(models.Model):
         if not self.partner_id:
             return
         self.invoice_partner_id = self._resolve_default_invoice_partner(self.partner_id)
+        self.communication_partner_id = self._resolve_default_communication_partner(self.partner_id)
 
     @api.model
     def _membership_product_domain(self, company=False):

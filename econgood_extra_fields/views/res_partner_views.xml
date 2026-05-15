@@ -32,7 +32,7 @@
             </xpath>
 
             <xpath expr="//field[@name='title']" position="after">
-                <field name="letter_salutation"/>
+                <field name="letter_salutation" invisible="is_company"/>
             </xpath>
 
             <xpath expr="//field[@name='email']" position="after">
