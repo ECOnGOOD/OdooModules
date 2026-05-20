@@ -80,3 +80,11 @@ class ResConfigSettings(models.TransientModel):
                 record.membership_default_contribution_year_text,
                 record._fields["membership_default_contribution_year"].string,
             )
+
+    # Workaround for Odoo 18 core bug in account_peppol
+    # The Peppol module exposes this field in the view but restricts it in python,
+    # causing a crash for non-admin users. This dummy definition bypasses the crash.
+    account_peppol_migration_key = fields.Char(
+        string="Migration Key (Bypass)",
+        readonly=False,
+    )
