@@ -65,7 +65,7 @@ terminated ──→ draft
 
 ### Bulk import
 
-`Membership → Configuration → … (Import)` opens the import wizard. Upload a CSV or XLSX with columns including `partner_external_ref`, `partner_name`, `product_code`/`product_name`, `date_start`, optional `membership_number`, `membership_year`, `amount`, `state`, etc. Dry-run preview is available; results are reported per row (created / updated / error).
+The bulk-import wizard is retained in the codebase but is **not currently exposed in the UI** (legacy — see Notes). When reached directly it takes a CSV or XLSX with columns including `partner_external_ref`, `partner_name`, `product_code`/`product_name`, `date_start`, optional `membership_number`, `membership_year`, `amount`, `state`, etc. Dry-run preview is available; results are reported per row (created / updated / error).
 
 ### Renewal
 
@@ -107,6 +107,7 @@ For partners with `tax_receipt_option = 'annual'`: open `Accounting → Donation
 ./run_tests.sh association_membership
 ```
 
-## Design Notes
+## Notes
 
-See [docs/design-notes.md](docs/design-notes.md) for the rationale behind decisions that aren't obvious from the code — including a few features that were considered, implemented, and reverted (with re-add recipes).
+- **Members menu** opens the per-membership kanban (one card per membership record). A partner-aggregated "members overview" (one card per partner) is intentionally not provided.
+- **Bulk-import wizard** is kept in the codebase but is intentionally **not exposed in the UI** for now (legacy; may be revived later).
