@@ -19,8 +19,8 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Header fields -->
-            <xpath expr="//div[field[@name='current_membership_number_display']]" position="after">
+            <!-- Header fields (anchored after VAT to stay independent of any membership module) -->
+            <xpath expr="//field[@name='vat']" position="after">
                 <field name="ou_type_id" invisible="not is_company or not is_econgood_ou"/>
                 <field name="organization_kind_id" invisible="not is_company or is_econgood_ou"/>
                 <field name="partner_company_type_id" invisible="not is_company"/>
@@ -49,7 +49,6 @@
                     </group>
                     <group string="Fiscal Information" name="fiscal_information">
                         <field name="property_account_position_id"/>
-                        <field name="tax_receipt_option"/>
                     </group>
                 </group>
             </xpath>

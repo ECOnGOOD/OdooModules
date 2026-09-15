@@ -27,7 +27,7 @@ class TestEcongoodExtraFields(TransactionCase):
                 {
                     "name": "Negative Employees",
                     "is_company": True,
-                    "x_employee_count": -1,
+                    "employee_count": -1,
                 }
             )
         with self.assertRaisesRegex(ValidationError, "cannot be negative"):
@@ -35,7 +35,7 @@ class TestEcongoodExtraFields(TransactionCase):
                 {
                     "name": "Negative Inhabitants",
                     "is_company": True,
-                    "x_inhabitant_count": -5,
+                    "inhabitant_count": -5,
                 }
             )
 
@@ -46,7 +46,7 @@ class TestEcongoodExtraFields(TransactionCase):
                 {
                     "name": "Future Conduct Date",
                     "is_company": True,
-                    "x_code_of_conduct_signed_date": future_date,
+                    "code_of_conduct_signed_date": future_date,
                 }
             )
         with self.assertRaisesRegex(ValidationError, "cannot be in the future"):
@@ -54,7 +54,7 @@ class TestEcongoodExtraFields(TransactionCase):
                 {
                     "name": "Future Privacy Date",
                     "is_company": True,
-                    "x_privacy_agreement_signed_date": future_date,
+                    "privacy_agreement_signed_date": future_date,
                 }
             )
 
@@ -64,17 +64,17 @@ class TestEcongoodExtraFields(TransactionCase):
                 {
                     "name": "Invalid Email",
                     "is_company": True,
-                    "x_email_econgood": "invalid-email",
+                    "email_econgood": "invalid-email",
                 }
             )
         partner = self.env["res.partner"].create(
             {
                 "name": "Valid Email",
                 "is_company": True,
-                "x_email_econgood": "valid@example.org",
+                "email_econgood": "valid@econgood.org",
             }
         )
-        self.assertEqual(partner.x_email_econgood, "valid@example.org")
+        self.assertEqual(partner.email_econgood, "valid@econgood.org")
 
     def test_nonprofit_status_defaults_to_unknown(self):
         partner = self.env["res.partner"].create(
@@ -84,8 +84,8 @@ class TestEcongoodExtraFields(TransactionCase):
                 "is_company": True,
             }
         )
-        self.assertEqual(partner.x_nonprofit_status, "unknown")
-        self.assertFalse(partner.x_is_econgood_ou)
+        self.assertEqual(partner.nonprofit_status, "unknown")
+        self.assertFalse(partner.is_econgood_ou)
 
     def test_person_cannot_store_company_only_classification(self):
         with self.assertRaisesRegex(ValidationError, "company contacts"):
@@ -93,7 +93,7 @@ class TestEcongoodExtraFields(TransactionCase):
                 {
                     "name": "Person With OU Flag",
                     "company_type": "person",
-                    "x_is_econgood_ou": True,
+                    "is_econgood_ou": True,
                 }
             )
 
@@ -103,13 +103,13 @@ class TestEcongoodExtraFields(TransactionCase):
                 "name": "Organization Partner",
                 "company_type": "company",
                 "is_company": True,
-                "x_is_econgood_ou": False,
-                "x_organization_kind_id": self.company_kind.id,
-                "x_nonprofit_status": "confirmed",
+                "is_econgood_ou": False,
+                "organization_kind_id": self.company_kind.id,
+                "nonprofit_status": "confirmed",
             }
         )
-        self.assertEqual(partner.x_organization_kind_id, self.company_kind)
-        self.assertFalse(partner.x_ou_type_id)
+        self.assertEqual(partner.organization_kind_id, self.company_kind)
+        self.assertFalse(partner.ou_type_id)
 
     def test_company_can_store_ou_type_when_ou_enabled(self):
         partner = self.env["res.partner"].create(
@@ -117,13 +117,13 @@ class TestEcongoodExtraFields(TransactionCase):
                 "name": "Regional Association Partner",
                 "company_type": "company",
                 "is_company": True,
-                "x_is_econgood_ou": True,
-                "x_ou_type_id": self.ou_type.id,
+                "is_econgood_ou": True,
+                "ou_type_id": self.ou_type.id,
             }
         )
-        self.assertTrue(partner.x_is_econgood_ou)
-        self.assertEqual(partner.x_ou_type_id, self.ou_type)
-        self.assertFalse(partner.x_organization_kind_id)
+        self.assertTrue(partner.is_econgood_ou)
+        self.assertEqual(partner.ou_type_id, self.ou_type)
+        self.assertFalse(partner.organization_kind_id)
 
     def test_ou_flag_and_organization_kind_are_mutually_exclusive(self):
         with self.assertRaisesRegex(ValidationError, "Organization Kind must be empty"):
@@ -132,8 +132,8 @@ class TestEcongoodExtraFields(TransactionCase):
                     "name": "Invalid OU Partner",
                     "company_type": "company",
                     "is_company": True,
-                    "x_is_econgood_ou": True,
-                    "x_organization_kind_id": self.organization_kind.id,
+                    "is_econgood_ou": True,
+                    "organization_kind_id": self.organization_kind.id,
                 }
             )
 
@@ -144,8 +144,8 @@ class TestEcongoodExtraFields(TransactionCase):
                     "name": "Invalid Organization Partner",
                     "company_type": "company",
                     "is_company": True,
-                    "x_is_econgood_ou": False,
-                    "x_ou_type_id": self.ou_type.id,
+                    "is_econgood_ou": False,
+                    "ou_type_id": self.ou_type.id,
                 }
             )
 

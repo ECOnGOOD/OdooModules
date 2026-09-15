@@ -49,7 +49,10 @@ Adds ECOnGOOD-specific partner fields to `res.partner` and extends the contact f
 
 - `base`
 - `contacts`
-- `association_membership`
+- `account`
+- `account_payment_mode`
+- `account_payment_partner`
+- `partner_multi_company`
 - `partner_company_type`
 - `partner_contact_gender`
 - `partner_contact_birthdate`
