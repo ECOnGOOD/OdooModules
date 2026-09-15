@@ -6,7 +6,7 @@
 
 Two core models, both `mail.thread`-tracked and `_check_company_auto`:
 
-- **`membership.membership`** — the relationship between a partner, a company, and a membership product. Carries the lifecycle state, the start/end/cancel dates, the membership number, the (optionally separate) invoice contact, and the per-membership `amount` (defaults to the product's `list_price`, editable per membership).
+- **`membership.membership`** — the relationship between a partner, a company, and a membership product. Carries the lifecycle state, the start date (cancellation/end dates are kept only on cancelled or terminated memberships), the membership number, the (optionally separate) invoice contact, and the per-membership `amount` (defaults to the product's `list_price`, editable per membership).
 - **`membership.contribution`** — the per-year billing artifact, one per `(membership, year)`. Holds a writable `amount` (defaults to the membership's `amount` at creation), and computed `amount_invoiced` / `amount_paid` / `is_free` / `billing_status` derived from the linked `account.move`. May also link to a `donation.tax.receipt`.
 
 `account.move.line` is extended with `membership_id` / `membership_contribution_id` / `membership_year` so invoice lines round-trip to contributions. Membership products are identified by their category (`res.company.membership_product_category_id`).
@@ -39,7 +39,7 @@ States and allowed transitions:
 
 ```
 draft      ──→ waiting
-waiting    ──→ draft │ active
+waiting    ──→ draft │ active │ cancelled │ terminated
 active     ──→ cancelled │ terminated │ draft
 cancelled  ──→ active │ terminated │ draft
 terminated ──→ draft
@@ -49,6 +49,7 @@ terminated ──→ draft
 - `waiting` allows contribution creation and invoicing.
 - `active` is the steady state.
 - `cancelled` is "scheduled to end at `date_end`" — still business-active.
+- `date_cancelled`, `date_end`, and `cancel_reason` can only be set on `cancelled`/`terminated` memberships (enforced by constraint) and are cleared automatically when reverting to `draft` or reactivating.
 - `terminated` is the final state. Reverting to `draft` is the only way out (and clears cancellation fields).
 
 ## Workflows
@@ -60,7 +61,7 @@ terminated ──→ draft
 3. Submit → `waiting`. Create the yearly contribution (the configured invoicing strategy determines whether an invoice is raised in draft or posted).
 4. Click **Activate** → opens the Activation wizard:
    - If a draft invoice exists for the current year, the wizard offers to confirm it (and optionally email it via the activation invoice template).
-   - The wizard offers to send the welcome message using the welcome template (membership-model template, editable in the wizard).
+   - The wizard offers to send the welcome message using the welcome template (membership-model template, editable in the wizard). Recipients default to the member (main contact); the invoice contact can be added with one click.
    - On confirm: state → `active`, invoice posted (if chosen), invoice email sent (if chosen), welcome message sent (if chosen, with welcome-sent date stamped).
 
 ### Bulk import
@@ -75,7 +76,7 @@ A scheduled `Membership Renewal` cron exists but is disabled by default — annu
 
 ### Cancellation
 
-Click **Cancel Membership** on the form → opens the Cancel wizard:
+Click **Cancel Membership** on the form (available for active and waiting memberships) → opens the Cancel wizard:
 - Pick cancel date and end date (defaults to Dec 31 of current year).
 - Optional cancellation reason.
 - Optional cancellation message via the company's cancellation template (membership-model template, editable in the wizard, recipients pre-filled with the member partner).
@@ -93,8 +94,9 @@ For partners with `tax_receipt_option = 'annual'`: open `Accounting → Donation
 - **Auto-activate on payment** — toggle.
 - **Renewal year offset** — the cron defaults to `current_year + offset` (default 1).
 - **Invoicing strategy** — `manual` / `draft` / `confirm`.
-- **Email templates** — Activation Invoice (account.move), Welcome (membership.membership), Cancellation (membership.membership).
-- **Member numbers** — prefix (`%(year)s` supported), padding, next number.
+- **Contribution year override** — empty by default: new contributions default to the current year. Set a future year to pre-create next year's contributions (past values always fall back to the current year).
+- **Email templates** — Activation Invoice (account.move), Welcome (membership.membership), Cancellation (membership.membership). Sensible defaults ship with the module and are assigned automatically to companies that have none — customize per company.
+- **Member numbers** — prefix (`%(year)s` supported), padding, next number, and a live preview of the next generated number.
 
 ## Permissions
 
@@ -106,6 +108,12 @@ For partners with `tax_receipt_option = 'annual'`: open `Accounting → Donation
 ```bash
 ./run_tests.sh association_membership
 ```
+
+## Planned Improvements (TODOs)
+
+- **Renewal cron** — currently disabled with a hardcoded next call; review enablement and add coverage for the cron-driven per-company renewal path.
+- **Archive exposure** — memberships support archiving (`active` field, kanban ribbon) but the form offers no archive/unarchive action.
+- **Reporting** — pre-built views are list-based only; consider dashboards/KPIs (member growth, churn, revenue per year) on top of contributions.
 
 ## Notes
 

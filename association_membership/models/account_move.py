@@ -21,6 +21,29 @@ class AccountMove(models.Model):
             )
         return result
 
+    def _compute_payment_state(self):
+        # ``payment_state`` is a stored computed field: its changes never reach
+        # ``write()``, so the membership hooks (tax receipts, auto-activation)
+        # must run here to see invoice payments. Previous states are read
+        # directly from the database because the cached values are already
+        # invalidated when this compute is triggered.
+        previous_state = {}
+        previous_payment_state = {}
+        if self.ids:
+            self.flush_model()
+            self.env.cr.execute(
+                "SELECT id, state, payment_state FROM account_move WHERE id = ANY(%s)",
+                [self.ids],
+            )
+            for move_id, state, payment_state in self.env.cr.fetchall():
+                previous_state[move_id] = state
+                previous_payment_state[move_id] = payment_state
+        super()._compute_payment_state()
+        self._membership_after_accounting_update(
+            previous_state=previous_state,
+            previous_payment_state=previous_payment_state,
+        )
+
     def _membership_after_accounting_update(self, previous_state=False, previous_payment_state=False):
         previous_state = previous_state or {}
         previous_payment_state = previous_payment_state or {}

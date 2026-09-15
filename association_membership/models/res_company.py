@@ -38,8 +38,11 @@ class ResCompany(models.Model):
         default=1,
     )
     membership_default_contribution_year = fields.Integer(
-        string="Default Contribution Year",
-        default=lambda self: fields.Date.today().year,
+        string="Contribution Year Override",
+        default=0,
+        help="Leave 0 to always default new contributions to the current year. "
+             "Set a future year to default new contributions to that year, "
+             "e.g. for early renewals. Past years always fall back to the current year.",
     )
     membership_invoicing_strategy = fields.Selection(
         selection=INVOICING_STRATEGY_SELECTION,
@@ -50,14 +53,26 @@ class ResCompany(models.Model):
     membership_activation_invoice_template_id = fields.Many2one(
         "mail.template",
         string="Activation Invoice Email Template",
+        default=lambda self: self.env.ref(
+            "association_membership.mail_template_membership_activation_invoice",
+            raise_if_not_found=False,
+        ),
     )
     membership_welcome_template_id = fields.Many2one(
         "mail.template",
         string="Welcome Email Template",
+        default=lambda self: self.env.ref(
+            "association_membership.mail_template_membership_welcome",
+            raise_if_not_found=False,
+        ),
     )
     membership_cancellation_template_id = fields.Many2one(
         "mail.template",
         string="Cancellation Email Template",
+        default=lambda self: self.env.ref(
+            "association_membership.mail_template_membership_cancellation",
+            raise_if_not_found=False,
+        ),
     )
     member_number_prefix = fields.Char(
         string="Member Number Prefix",
@@ -83,6 +98,12 @@ class ResCompany(models.Model):
         self.ensure_one()
         return fields.Date.today().year + (self.membership_cron_year_offset or 1)
 
+    def _membership_contribution_year(self):
+        self.ensure_one()
+        current_year = fields.Date.today().year
+        override = self.membership_default_contribution_year
+        return override if override and override >= current_year else current_year
+
     @api.constrains(
         "member_number_padding",
         "member_number_prefix",
@@ -95,10 +116,11 @@ class ResCompany(models.Model):
         for company in self:
             if company.member_number_padding <= 0:
                 raise ValidationError(_("Member Number Padding must be greater than zero."))
-            normalize_year_value(
-                company.membership_default_contribution_year,
-                company._fields["membership_default_contribution_year"].string,
-            )
+            if company.membership_default_contribution_year:
+                normalize_year_value(
+                    company.membership_default_contribution_year,
+                    company._fields["membership_default_contribution_year"].string,
+                )
             try:
                 company._render_member_number_prefix()
             except Exception as error:
@@ -136,7 +158,7 @@ class ResCompany(models.Model):
                     "name": "Membership Number Counter (%s)" % self.name,
                     "code": code,
                     "company_id": self.id,
-                    "padding": global_seq.padding if global_seq else 1,
+                    "padding": self.member_number_padding,
                     "number_next": global_seq.number_next_actual if global_seq else 1,
                 }
             )

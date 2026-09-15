@@ -27,6 +27,10 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.membership_invoicing_strategy",
         readonly=False,
     )
+    membership_cron_year_offset = fields.Integer(
+        related="company_id.membership_cron_year_offset",
+        readonly=False,
+    )
     membership_activation_invoice_template_id = fields.Many2one(
         related="company_id.membership_activation_invoice_template_id",
         readonly=False,
@@ -65,6 +69,32 @@ class ResConfigSettings(models.TransientModel):
                 sequence = record.company_id._get_membership_number_sequence()
                 sequence.sudo().write({"number_next": record.member_number_next})
 
+    member_number_preview = fields.Char(
+        string="Next Member Number (Preview)",
+        compute="_compute_member_number_preview",
+    )
+
+    @api.depends(
+        "company_id",
+        "member_number_prefix",
+        "member_number_padding",
+        "member_number_next",
+    )
+    def _compute_member_number_preview(self):
+        for record in self:
+            sequence = record.company_id._get_membership_number_sequence()
+            counter = record.member_number_next or (
+                sequence.number_next_actual if sequence else 1
+            )
+            try:
+                prefix = record.company_id._render_member_number_prefix()
+            except Exception:
+                prefix = record.company_id.member_number_prefix or ""
+            record.member_number_preview = "%s%s" % (
+                prefix,
+                str(counter).zfill(record.company_id.member_number_padding),
+            )
+
     @api.depends("membership_default_contribution_year")
     def _compute_membership_default_contribution_year_text(self):
         for record in self:
@@ -76,8 +106,14 @@ class ResConfigSettings(models.TransientModel):
 
     def _inverse_membership_default_contribution_year_text(self):
         for record in self:
+            text = (record.membership_default_contribution_year_text or "").strip()
+            if not text:
+                # Empty means "no override": new contributions default to the
+                # current year.
+                record.membership_default_contribution_year = 0
+                continue
             record.membership_default_contribution_year = normalize_year_value(
-                record.membership_default_contribution_year_text,
+                text,
                 record._fields["membership_default_contribution_year"].string,
             )
 

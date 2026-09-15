@@ -220,8 +220,6 @@ class MembershipImportWizard(models.TransientModel):
         }
         if invoice_partner:
             membership_vals["invoice_partner_id"] = invoice_partner.id
-        if comm_partner:
-            membership_vals["communication_partner_id"] = comm_partner.id
         if "membership_number" in row:
             membership_number = membership_model._normalize_membership_number_value(
                 row.get("membership_number")
@@ -244,15 +242,16 @@ class MembershipImportWizard(models.TransientModel):
                     apply_invoice_partner_default=False,
                 )
             )
-            if state == "cancelled":
+            if state and membership.state != state:
+                membership._do_transition(state, **state_values)
+            elif state == "cancelled" and membership.state == "cancelled":
+                # Same-state re-import: refresh cancellation values directly.
                 membership.write(
                     membership_model._prepare_membership_values(
                         state_values,
                         apply_invoice_partner_default=False,
                     )
                 )
-            if state and membership.state != state:
-                membership._do_transition(state, **state_values)
             membership_status = "updated"
             membership_message = _("Updated membership.")
         else:

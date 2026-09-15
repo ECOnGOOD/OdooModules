@@ -123,8 +123,8 @@ class MembershipContribution(models.Model):
         if membership_id:
             membership = self.env["membership.membership"].browse(membership_id)
             if membership.company_id:
-                return membership.company_id.membership_default_contribution_year
-        return self.env.company.membership_default_contribution_year or fields.Date.context_today(self).year
+                return membership.company_id._membership_contribution_year()
+        return self.env.company._membership_contribution_year()
 
     @api.model
     def _normalize_membership_year_value(self, value):
@@ -217,10 +217,7 @@ class MembershipContribution(models.Model):
         action = self.env.ref(
             "association_membership.action_membership_contribution"
         ).read()[0]
-        default_year = (
-            self.env.company.membership_default_contribution_year
-            or fields.Date.context_today(self).year
-        )
+        default_year = self.env.company._membership_contribution_year()
         action["context"] = {
             "search_default_current_year": 1,
             "default_membership_year_filter": default_year,
@@ -275,10 +272,7 @@ class MembershipContribution(models.Model):
             return
         self.invoice_partner_id = self.membership_id._get_invoice_partner()
         if not self.membership_year:
-            self.membership_year = (
-                self.membership_id.company_id.membership_default_contribution_year
-                or self._default_membership_year()
-            )
+            self.membership_year = self.membership_id.company_id._membership_contribution_year()
 
     @api.model_create_multi
     def create(self, vals_list):

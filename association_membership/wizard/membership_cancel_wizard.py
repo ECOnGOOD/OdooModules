@@ -1,6 +1,6 @@
 from datetime import date
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -33,6 +33,9 @@ class MembershipCancelWizard(models.TransientModel):
     )
     mail_subject = fields.Char(string="Subject")
     mail_body = fields.Html(string="Contents", sanitize_style=True)
+    invoice_partner_included = fields.Boolean(
+        compute="_compute_invoice_partner_included",
+    )
 
     @api.model
     def default_get(self, fields_list):
@@ -41,13 +44,32 @@ class MembershipCancelWizard(models.TransientModel):
         if not membership_id:
             return defaults
         membership = self.env["membership.membership"].browse(membership_id)
+        defaults["mail_partner_ids"] = [(6, 0, membership.partner_id.ids)]
         template = membership.company_id.membership_cancellation_template_id
         if template:
             defaults["cancellation_template_id"] = template.id
-            defaults["mail_partner_ids"] = [(6, 0, membership.partner_id.ids)]
             defaults["mail_subject"] = membership._render_mail_template_field(template, "subject")
             defaults["mail_body"] = membership._render_mail_template_field(template, "body_html")
         return defaults
+
+    @api.depends("mail_partner_ids", "membership_id.invoice_partner_id")
+    def _compute_invoice_partner_included(self):
+        for wizard in self:
+            invoice_partner = (
+                wizard.membership_id._get_invoice_partner()
+                if wizard.membership_id
+                else self.env["res.partner"]
+            )
+            wizard.invoice_partner_included = (
+                bool(invoice_partner) and invoice_partner in wizard.mail_partner_ids
+            )
+
+    def action_add_invoice_partner(self):
+        self.ensure_one()
+        invoice_partner = self.membership_id._get_invoice_partner()
+        if invoice_partner and invoice_partner not in self.mail_partner_ids:
+            self.mail_partner_ids = [Command.link(invoice_partner.id)]
+        return True
 
     def _create_cancellation_mail_composer(self):
         self.ensure_one()
@@ -77,8 +99,8 @@ class MembershipCancelWizard(models.TransientModel):
 
     def action_confirm(self):
         self.ensure_one()
-        if self.membership_id.state != "active":
-            raise UserError(_("Only active memberships can be cancelled."))
+        if self.membership_id.state not in ("active", "waiting"):
+            raise UserError(_("Only active or waiting memberships can be cancelled."))
         values = {
             "date_cancelled": self.date_cancelled,
             "date_end": self.date_end,

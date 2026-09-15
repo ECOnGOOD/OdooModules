@@ -14,11 +14,23 @@
                         <setting string="Auto-activate on Payment">
                             <field name="membership_auto_activate_on_payment" />
                         </setting>
-                        <setting string="Default Contribution Year">
-                            <field name="membership_default_contribution_year_text" />
+                        <setting
+                            string="Contribution Year Override"
+                            help="Leave empty to always use the current year. Set a future year to default new contributions to that year, e.g. for early renewals."
+                        >
+                            <field
+                                name="membership_default_contribution_year_text"
+                                placeholder="e.g. 2027 (empty = current year)"
+                            />
                         </setting>
                         <setting string="Invoicing Strategy">
                             <field name="membership_invoicing_strategy" />
+                        </setting>
+                        <setting
+                            string="Renewal Year Offset"
+                            help="Target year used by the renewal cron: current year + offset."
+                        >
+                            <field name="membership_cron_year_offset" />
                         </setting>
                     </block>
                     <block title="Communications">
@@ -42,14 +54,29 @@
                         </setting>
                     </block>
                     <block title="Member Numbers">
-                        <setting string="Member Number Prefix">
+                        <setting
+                            string="Member Number Prefix"
+                            help="Prefix for generated member numbers. %%(year)s resolves to the creation year."
+                        >
                             <field name="member_number_prefix" />
                         </setting>
-                        <setting string="Member Number Padding">
+                        <setting
+                            string="Member Number Padding"
+                            help="Zero-padding of the counter part of the member number."
+                        >
                             <field name="member_number_padding" />
                         </setting>
-                        <setting string="Next Member Number">
+                        <setting
+                            string="Next Member Number"
+                            help="Raw counter used for the next generated member number."
+                        >
                             <field name="member_number_next" />
+                        </setting>
+                        <setting
+                            string="Next Member Number (Preview)"
+                            help="How the next generated member number will look."
+                        >
+                            <field name="member_number_preview" readonly="1" />
                         </setting>
                     </block>
                 </app>

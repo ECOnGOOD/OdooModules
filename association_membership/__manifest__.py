@@ -1,10 +1,11 @@
 {
     "name": "Association Membership",
-    "version": "18.0.2.5.0",
+    "version": "18.0.2.7.0",
     "category": "Association",
     "summary": "Lean multi-company membership management for associations",
     "author": "ECOnGOOD",
     "license": "AGPL-3",
+    "post_init_hook": "post_init_hook",
     "depends": [
         "account",
         "contacts",
@@ -18,6 +19,7 @@
         "security/membership_security.xml",
         "security/ir.model.access.csv",
         "data/membership_data.xml",
+        "data/membership_templates.xml",
         "data/membership_cron.xml",
         "views/membership_membership_views.xml",
         "views/membership_contribution_views.xml",

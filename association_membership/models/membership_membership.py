@@ -39,13 +39,6 @@ class MembershipMembership(models.Model):
         tracking=True,
         index=True,
     )
-    communication_partner_id = fields.Many2one(
-        "res.partner",
-        string="Communication Contact",
-        tracking=True,
-        index=True,
-        domain="['|', ('id', '=', partner_id), ('parent_id', '=', partner_id)]",
-    )
     company_id = fields.Many2one(
         "res.company",
         required=True,
@@ -365,13 +358,6 @@ class MembershipMembership(models.Model):
         return self.env["res.partner"].browse(invoice_partner_id) or partner
 
     @api.model
-    def _resolve_default_communication_partner(self, partner):
-        if not partner:
-            return self.env["res.partner"]
-        comm_partner_id = partner.address_get(["contact"]).get("contact")
-        return self.env["res.partner"].browse(comm_partner_id) or partner
-
-    @api.model
     def _normalize_state_value(self, value):
         return value
 
@@ -387,8 +373,6 @@ class MembershipMembership(models.Model):
             partner = self.env["res.partner"].browse(vals["partner_id"])
             if not vals.get("invoice_partner_id"):
                 vals["invoice_partner_id"] = self._resolve_default_invoice_partner(partner).id
-            if not vals.get("communication_partner_id"):
-                vals["communication_partner_id"] = self._resolve_default_communication_partner(partner).id
         if for_create:
             vals.setdefault("company_id", self.env.company.id)
             vals.setdefault("date_start", fields.Date.context_today(self))
@@ -420,7 +404,6 @@ class MembershipMembership(models.Model):
         if not self.partner_id:
             return
         self.invoice_partner_id = self._resolve_default_invoice_partner(self.partner_id)
-        self.communication_partner_id = self._resolve_default_communication_partner(self.partner_id)
 
     @api.model
     def _membership_product_domain(self, company=False):
@@ -451,6 +434,19 @@ class MembershipMembership(models.Model):
         for record in self:
             if record.date_start and record.date_end and record.date_end < record.date_start:
                 raise ValidationError(_("The end date cannot be before the start date."))
+
+    @api.constrains("state", "date_cancelled", "date_end", "cancel_reason")
+    def _check_cancel_fields_state(self):
+        for record in self:
+            if record.state in ("cancelled", "terminated"):
+                continue
+            if record.date_cancelled or record.date_end or record.cancel_reason:
+                raise ValidationError(
+                    _(
+                        "The cancellation date, end date, and cancellation reason can"
+                        " only be set on cancelled or terminated memberships."
+                    )
+                )
 
     @api.constrains("product_id")
     def _check_membership_product(self):
@@ -581,7 +577,7 @@ class MembershipMembership(models.Model):
 
     def _default_contribution_year(self):
         self.ensure_one()
-        return self.company_id.membership_default_contribution_year or fields.Date.context_today(self).year
+        return self.company_id._membership_contribution_year()
 
     def _prepare_contribution_create_values(self, membership_year=False, **overrides):
         self.ensure_one()
@@ -652,7 +648,7 @@ class MembershipMembership(models.Model):
     def _get_allowed_transitions(self):
         return {
             "draft": {"waiting"},
-            "waiting": {"draft", "active"},
+            "waiting": {"draft", "active", "cancelled", "terminated"},
             "active": {"cancelled", "terminated", "draft"},
             "cancelled": {"active", "terminated", "draft"},
             "terminated": {"draft"},
@@ -777,8 +773,8 @@ class MembershipMembership(models.Model):
 
     def action_cancel(self):
         self.ensure_one()
-        if self.state != "active":
-            raise UserError(_("Only active memberships can be cancelled."))
+        if self.state not in ("active", "waiting"):
+            raise UserError(_("Only active or waiting memberships can be cancelled."))
         return {
             "type": "ir.actions.act_window",
             "name": _("Cancel Membership"),

@@ -325,3 +325,204 @@ class TestMembershipNumberSequence(MembershipTestCommon):
                 partner_id=other_partner.id,
                 membership_number="DUP-001",
             )
+
+
+class TestMembershipCancellationRules(MembershipTestCommon):
+    def test_cancel_fields_blocked_outside_cancel_states(self):
+        with self.assertRaises(ValidationError):
+            self._make_membership(date_end=date(date.today().year, 12, 31))
+        membership = self._make_membership()
+        membership.action_submit()
+        with self.assertRaises(ValidationError):
+            membership.write({"date_cancelled": date.today()})
+        membership._do_transition("active")
+        with self.assertRaises(ValidationError):
+            membership.write({"cancel_reason": "leaving"})
+
+    def test_cancel_from_waiting(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        year_end = date(date.today().year, 12, 31)
+        membership._do_transition("cancelled", date_end=year_end)
+        self.assertEqual(membership.state, "cancelled")
+        self.assertTrue(membership.date_cancelled)
+        self.assertEqual(membership.date_end, year_end)
+
+    def test_cancel_from_waiting_terminates_when_end_date_past(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        membership._schedule_termination(
+            date_cancelled=date.today(),
+            date_end=date.today(),
+        )
+        self.assertEqual(membership.state, "terminated")
+
+    def test_revert_to_draft_from_cancelled_clears_cancel_fields(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        membership._do_transition("cancelled", date_end=date(date.today().year, 12, 31))
+        membership.action_revert_to_draft()
+        self.assertEqual(membership.state, "draft")
+        self.assertFalse(membership.date_cancelled)
+        self.assertFalse(membership.date_end)
+        self.assertFalse(membership.cancel_reason)
+
+
+class TestMembershipWizardRecipients(MembershipTestCommon):
+    def _make_wizards(self, membership):
+        activate = (
+            self.env["membership.activate.wizard"]
+            .with_context(default_membership_id=membership.id)
+            .create({})
+        )
+        cancel = (
+            self.env["membership.cancel.wizard"]
+            .with_context(default_membership_id=membership.id)
+            .create({})
+        )
+        return activate, cancel
+
+    def test_activate_wizard_recipients_default_to_member(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        activate, _cancel = self._make_wizards(membership)
+        self.assertIn(membership.partner_id, activate.mail_partner_ids)
+
+    def test_cancel_wizard_recipients_default_to_member(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        _activate, cancel = self._make_wizards(membership)
+        self.assertIn(membership.partner_id, cancel.mail_partner_ids)
+
+    def test_add_invoice_partner_to_wizard_recipients(self):
+        invoice_partner = self.env["res.partner"].create({"name": "Invoice Contact"})
+        membership = self._make_membership(invoice_partner_id=invoice_partner.id)
+        membership.action_submit()
+        activate, cancel = self._make_wizards(membership)
+        self.assertFalse(activate.invoice_partner_included)
+        activate.action_add_invoice_partner()
+        self.assertIn(invoice_partner, activate.mail_partner_ids)
+        self.assertTrue(activate.invoice_partner_included)
+        cancel.action_add_invoice_partner()
+        self.assertIn(invoice_partner, cancel.mail_partner_ids)
+
+    def test_add_invoice_partner_is_idempotent(self):
+        invoice_partner = self.env["res.partner"].create({"name": "Invoice Contact"})
+        membership = self._make_membership(invoice_partner_id=invoice_partner.id)
+        membership.action_submit()
+        activate, _cancel = self._make_wizards(membership)
+        activate.action_add_invoice_partner()
+        activate.action_add_invoice_partner()
+        self.assertEqual(len(activate.mail_partner_ids), 2)
+
+
+class TestMembershipContributionYear(MembershipTestCommon):
+    def _set_override(self, value):
+        self.company.membership_default_contribution_year = value
+
+    def test_zero_means_current_year(self):
+        self._set_override(0)
+        self.assertEqual(self.company._membership_contribution_year(), date.today().year)
+
+    def test_past_override_falls_back_to_current_year(self):
+        self._set_override(date.today().year - 1)
+        self.assertEqual(self.company._membership_contribution_year(), date.today().year)
+
+    def test_future_override_wins(self):
+        self._set_override(date.today().year + 1)
+        self.assertEqual(self.company._membership_contribution_year(), date.today().year + 1)
+
+    def test_membership_default_year_uses_override(self):
+        self._set_override(date.today().year + 1)
+        membership = self._make_membership()
+        self.assertEqual(membership._default_contribution_year(), date.today().year + 1)
+
+    def test_contribution_default_year_follows_override(self):
+        self._set_override(date.today().year + 1)
+        membership = self._make_membership()
+        contribution = self.env["membership.contribution"].create({
+            "membership_id": membership.id,
+            "amount": 50.0,
+        })
+        self.assertEqual(contribution.membership_year, date.today().year + 1)
+
+    def test_settings_year_text_can_be_cleared(self):
+        self.company.membership_default_contribution_year = date.today().year + 2
+        settings = self.env["res.config.settings"].create({})
+        settings.membership_default_contribution_year_text = False
+        self.assertEqual(self.company.membership_default_contribution_year, 0)
+
+
+class TestMembershipDefaultTemplates(MembershipTestCommon):
+    def test_default_templates_exist_with_correct_models(self):
+        expectations = (
+            ("mail_template_membership_activation_invoice", "account.move"),
+            ("mail_template_membership_welcome", "membership.membership"),
+            ("mail_template_membership_cancellation", "membership.membership"),
+        )
+        for xmlid, model_name in expectations:
+            template = self.env.ref("association_membership.%s" % xmlid)
+            self.assertEqual(template.model_id.model, model_name)
+
+    def test_company_gets_default_templates_assigned(self):
+        self.assertTrue(self.company.membership_activation_invoice_template_id)
+        self.assertTrue(self.company.membership_welcome_template_id)
+        self.assertTrue(self.company.membership_cancellation_template_id)
+
+    def test_post_init_hook_does_not_overwrite_custom_templates(self):
+        from odoo.addons.association_membership import post_init_hook
+
+        custom = self.env["mail.template"].create({
+            "name": "Custom Welcome",
+            "model_id": self.env["ir.model"]._get_id("membership.membership"),
+        })
+        self.company.membership_welcome_template_id = custom
+        post_init_hook(self.env)
+        self.assertEqual(self.company.membership_welcome_template_id, custom)
+
+    def test_welcome_template_renders_member_details(self):
+        membership = self._make_membership()
+        template = self.env.ref("association_membership.mail_template_membership_welcome")
+        rendered = template._render_field("body_html", membership.ids)[membership.id]
+        self.assertIn(self.partner.name, rendered)
+        self.assertIn(membership.membership_number, rendered)
+
+    def test_cancellation_template_renders_cancellation_details(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        membership._do_transition("cancelled", cancel_reason="Moving away")
+        template = self.env.ref("association_membership.mail_template_membership_cancellation")
+        rendered = template._render_field("body_html", membership.ids)[membership.id]
+        self.assertIn(self.partner.name, rendered)
+        self.assertIn("Moving away", rendered)
+
+    def test_activation_invoice_template_renders(self):
+        membership = self._make_membership()
+        contribution = self.env["membership.contribution"].create({
+            "membership_id": membership.id,
+            "membership_year": date.today().year,
+            "amount": 50.0,
+        })
+        contribution._apply_invoicing_strategy(strategy="draft")
+        invoice = contribution.invoice_id
+        template = self.env.ref("association_membership.mail_template_membership_activation_invoice")
+        rendered = template._render_field("body_html", invoice.ids)[invoice.id]
+        self.assertIn(self.partner.name, rendered)
+
+    def test_settings_member_number_preview(self):
+        self.company.member_number_prefix = "MEM/%(year)s/"
+        self.company.member_number_padding = 5
+        sequence = self.company._get_membership_number_sequence()
+        settings = self.env["res.config.settings"].create({})
+        expected = "MEM/%d/%s" % (
+            date.today().year,
+            str(sequence.number_next_actual).zfill(5),
+        )
+        self.assertEqual(settings.member_number_preview, expected)
+
+    def test_lazy_sequence_uses_company_padding(self):
+        sequence = self.company._get_membership_number_sequence()
+        sequence.sudo().unlink()
+        self.company.member_number_padding = 7
+        sequence = self.company._get_membership_number_sequence()
+        self.assertEqual(sequence.padding, 7)

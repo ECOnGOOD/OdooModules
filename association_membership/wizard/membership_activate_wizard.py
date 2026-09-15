@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 
 
 class MembershipActivateWizard(models.TransientModel):
@@ -28,6 +28,9 @@ class MembershipActivateWizard(models.TransientModel):
     )
     mail_subject = fields.Char(string="Subject")
     mail_body = fields.Html(string="Contents", sanitize_style=True)
+    invoice_partner_included = fields.Boolean(
+        compute="_compute_invoice_partner_included",
+    )
 
     @api.model
     def default_get(self, fields_list):
@@ -44,8 +47,7 @@ class MembershipActivateWizard(models.TransientModel):
             defaults["confirm_invoice"] = True
             defaults["send_invoice_email"] = False
 
-        invoice_partner = membership._get_invoice_partner()
-        defaults["mail_partner_ids"] = [(6, 0, invoice_partner.ids)] if invoice_partner else []
+        defaults["mail_partner_ids"] = [(6, 0, membership.partner_id.ids)]
 
         template = membership.company_id.membership_welcome_template_id
         defaults["send_welcome_message"] = bool(template)
@@ -73,6 +75,25 @@ class MembershipActivateWizard(models.TransientModel):
         self.mail_body = self.membership_id._render_mail_template_field(
             self.welcome_template_id, "body_html"
         ) or ""
+
+    @api.depends("mail_partner_ids", "membership_id.invoice_partner_id")
+    def _compute_invoice_partner_included(self):
+        for wizard in self:
+            invoice_partner = (
+                wizard.membership_id._get_invoice_partner()
+                if wizard.membership_id
+                else self.env["res.partner"]
+            )
+            wizard.invoice_partner_included = (
+                bool(invoice_partner) and invoice_partner in wizard.mail_partner_ids
+            )
+
+    def action_add_invoice_partner(self):
+        self.ensure_one()
+        invoice_partner = self.membership_id._get_invoice_partner()
+        if invoice_partner and invoice_partner not in self.mail_partner_ids:
+            self.mail_partner_ids = [Command.link(invoice_partner.id)]
+        return True
 
     def _confirm_invoice(self):
         self.ensure_one()

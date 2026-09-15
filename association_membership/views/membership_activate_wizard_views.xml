@@ -23,7 +23,19 @@
                     />
                 </group>
                 <group invisible="not send_welcome_message">
-                    <field name="mail_partner_ids" widget="many2many_tags" />
+                    <field name="invoice_partner_included" invisible="1" />
+                    <label for="mail_partner_ids" />
+                    <div class="o_row" name="mail_partner_ids">
+                        <field name="mail_partner_ids" widget="many2many_tags" nolabel="1" />
+                        <button
+                            name="action_add_invoice_partner"
+                            string="Add Invoice Contact"
+                            type="object"
+                            icon="fa-user-plus"
+                            class="btn-link"
+                            invisible="invoice_partner_included"
+                        />
+                    </div>
                     <field name="mail_subject" />
                     <field name="mail_body" widget="html" />
                 </group>
