@@ -172,7 +172,8 @@
                         string="Revert to Draft"
                         type="object"
                         groups="association_membership.group_membership_manager"
-                        invisible="state == 'draft'"
+                        invisible="state == 'draft' or contribution_count"
+                        confirm="Revert this membership to draft? Cancellation data will be cleared."
                     />
                     <field
                         name="state"

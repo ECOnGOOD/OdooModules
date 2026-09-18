@@ -48,3 +48,14 @@ class ProductProduct(models.Model):
     @api.model
     def _get_membership_category(self, company=False):
         return self.env["product.template"]._get_membership_category(company=company)
+
+    def _get_membership_price(self, company):
+        """Single source for membership prices.
+
+        ``lst_price`` includes the variant's ``price_extra`` (tier price), and
+        stays correct if OCA ``product_variant_sale_price`` is installed.
+        """
+        if not self:
+            return 0.0
+        self.ensure_one()
+        return self.with_company(company).lst_price

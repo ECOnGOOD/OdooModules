@@ -3,7 +3,7 @@ from collections import defaultdict
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
-from .res_company import normalize_year_value
+from .res_company import INVOICING_STRATEGY_SELECTION, normalize_year_value
 
 
 CONTRIBUTION_BILLING_STATUS = [
@@ -27,7 +27,7 @@ class MembershipContribution(models.Model):
     membership_id = fields.Many2one(
         "membership.membership",
         required=True,
-        ondelete="cascade",
+        ondelete="restrict",
         index=True,
     )
     membership_year = fields.Integer(
@@ -72,9 +72,11 @@ class MembershipContribution(models.Model):
         store=True,
         readonly=True,
     )
+    # Frozen at creation: depends on the company record only, not on its setting.
     membership_invoicing_strategy = fields.Selection(
-        related="company_id.membership_invoicing_strategy",
-        readonly=True,
+        selection=INVOICING_STRATEGY_SELECTION,
+        compute="_compute_membership_invoicing_strategy",
+        store=True,
     )
     partner_id = fields.Many2one(
         "res.partner",
@@ -89,10 +91,11 @@ class MembershipContribution(models.Model):
         readonly=True,
     )
     note = fields.Text()
+    # Own value, so a later tier change on the membership keeps past contributions intact.
     product_id = fields.Many2one(
         "product.product",
-        related="membership_id.product_id",
-        store=True,
+        required=True,
+        index=True,
         readonly=True,
     )
     invoice_partner_id = fields.Many2one("res.partner", string="Invoice Contact")
@@ -144,6 +147,12 @@ class MembershipContribution(models.Model):
         for record in self:
             record.membership_year = self._normalize_membership_year_value(record.membership_year_text)
 
+    @api.depends("company_id")
+    def _compute_membership_invoicing_strategy(self):
+        for record in self:
+            if not record.membership_invoicing_strategy:
+                record.membership_invoicing_strategy = record.company_id.membership_invoicing_strategy
+
     @api.depends("amount")
     def _compute_is_free(self):
         for record in self:
@@ -186,6 +195,7 @@ class MembershipContribution(models.Model):
             record.amount_paid = record.currency_id.round(record.amount_invoiced * paid_ratio)
 
     @api.depends(
+        "membership_invoicing_strategy",
         "is_free",
         "invoice_id",
         "invoice_id.state",
@@ -196,6 +206,9 @@ class MembershipContribution(models.Model):
     def _compute_billing_status(self):
         for record in self:
             if record.membership_invoicing_strategy == "manual":
+                # Keep statuses set by hand ("Mark as Paid"); only fill the open ones.
+                if record.billing_status in (False, "to_invoice", "waived"):
+                    record.billing_status = "waived" if record.is_free else "to_invoice"
                 continue
             if record.is_free:
                 record.billing_status = "waived"
@@ -234,6 +247,7 @@ class MembershipContribution(models.Model):
         if "amount" not in vals:
             vals["amount"] = membership.amount or 0.0
         vals.setdefault("invoice_partner_id", membership._get_invoice_partner().id)
+        vals.setdefault("product_id", membership.product_id.id)
         if vals.get("invoice_line_id") and not vals.get("invoice_id"):
             line = self.env["account.move.line"].browse(vals["invoice_line_id"])
             vals["invoice_id"] = line.move_id.id
@@ -264,6 +278,8 @@ class MembershipContribution(models.Model):
         if membership_id and "invoice_partner_id" in fields_list and not defaults.get("invoice_partner_id"):
             membership = self.env["membership.membership"].browse(membership_id)
             defaults["invoice_partner_id"] = membership._get_invoice_partner().id
+        if membership_id and "product_id" in fields_list and not defaults.get("product_id"):
+            defaults["product_id"] = self.env["membership.membership"].browse(membership_id).product_id.id
         return defaults
 
     @api.onchange("membership_id")
@@ -271,6 +287,7 @@ class MembershipContribution(models.Model):
         if not self.membership_id:
             return
         self.invoice_partner_id = self.membership_id._get_invoice_partner()
+        self.product_id = self.membership_id.product_id
         if not self.membership_year:
             self.membership_year = self.membership_id.company_id._membership_contribution_year()
 

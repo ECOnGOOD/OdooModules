@@ -53,6 +53,13 @@ class MembershipMembership(models.Model):
         tracking=True,
         index=True,
     )
+    # Template = membership type, variant = tier.
+    product_tmpl_id = fields.Many2one(
+        related="product_id.product_tmpl_id",
+        string="Membership Type",
+        store=True,
+        index=True,
+    )
     state = fields.Selection(
         selection=MEMBERSHIP_STATE_SELECTION,
         required=True,
@@ -278,7 +285,7 @@ class MembershipMembership(models.Model):
     @api.depends("product_id")
     def _compute_amount(self):
         for record in self:
-            record.amount = record.product_id.list_price or 0.0
+            record.amount = record.product_id._get_membership_price(record.company_id)
 
     @api.depends("contribution_ids.membership_year")
     def _compute_duplicate_contribution_year_warning(self):
@@ -463,6 +470,19 @@ class MembershipMembership(models.Model):
                     )
                 )
 
+    @api.constrains("product_id")
+    def _check_membership_type_unchanged(self):
+        for record in self:
+            contribution_types = record.contribution_ids.product_id.product_tmpl_id
+            if contribution_types - record.product_tmpl_id:
+                raise ValidationError(
+                    _(
+                        "The membership type cannot be changed once contributions exist."
+                        " Only a tier of the same type can be selected. To change the type,"
+                        " end this membership and start a new one."
+                    )
+                )
+
     def _raise_membership_number_conflict(self, number, conflict):
         raise ValidationError(
             _("Membership Number '%(number)s' is already assigned to %(membership)s.")
@@ -494,7 +514,7 @@ class MembershipMembership(models.Model):
                 ("id", "!=", record.id),
                 ("partner_id", "=", record.partner_id.id),
                 ("company_id", "=", record.company_id.id),
-                ("product_id", "=", record.product_id.id),
+                ("product_tmpl_id", "=", record.product_tmpl_id.id),
                 ("date_start", "<=", record.date_end or date.max),
                 "|",
                 ("date_end", "=", False),
@@ -503,7 +523,8 @@ class MembershipMembership(models.Model):
             if self.with_context(active_test=False).search_count(overlap_domain):
                 raise ValidationError(
                     _(
-                        "There is already a membership for this member, company, and product with overlapping dates."
+                        "There is already a membership of this type for this member and company"
+                        " with overlapping dates."
                     )
                 )
 
@@ -625,6 +646,7 @@ class MembershipMembership(models.Model):
                         "Cancel or terminate the membership instead."
                     )
                 )
+            record._check_no_contributions()
         return super().unlink()
 
     def write(self, vals):
@@ -650,9 +672,20 @@ class MembershipMembership(models.Model):
             "draft": {"waiting"},
             "waiting": {"draft", "active", "cancelled", "terminated"},
             "active": {"cancelled", "terminated", "draft"},
-            "cancelled": {"active", "terminated", "draft"},
-            "terminated": {"draft"},
+            "cancelled": {"waiting", "active", "terminated", "draft"},
+            "terminated": {"waiting", "draft"},
         }
+
+    def _check_no_contributions(self):
+        for record in self:
+            if record.contribution_ids:
+                raise UserError(
+                    _(
+                        "Membership %s has contributions, so it cannot be deleted or"
+                        " reverted to draft. Cancel or terminate it instead."
+                    )
+                    % record.display_name
+                )
 
     def _get_invoice_partner(self):
         self.ensure_one()
@@ -706,6 +739,8 @@ class MembershipMembership(models.Model):
                         "to_state": new_state,
                     }
                 )
+            if new_state == "draft":
+                record._check_no_contributions()
             vals = {"state": new_state}
             if new_state in {"cancelled", "terminated"}:
                 vals.update(
@@ -716,15 +751,7 @@ class MembershipMembership(models.Model):
                 )
                 if kwargs.get("date_end"):
                     vals["date_end"] = kwargs["date_end"]
-            elif new_state == "draft":
-                vals.update(
-                    {
-                        "date_cancelled": False,
-                        "date_end": False,
-                        "cancel_reason": False,
-                    }
-                )
-            elif record.state == "cancelled" and new_state == "active":
+            elif record.state in {"cancelled", "terminated"}:
                 vals.update(
                     {
                         "date_cancelled": False,
@@ -767,8 +794,25 @@ class MembershipMembership(models.Model):
                 )
         return True
 
+    def action_activate_direct(self):
+        """Activate without the wizard and without sending any email.
+
+        Used by the contact importer for historical memberships. Draft and
+        terminated memberships pass through `waiting` first.
+        """
+        for record in self:
+            if record.state in ("draft", "terminated"):
+                record._do_transition("waiting")
+            record._do_transition("active")
+        return True
+
     def action_revert_to_draft(self):
         self._do_transition("draft")
+        return True
+
+    def action_reopen_waiting(self):
+        """Reopen a cancelled or terminated membership (used by the contact importer)."""
+        self._do_transition("waiting")
         return True
 
     def action_cancel(self):

@@ -1,0 +1,137 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* association_membership
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: association_membership
+#: model:mail.template,body_html:association_membership.mail_template_membership_activation_invoice
+msgid ""
+"<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"    <p>Dear <t t-out=\"object.partner_id.name\"/>,</p>\n"
+"    <p>Thank you for your membership. Here are the details of your membership invoice:</p>\n"
+"    <ul>\n"
+"        <li>Invoice: <strong><t t-out=\"object.name\"/></strong></li>\n"
+"        <li>Amount due: <strong><t t-out=\"object.amount_total\" t-options=\"{'widget': 'monetary', 'display_currency': object.currency_id}\"/></strong></li>\n"
+"        <li>Due date: <t t-out=\"object.invoice_date_due\" t-options=\"{'widget': 'date'}\"/></li>\n"
+"    </ul>\n"
+"    <p>You can view and pay this invoice online through the customer portal.</p>\n"
+"    <p>Best regards,<br/><t t-out=\"object.company_id.name\"/></p>\n"
+"</div>\n"
+"        "
+msgstr ""
+"<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"    <p>Guten Tag <t t-out=\"object.partner_id.name\"/>,</p>\n"
+"    <p>vielen Dank für Ihre Mitgliedschaft. Hier sind die Details Ihrer Mitgliedsrechnung:</p>\n"
+"    <ul>\n"
+"        <li>Rechnung: <strong><t t-out=\"object.name\"/></strong></li>\n"
+"        <li>Fälliger Betrag: <strong><t t-out=\"object.amount_total\" t-options=\"{'widget': 'monetary', 'display_currency': object.currency_id}\"/></strong></li>\n"
+"        <li>Fällig am: <t t-out=\"object.invoice_date_due\" t-options=\"{'widget': 'date'}\"/></li>\n"
+"    </ul>\n"
+"    <p>Sie können diese Rechnung online im Kundenportal ansehen und bezahlen.</p>\n"
+"    <p>Mit freundlichen Grüßen<br/><t t-out=\"object.company_id.name\"/></p>\n"
+"</div>\n"
+"        "
+
+#. module: association_membership
+#: model:mail.template,body_html:association_membership.mail_template_membership_welcome
+msgid ""
+"<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"    <p>Dear <t t-out=\"object.partner_id.name\"/>,</p>\n"
+"    <p>We are delighted to welcome you as a member. Your membership details:</p>\n"
+"    <ul>\n"
+"        <li>Membership number: <strong><t t-out=\"object.membership_number\"/></strong></li>\n"
+"        <li>Membership: <t t-out=\"object.product_id.name\"/></li>\n"
+"        <li>Member since: <t t-out=\"object.date_start\" t-options=\"{'widget': 'date'}\"/></li>\n"
+"        <li>Annual contribution: <t t-out=\"object.amount\" t-options=\"{'widget': 'monetary', 'display_currency': object.currency_id}\"/></li>\n"
+"    </ul>\n"
+"    <p>If you have any questions about your membership, simply reply to this email.</p>\n"
+"    <p>Best regards,<br/><t t-out=\"object.company_id.name\"/></p>\n"
+"</div>\n"
+"        "
+msgstr ""
+"<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"    <p>Guten Tag <t t-out=\"object.partner_id.name\"/>,</p>\n"
+"    <p>wir freuen uns sehr, Sie als Mitglied begrüßen zu dürfen. Ihre Mitgliedschaftsdaten:</p>\n"
+"    <ul>\n"
+"        <li>Mitgliedsnummer: <strong><t t-out=\"object.membership_number\"/></strong></li>\n"
+"        <li>Mitgliedschaft: <t t-out=\"object.product_id.name\"/></li>\n"
+"        <li>Mitglied seit: <t t-out=\"object.date_start\" t-options=\"{'widget': 'date'}\"/></li>\n"
+"        <li>Jahresbeitrag: <t t-out=\"object.amount\" t-options=\"{'widget': 'monetary', 'display_currency': object.currency_id}\"/></li>\n"
+"    </ul>\n"
+"    <p>Wenn Sie Fragen zu Ihrer Mitgliedschaft haben, antworten Sie einfach auf diese E-Mail.</p>\n"
+"    <p>Mit freundlichen Grüßen<br/><t t-out=\"object.company_id.name\"/></p>\n"
+"</div>\n"
+"        "
+
+#. module: association_membership
+#: model:mail.template,body_html:association_membership.mail_template_membership_cancellation
+msgid ""
+"<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"    <p>Dear <t t-out=\"object.partner_id.name\"/>,</p>\n"
+"    <p>We hereby confirm the cancellation of your membership:</p>\n"
+"    <ul>\n"
+"        <li>Membership number: <strong><t t-out=\"object.membership_number\"/></strong></li>\n"
+"        <li>Cancellation date: <t t-out=\"object.date_cancelled\" t-options=\"{'widget': 'date'}\"/></li>\n"
+"        <li>Membership ends on: <t t-out=\"object.date_end\" t-options=\"{'widget': 'date'}\"/></li>\n"
+"    </ul>\n"
+"    <t t-if=\"object.cancel_reason\">\n"
+"        <p>Reason stated: <t t-out=\"object.cancel_reason\"/>.</p>\n"
+"    </t>\n"
+"    <p>We thank you for your membership and hope to welcome you back in the future.</p>\n"
+"    <p>Best regards,<br/><t t-out=\"object.company_id.name\"/></p>\n"
+"</div>\n"
+"        "
+msgstr ""
+"<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"    <p>Guten Tag <t t-out=\"object.partner_id.name\"/>,</p>\n"
+"    <p>hiermit bestätigen wir die Kündigung Ihrer Mitgliedschaft:</p>\n"
+"    <ul>\n"
+"        <li>Mitgliedsnummer: <strong><t t-out=\"object.membership_number\"/></strong></li>\n"
+"        <li>Kündigungsdatum: <t t-out=\"object.date_cancelled\" t-options=\"{'widget': 'date'}\"/></li>\n"
+"        <li>Mitgliedschaft endet am: <t t-out=\"object.date_end\" t-options=\"{'widget': 'date'}\"/></li>\n"
+"    </ul>\n"
+"    <t t-if=\"object.cancel_reason\">\n"
+"        <p>Angegebener Grund: <t t-out=\"object.cancel_reason\"/>.</p>\n"
+"    </t>\n"
+"    <p>Wir danken Ihnen für Ihre Mitgliedschaft und würden uns freuen, Sie künftig wieder bei uns begrüßen zu dürfen.</p>\n"
+"    <p>Mit freundlichen Grüßen<br/><t t-out=\"object.company_id.name\"/></p>\n"
+"</div>\n"
+"        "
+
+#. module: association_membership
+#: model:mail.template,subject:association_membership.mail_template_membership_cancellation
+msgid "Confirmation of your membership cancellation - {{ object.company_id.name }}"
+msgstr "Bestätigung der Kündigung Ihrer Mitgliedschaft - {{ object.company_id.name }}"
+
+#. module: association_membership
+#: model:mail.template,name:association_membership.mail_template_membership_activation_invoice
+msgid "Membership: Activation Invoice"
+msgstr "Mitgliedschaft: Rechnung zur Aktivierung"
+
+#. module: association_membership
+#: model:mail.template,name:association_membership.mail_template_membership_cancellation
+msgid "Membership: Cancellation"
+msgstr "Mitgliedschaft: Kündigung"
+
+#. module: association_membership
+#: model:mail.template,name:association_membership.mail_template_membership_welcome
+msgid "Membership: Welcome"
+msgstr "Mitgliedschaft: Willkommen"
+
+#. module: association_membership
+#: model:mail.template,subject:association_membership.mail_template_membership_welcome
+msgid "Welcome, {{ object.partner_id.name }}!"
+msgstr "Willkommen, {{ object.partner_id.name }}!"
+
+#. module: association_membership
+#: model:mail.template,subject:association_membership.mail_template_membership_activation_invoice
+msgid "Your membership invoice {{ object.name }} - {{ object.company_id.name }}"
+msgstr "Ihre Mitgliedsrechnung {{ object.name }} - {{ object.company_id.name }}"

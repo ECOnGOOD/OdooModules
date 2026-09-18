@@ -20,6 +20,32 @@ class MembershipTestCommon(TransactionCase):
             "name": "Test Member",
             "email": "member@example.com",
         })
+        tier_attribute = cls.env["product.attribute"].create({
+            "name": "Tier",
+            "value_ids": [(0, 0, {"name": "1-10"}), (0, 0, {"name": "11-20"})],
+        })
+        cls.tier_template = cls.env["product.template"].create({
+            "name": "Company Membership",
+            "categ_id": cls.category.id,
+            "list_price": 0.0,
+            "attribute_line_ids": [(0, 0, {
+                "attribute_id": tier_attribute.id,
+                "value_ids": [(6, 0, tier_attribute.value_ids.ids)],
+            })],
+        })
+        cls.tier_small, cls.tier_large = cls.tier_template.product_variant_ids.sorted(
+            lambda variant: variant.product_template_attribute_value_ids.name
+        )
+        cls.tier_small.product_template_attribute_value_ids.price_extra = 100.0
+        cls.tier_large.product_template_attribute_value_ids.price_extra = 200.0
+
+    def _make_contribution(self, membership, **overrides):
+        vals = {
+            "membership_id": membership.id,
+            "membership_year": date.today().year,
+        }
+        vals.update(overrides)
+        return self.env["membership.contribution"].create(vals)
 
     def _make_membership(self, **overrides):
         vals = {
@@ -48,14 +74,44 @@ class TestMembershipLifecycle(MembershipTestCommon):
         membership.action_revert_to_draft()
         self.assertEqual(membership.state, "draft")
 
-    def test_terminated_can_only_go_to_draft(self):
+    def test_terminated_cannot_go_to_active(self):
         membership = self._make_membership()
         membership.action_submit()
         membership._do_transition("active")
         membership._do_transition("terminated")
         self.assertEqual(membership.state, "terminated")
         with self.assertRaises(UserError):
-            membership._do_transition("waiting")
+            membership._do_transition("active")
+
+    def test_activate_direct_from_every_state(self):
+        for start_state in ("draft", "waiting", "cancelled", "terminated"):
+            membership = self._make_membership(
+                partner_id=self.env["res.partner"].create({"name": start_state}).id,
+            )
+            if start_state != "draft":
+                membership.action_submit()
+            if start_state in ("cancelled", "terminated"):
+                membership._do_transition("active")
+                membership._do_transition(start_state, cancel_reason="left")
+            self.assertEqual(membership.state, start_state)
+            membership.action_activate_direct()
+            self.assertEqual(membership.state, "active")
+            self.assertFalse(membership.date_end)
+            self.assertFalse(membership.date_welcome_sent)
+
+    def test_reopen_waiting_from_cancelled_and_terminated(self):
+        for end_state in ("cancelled", "terminated"):
+            membership = self._make_membership(
+                partner_id=self.env["res.partner"].create({"name": end_state}).id,
+            )
+            membership.action_submit()
+            membership._do_transition("active")
+            membership._do_transition(end_state, cancel_reason="left")
+            membership.action_reopen_waiting()
+            self.assertEqual(membership.state, "waiting")
+            self.assertFalse(membership.date_cancelled)
+            self.assertFalse(membership.date_end)
+            self.assertFalse(membership.cancel_reason)
 
     def test_terminated_to_draft_clears_cancel_fields(self):
         membership = self._make_membership()
@@ -98,6 +154,22 @@ class TestMembershipUnlink(MembershipTestCommon):
         with self.assertRaises(UserError):
             membership.unlink()
 
+    def test_unlink_blocked_with_contributions(self):
+        membership = self._make_membership()
+        self._make_contribution(membership)
+        with self.assertRaises(UserError):
+            membership.unlink()
+
+    def test_revert_to_draft_blocked_with_contributions(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        membership._do_transition("active")
+        self._make_contribution(membership)
+        membership._do_transition("terminated")
+        with self.assertRaises(UserError):
+            membership.action_revert_to_draft()
+        self.assertEqual(membership.state, "terminated")
+
     def test_unlink_blocked_when_terminated(self):
         membership = self._make_membership()
         membership.action_submit()
@@ -127,30 +199,56 @@ class TestMembershipAmount(MembershipTestCommon):
         membership.amount = 75.0
         self.assertEqual(membership.amount, 75.0)
 
+    def test_amount_includes_variant_price_extra(self):
+        membership = self._make_membership(product_id=self.tier_small.id)
+        self.assertEqual(membership.amount, 100.0)
+        contribution = self._make_contribution(membership)
+        self.assertFalse(contribution.is_free)
+        self.assertEqual(contribution.billing_status, "to_invoice")
+
+
+class TestMembershipTiers(MembershipTestCommon):
+    def test_tier_change_keeps_past_contributions(self):
+        membership = self._make_membership(product_id=self.tier_small.id)
+        contribution = self._make_contribution(membership)
+        membership.product_id = self.tier_large
+        self.assertEqual(membership.amount, 200.0)
+        self.assertEqual(contribution.product_id, self.tier_small)
+        self.assertEqual(contribution.amount, 100.0)
+        next_contribution = self._make_contribution(
+            membership, membership_year=date.today().year + 1
+        )
+        self.assertEqual(next_contribution.product_id, self.tier_large)
+        self.assertEqual(next_contribution.amount, 200.0)
+
+    def test_parallel_membership_of_same_type_rejected(self):
+        self._make_membership(product_id=self.tier_small.id)
+        with self.assertRaises(ValidationError):
+            self._make_membership(product_id=self.tier_large.id)
+
+    def test_type_change_rejected_once_contributions_exist(self):
+        membership = self._make_membership(product_id=self.tier_small.id)
+        membership.product_id = self.product
+        membership.product_id = self.tier_small
+        self._make_contribution(membership)
+        with self.assertRaises(ValidationError):
+            membership.product_id = self.product
+
 
 class TestContributionBilling(MembershipTestCommon):
-    def _make_contribution(self, membership=None, **overrides):
-        membership = membership or self._make_membership()
-        vals = {
-            "membership_id": membership.id,
-            "membership_year": date.today().year,
-        }
-        vals.update(overrides)
-        return self.env["membership.contribution"].create(vals)
-
     def test_amount_defaults_from_membership_amount(self):
         membership = self._make_membership()
         membership.amount = 99.0
-        contribution = self._make_contribution(membership=membership)
+        contribution = self._make_contribution(membership)
         self.assertEqual(contribution.amount, 99.0)
 
     def test_zero_amount_is_free_and_waived(self):
-        contribution = self._make_contribution(amount=0.0)
+        contribution = self._make_contribution(self._make_membership(), amount=0.0)
         self.assertTrue(contribution.is_free)
         self.assertEqual(contribution.billing_status, "waived")
 
     def test_nonzero_amount_with_no_invoice_is_to_invoice(self):
-        contribution = self._make_contribution(amount=50.0)
+        contribution = self._make_contribution(self._make_membership(), amount=50.0)
         self.assertFalse(contribution.is_free)
         self.assertEqual(contribution.billing_status, "to_invoice")
         self.assertEqual(contribution.amount_paid, 0.0)
@@ -195,6 +293,35 @@ class TestInvoicingStrategies(MembershipTestCommon):
         contribution._apply_invoicing_strategy(strategy="confirm")
         self.assertFalse(contribution.invoice_id)
         self.assertEqual(contribution.billing_status, "waived")
+
+
+class TestManualInvoicing(MembershipTestCommon):
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+        self.membership = self._make_membership()
+
+    def test_new_contribution_is_to_invoice(self):
+        contribution = self._make_contribution(self.membership)
+        self.assertEqual(contribution.membership_invoicing_strategy, "manual")
+        self.assertEqual(contribution.billing_status, "to_invoice")
+
+    def test_free_contribution_is_waived(self):
+        contribution = self._make_contribution(self.membership, amount=0.0)
+        self.assertEqual(contribution.billing_status, "waived")
+
+    def test_mark_as_paid(self):
+        contribution = self._make_contribution(self.membership)
+        contribution.action_mark_as_paid()
+        self.assertEqual(contribution.billing_status, "paid")
+        self.assertEqual(contribution.amount_paid, contribution.amount)
+
+    def test_strategy_is_frozen_at_creation(self):
+        contribution = self._make_contribution(self.membership)
+        contribution.action_mark_as_paid()
+        self.company.membership_invoicing_strategy = "draft"
+        self.assertEqual(contribution.membership_invoicing_strategy, "manual")
+        self.assertEqual(contribution.billing_status, "paid")
 
 
 class TestTaxReceipts(MembershipTestCommon):
@@ -495,6 +622,47 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
         rendered = template._render_field("body_html", membership.ids)[membership.id]
         self.assertIn(self.partner.name, rendered)
         self.assertIn("Moving away", rendered)
+
+    def test_template_subjects_and_recipients_render(self):
+        self.partner.lang = "en_US"
+        membership = self._make_membership()
+        welcome = self.env.ref("association_membership.mail_template_membership_welcome")
+        subject = welcome._render_field("subject", membership.ids)[membership.id]
+        self.assertEqual(subject, "Welcome, %s!" % self.partner.name)
+        self.assertEqual(welcome._render_lang(membership.ids)[membership.id], "en_US")
+        cancellation = self.env.ref("association_membership.mail_template_membership_cancellation")
+        subject = cancellation._render_field("subject", membership.ids)[membership.id]
+        self.assertIn(self.company.name, subject)
+        self.assertNotIn("${", subject)
+        contribution = self._make_contribution(membership, amount=50.0)
+        contribution._apply_invoicing_strategy(strategy="draft")
+        invoice = contribution.invoice_id
+        invoice_template = self.env.ref(
+            "association_membership.mail_template_membership_activation_invoice"
+        )
+        self.assertEqual(
+            invoice_template._render_field("partner_to", invoice.ids)[invoice.id],
+            str(self.partner.id),
+        )
+        subject = invoice_template._render_field("subject", invoice.ids)[invoice.id]
+        self.assertNotIn("${", subject)
+
+    def test_templates_render_in_german(self):
+        self.env["res.lang"]._activate_lang("de_DE")
+        self.env["ir.module.module"]._load_module_terms(
+            ["association_membership"], ["de_DE"], overwrite=True
+        )
+        self.partner.lang = "de_DE"
+        membership = self._make_membership()
+        welcome = self.env.ref("association_membership.mail_template_membership_welcome")
+        lang = welcome._render_lang(membership.ids)[membership.id]
+        self.assertEqual(lang, "de_DE")
+        german = welcome.with_context(lang=lang)
+        self.assertEqual(
+            german._render_field("subject", membership.ids)[membership.id],
+            "Willkommen, %s!" % self.partner.name,
+        )
+        self.assertIn("Guten Tag", german._render_field("body_html", membership.ids)[membership.id])
 
     def test_activation_invoice_template_renders(self):
         membership = self._make_membership()
