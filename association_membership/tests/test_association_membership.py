@@ -1,6 +1,8 @@
+import importlib.util
 from datetime import date
 
 from odoo.exceptions import UserError, ValidationError
+from odoo.modules.module import get_module_path
 from odoo.tests import TransactionCase
 
 
@@ -9,10 +11,9 @@ class MembershipTestCommon(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.company = cls.env.company
-        cls.category = cls.env.ref("association_membership.product_category_membership")
         cls.product = cls.env["product.product"].create({
             "name": "Annual Membership",
-            "categ_id": cls.category.id,
+            "membership_ok": True,
             "list_price": 50.0,
             "tax_receipt_ok": True,
         })
@@ -26,7 +27,7 @@ class MembershipTestCommon(TransactionCase):
         })
         cls.tier_template = cls.env["product.template"].create({
             "name": "Company Membership",
-            "categ_id": cls.category.id,
+            "membership_ok": True,
             "list_price": 0.0,
             "attribute_line_ids": [(0, 0, {
                 "attribute_id": tier_attribute.id,
@@ -187,7 +188,7 @@ class TestMembershipAmount(MembershipTestCommon):
     def test_amount_recomputes_when_product_changes(self):
         other_product = self.env["product.product"].create({
             "name": "Premium Membership",
-            "categ_id": self.category.id,
+            "membership_ok": True,
             "list_price": 200.0,
         })
         membership = self._make_membership()
@@ -694,3 +695,272 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
         self.company.member_number_padding = 7
         sequence = self.company._get_membership_number_sequence()
         self.assertEqual(sequence.padding, 7)
+
+
+class TestMembershipProducts(MembershipTestCommon):
+    def test_product_without_membership_flag_is_rejected(self):
+        plain = self.env["product.product"].create({"name": "T-Shirt", "list_price": 20.0})
+        with self.assertRaises(ValidationError):
+            self._make_membership(product_id=plain.id)
+
+    def test_only_exact_company_or_no_company(self):
+        branch = self.env["res.company"].create({"name": "Branch", "parent_id": self.company.id})
+        parent_product = self.env["product.product"].create({
+            "name": "National Membership",
+            "membership_ok": True,
+            "company_id": self.company.id,
+        })
+        with self.assertRaises(ValidationError):
+            self._make_membership(company_id=branch.id, product_id=parent_product.id)
+        membership = self._make_membership(company_id=branch.id)  # global product
+        self.assertEqual(membership.company_id, branch)
+        self.assertNotIn(parent_product, self.env["product.product"].search(membership.product_domain))
+
+    def test_partner_type_must_match(self):
+        organisation = self.env["res.partner"].create({"name": "ACME", "is_company": True})
+        self.product.membership_partner_type = "person"
+        with self.assertRaises(ValidationError):
+            self._make_membership(partner_id=organisation.id)
+        self.tier_template.membership_partner_type = "company"
+        with self.assertRaises(ValidationError):
+            self._make_membership(product_id=self.tier_small.id)
+        self._make_membership(partner_id=organisation.id, product_id=self.tier_small.id)
+        self._make_membership()  # person product, person partner
+
+    def test_product_domain_offers_matching_active_products(self):
+        self.product.membership_partner_type = "person"
+        membership = self._make_membership()
+        self.tier_large.active = False
+        offered = self.env["product.product"].search(membership.product_domain)
+        self.assertIn(self.product, offered)
+        self.assertIn(self.tier_small, offered)
+        self.assertNotIn(self.tier_large, offered)
+        organisation = self.env["res.partner"].create({"name": "ACME", "is_company": True})
+        domain = self.env["product.product"]._membership_product_domain(self.company, organisation)
+        self.assertNotIn(self.product, self.env["product.product"].search(domain))
+
+
+class TestMembershipRenewal(MembershipTestCommon):
+    def test_archived_tier_is_skipped_with_message(self):
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership(product_id=self.tier_small.id)
+        membership.action_activate_direct()
+        self.tier_small.active = False
+        wizard = self.env["membership.renewal.wizard"].create({
+            "target_year": date.today().year + 1,
+            "company_ids": [(6, 0, self.company.ids)],
+        })
+        wizard.action_run()
+        line = wizard.result_line_ids.filtered(lambda l: l.membership_id == membership)
+        self.assertEqual(line.status, "skipped")
+        self.assertIn("archived", line.message)
+        self.assertFalse(membership.contribution_ids)
+
+
+class TestPaymentHooks(MembershipTestCommon):
+    def test_payment_activates_and_issues_receipt_once(self):
+        self.company.membership_auto_activate_on_payment = True
+        self.partner.tax_receipt_option = "each"
+        membership = self._make_membership()
+        membership.action_submit()
+        contribution = self._make_contribution(membership, amount=50.0)
+        contribution._apply_invoicing_strategy(strategy="confirm")
+        invoice = contribution.invoice_id
+        self.env["account.payment.register"].with_context(
+            active_model="account.move",
+            active_ids=invoice.ids,
+        ).create({}).action_create_payments()
+        self.assertEqual(membership.state, "active")
+        receipt = contribution.tax_receipt_id
+        self.assertTrue(receipt)
+        message_count = len(membership.message_ids)
+        invoice._invoice_paid_hook()
+        self.assertEqual(contribution.tax_receipt_id, receipt)
+        self.assertEqual(len(membership.message_ids), message_count)
+
+    def test_posting_a_refund_posts_one_review_message(self):
+        membership = self._make_membership()
+        contribution = self._make_contribution(membership, amount=50.0)
+        contribution._apply_invoicing_strategy(strategy="confirm")
+        refund = contribution.invoice_id._reverse_moves()
+        refund.invoice_line_ids.membership_contribution_id = contribution
+        refund.action_post()
+        messages = membership.message_ids.filtered(lambda m: "A refund was posted" in (m.body or ""))
+        self.assertEqual(len(messages), 1)
+
+
+class TestReactivation(MembershipTestCommon):
+    def test_welcome_message_unticked_when_already_sent(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        wizard = self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({})
+        self.assertTrue(wizard.send_welcome_message)
+        membership.date_welcome_sent = date.today()
+        wizard = self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({})
+        self.assertFalse(wizard.send_welcome_message)
+
+
+class TestCommunicationPartners(MembershipTestCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.organisation = cls.env["res.partner"].create({"name": "ACME", "is_company": True})
+        cls.billing = cls.env["res.partner"].create({
+            "name": "ACME Billing",
+            "type": "invoice",
+            "parent_id": cls.organisation.id,
+        })
+
+    def _recipients(self, setting):
+        self.company.membership_company_mail_recipients = setting
+        return self.org_membership._get_communication_partners()
+
+    def test_individuals_always_get_their_own_emails(self):
+        self.company.membership_company_mail_recipients = "invoice_contact"
+        self.assertEqual(self._make_membership()._get_communication_partners(), self.partner)
+
+    def test_organisation_settings(self):
+        self.org_membership = self._make_membership(partner_id=self.organisation.id)
+        # Without partner_contact_address_default the contact person is the organisation.
+        self.assertEqual(self._recipients("member"), self.organisation)
+        self.assertEqual(self._recipients("contact_person"), self.organisation)
+        self.assertEqual(self._recipients("invoice_contact"), self.billing)
+        self.assertEqual(
+            self._recipients("contact_person_and_invoice_contact"),
+            self.organisation | self.billing,
+        )
+
+    def test_wizards_use_the_setting(self):
+        self.company.membership_company_mail_recipients = "invoice_contact"
+        membership = self._make_membership(partner_id=self.organisation.id)
+        membership.action_submit()
+        for model in ("membership.activate.wizard", "membership.cancel.wizard"):
+            wizard = self.env[model].with_context(default_membership_id=membership.id).create({})
+            self.assertEqual(wizard.mail_partner_ids, self.billing)
+
+
+class TestActivationContribution(MembershipTestCommon):
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+
+    def _activation_wizard(self, membership):
+        return self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({"send_welcome_message": False})
+
+    def test_creates_contribution_when_missing(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        wizard = self._activation_wizard(membership)
+        self.assertTrue(wizard.create_contribution)
+        wizard.action_confirm()
+        self.assertEqual(membership.state, "active")
+        self.assertEqual(len(membership.contribution_ids), 1)
+        self.assertEqual(membership.contribution_ids.billing_status, "to_invoice")
+        self.assertFalse(membership.contribution_ids.invoice_id)
+
+    def test_keeps_existing_contribution(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        self._make_contribution(membership, membership_year=membership._default_contribution_year())
+        wizard = self._activation_wizard(membership)
+        self.assertTrue(wizard.has_contribution)
+        self.assertFalse(wizard.create_contribution)
+        wizard.action_confirm()
+        self.assertEqual(len(membership.contribution_ids), 1)
+
+
+class TestNewMembershipWizard(MembershipTestCommon):
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+
+    def _wizard(self, **vals):
+        return self.env["membership.new.wizard"].create({
+            "partner_id": self.partner.id,
+            "product_id": self.tier_small.id,
+            **vals,
+        })
+
+    def test_previews(self):
+        wizard = self._wizard()
+        self.assertEqual(wizard.amount, 100.0)
+        self.assertEqual(wizard.mail_partner_ids, self.partner)
+        self.assertTrue(wizard.send_welcome_message)
+        number = wizard.membership_number_preview
+        wizard.send_welcome_message = False
+        action = wizard.action_confirm()
+        membership = self.env["membership.membership"].browse(action["res_id"])
+        self.assertEqual(membership.membership_number, number)
+
+    def test_create_activate_contribute_and_welcome(self):
+        action = self._wizard().action_confirm()
+        membership = self.env["membership.membership"].browse(action["res_id"])
+        self.assertEqual(membership.state, "active")
+        self.assertEqual(membership.amount, 100.0)
+        self.assertEqual(membership.contribution_ids.billing_status, "to_invoice")
+        self.assertEqual(membership.contribution_ids.amount, 100.0)
+        self.assertTrue(membership.date_welcome_sent)
+        welcome = membership.message_ids.filtered(lambda m: m.partner_ids == self.partner)
+        self.assertEqual(len(welcome), 1)
+
+    def test_without_activation_stays_waiting(self):
+        action = self._wizard(activate=False).action_confirm()
+        membership = self.env["membership.membership"].browse(action["res_id"])
+        self.assertEqual(membership.state, "waiting")
+        self.assertFalse(membership.contribution_ids)
+        self.assertFalse(membership.date_welcome_sent)
+
+    def test_started_from_partner(self):
+        action = self.partner.action_create_membership()
+        self.assertEqual(action["res_model"], "membership.new.wizard")
+        self.assertEqual(action["context"]["default_partner_id"], self.partner.id)
+
+
+class TestMemberEmailFollowers(MembershipTestCommon):
+    def test_creator_does_not_follow_and_gets_no_copy(self):
+        # Also covers a membership manager without accounting rights (manual mode).
+        self.company.membership_invoicing_strategy = "manual"
+        office = self.env["res.users"].create({
+            "name": "Office",
+            "login": "office@example.com",
+            "email": "office@example.com",
+            "groups_id": [(6, 0, [
+                self.env.ref("base.group_user").id,
+                self.env.ref("association_membership.group_membership_manager").id,
+            ])],
+        })
+        wizard = self.env["membership.new.wizard"].with_user(office).create({
+            "partner_id": self.partner.id,
+            "product_id": self.product.id,
+        })
+        membership = self.env["membership.membership"].browse(wizard.action_confirm()["res_id"])
+        self.assertNotIn(office.partner_id, membership.message_partner_ids)
+        welcome = membership.message_ids.filtered(lambda m: self.partner in m.partner_ids)
+        self.assertEqual(len(welcome), 1)
+        self.assertNotIn(office.partner_id, welcome.notification_ids.res_partner_id)
+        self.env["membership.cancel.wizard"].with_user(office).with_context(
+            default_membership_id=membership.id
+        ).create({"send_cancellation_message": True}).action_confirm()
+        self.assertEqual(membership.state, "cancelled")
+        self.assertNotIn(office.partner_id, membership.message_partner_ids)
+
+
+class TestMigration(MembershipTestCommon):
+    def test_2_8_0_flags_products_in_membership_category(self):
+        path = get_module_path("association_membership") + "/migrations/18.0.2.8.0/post-migrate.py"
+        spec = importlib.util.spec_from_file_location("association_membership_2_8_0", path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        category = self.env.ref("association_membership.product_category_membership")
+        child = self.env["product.category"].create({"name": "Tiers", "parent_id": category.id})
+        legacy = self.env["product.template"].create({"name": "Legacy", "categ_id": child.id})
+        other = self.env["product.template"].create({"name": "Shirt"})
+        migration._flag_membership_products(self.env)
+        self.assertTrue(legacy.membership_ok)
+        self.assertFalse(other.membership_ok)

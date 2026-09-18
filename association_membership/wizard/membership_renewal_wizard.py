@@ -72,6 +72,17 @@ class MembershipRenewalWizard(models.TransientModel):
             "invoice_id": invoice.id if invoice else False,
         }
 
+    def _skipped_result(self, membership, message):
+        return Command.create(
+            {
+                "membership_id": membership.id,
+                "partner_id": membership.partner_id.id,
+                "company_id": membership.company_id.id,
+                "status": "skipped",
+                "message": message,
+            }
+        )
+
     def action_run(self):
         self.ensure_one()
         self.result_line_ids.unlink()
@@ -79,9 +90,14 @@ class MembershipRenewalWizard(models.TransientModel):
         result_commands = [Command.clear()]
         candidate_memberships = self._candidate_memberships()
         existing_membership_ids = self._existing_contribution_membership_ids(candidate_memberships)
+        # Retiring a tier means archiving its variant; those members need a new tier first.
+        archived_tier_memberships = candidate_memberships.filtered(
+            lambda membership: membership.id not in existing_membership_ids
+            and not membership.product_id.active
+        )
         eligible_memberships = candidate_memberships.filtered(
             lambda membership: membership.id not in existing_membership_ids
-        )
+        ) - archived_tier_memberships
         grouped_items = {}
 
         for membership in eligible_memberships:
@@ -139,17 +155,20 @@ class MembershipRenewalWizard(models.TransientModel):
         )
         for membership in skipped_memberships:
             result_commands.append(
-                Command.create(
-                    {
-                        "membership_id": membership.id,
-                        "partner_id": membership.partner_id.id,
-                        "company_id": membership.company_id.id,
-                        "status": "skipped",
-                        "message": _(
-                            "Skipped because a contribution already exists for %s."
-                        )
-                        % self.target_year,
-                    }
+                self._skipped_result(
+                    membership,
+                    _("Skipped because a contribution already exists for %s.") % self.target_year,
+                )
+            )
+        for membership in archived_tier_memberships:
+            result_commands.append(
+                self._skipped_result(
+                    membership,
+                    _(
+                        "Skipped because the membership product %s is archived."
+                        " Choose a current tier on the membership first."
+                    )
+                    % membership.product_id.display_name,
                 )
             )
 

@@ -10,8 +10,8 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.membership_auto_activate_on_payment",
         readonly=False,
     )
-    membership_product_category_id = fields.Many2one(
-        related="company_id.membership_product_category_id",
+    membership_company_mail_recipients = fields.Selection(
+        related="company_id.membership_company_mail_recipients",
         readonly=False,
     )
     membership_default_contribution_year = fields.Integer(

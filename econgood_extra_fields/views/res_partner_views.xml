@@ -85,4 +85,18 @@
             </xpath>
         </field>
     </record>
+    <!-- Moved from association_membership: delivery addresses are not used. -->
+    <record id="view_partner_form_hide_delivery" model="ir.ui.view">
+        <field name="name">res.partner.form.hide.delivery</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="partner_contact_address_default.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_delivery_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='child_ids']//form//field[@name='partner_delivery_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
 </odoo>

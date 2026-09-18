@@ -44,7 +44,7 @@ class MembershipCancelWizard(models.TransientModel):
         if not membership_id:
             return defaults
         membership = self.env["membership.membership"].browse(membership_id)
-        defaults["mail_partner_ids"] = [(6, 0, membership.partner_id.ids)]
+        defaults["mail_partner_ids"] = [(6, 0, membership._get_communication_partners().ids)]
         template = membership.company_id.membership_cancellation_template_id
         if template:
             defaults["cancellation_template_id"] = template.id
@@ -75,6 +75,8 @@ class MembershipCancelWizard(models.TransientModel):
         self.ensure_one()
         composer = self.env["mail.compose.message"].with_context(
             default_composition_mode="comment",
+            # The sender does not become a follower (5.3).
+            mail_create_nosubscribe=True,
             default_model="membership.membership",
             default_res_ids=self.membership_id.ids,
             default_template_id=self.cancellation_template_id.id,

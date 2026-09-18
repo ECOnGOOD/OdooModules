@@ -8,6 +8,11 @@
                 <group>
                     <field name="membership_id" />
                 </group>
+                <group string="Contribution" invisible="has_contribution">
+                    <field name="has_contribution" invisible="1" />
+                    <field name="contribution_year" options="{'format': false}" readonly="1" />
+                    <field name="create_contribution" />
+                </group>
                 <group string="Invoice" invisible="not has_draft_invoice">
                     <field name="has_draft_invoice" invisible="1" />
                     <field name="invoice_id" readonly="1" />

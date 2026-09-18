@@ -11,6 +11,9 @@ class MembershipActivateWizard(models.TransientModel):
         readonly=True,
     )
 
+    contribution_year = fields.Integer(readonly=True)
+    has_contribution = fields.Boolean(readonly=True)
+    create_contribution = fields.Boolean(string="Create Contribution")
     has_draft_invoice = fields.Boolean(readonly=True)
     invoice_id = fields.Many2one("account.move", readonly=True)
     confirm_invoice = fields.Boolean(string="Confirm Invoice")
@@ -39,6 +42,11 @@ class MembershipActivateWizard(models.TransientModel):
         if not membership_id:
             return defaults
         membership = self.env["membership.membership"].browse(membership_id)
+        contribution_year = membership._default_contribution_year()
+        has_contribution = contribution_year in membership.contribution_ids.mapped("membership_year")
+        defaults["contribution_year"] = contribution_year
+        defaults["has_contribution"] = has_contribution
+        defaults["create_contribution"] = not has_contribution
         invoice = self._get_current_year_draft_invoice(membership)
         strategy = membership.company_id.membership_invoicing_strategy
         if invoice and strategy != "manual":
@@ -47,10 +55,11 @@ class MembershipActivateWizard(models.TransientModel):
             defaults["confirm_invoice"] = True
             defaults["send_invoice_email"] = False
 
-        defaults["mail_partner_ids"] = [(6, 0, membership.partner_id.ids)]
+        defaults["mail_partner_ids"] = [(6, 0, membership._get_communication_partners().ids)]
 
         template = membership.company_id.membership_welcome_template_id
-        defaults["send_welcome_message"] = bool(template)
+        # No second welcome email when a cancelled membership is reactivated.
+        defaults["send_welcome_message"] = bool(template) and not membership.date_welcome_sent
         if template:
             defaults["welcome_template_id"] = template.id
             defaults["mail_subject"] = membership._render_mail_template_field(template, "subject") or ""
@@ -125,6 +134,8 @@ class MembershipActivateWizard(models.TransientModel):
             self.env["mail.compose.message"]
             .with_context(
                 default_composition_mode="comment",
+                # The sender does not become a follower (5.3).
+                mail_create_nosubscribe=True,
                 default_model="membership.membership",
                 default_res_ids=self.membership_id.ids,
                 default_email_layout_xmlid="mail.mail_notification_light",
@@ -151,6 +162,8 @@ class MembershipActivateWizard(models.TransientModel):
     def action_confirm(self):
         self.ensure_one()
         self.membership_id._do_transition("active")
+        if self.create_contribution:
+            self.membership_id._ensure_default_year_contribution()
         self._confirm_invoice()
         self._send_invoice_email()
         self._send_welcome_message()

@@ -12,7 +12,7 @@
                         <field
                             name="product_ids"
                             widget="many2many_tags"
-                            domain="[('is_membership_product', '=', True)]"
+                            domain="[('membership_ok', '=', True)]"
                         />
                     </group>
                     <group>

@@ -130,10 +130,7 @@ class MembershipMembership(models.Model):
         store=True,
     )
     active = fields.Boolean(default=True)
-    membership_category_id = fields.Many2one(
-        "product.category",
-        compute="_compute_membership_category_id",
-    )
+    product_domain = fields.Binary(compute="_compute_product_domain")
     partner_avatar_128 = fields.Image(
         related="partner_id.avatar_128",
         readonly=True,
@@ -146,103 +143,6 @@ class MembershipMembership(models.Model):
             "The membership number must be globally unique.",
         ),
     ]
-
-    def _auto_init(self):
-        result = super()._auto_init()
-        today = fields.Date.context_today(self)
-        self.env.cr.execute(
-            """
-            UPDATE membership_membership
-               SET state = CASE
-                   WHEN date_end > %s THEN 'cancelled'
-                   ELSE 'terminated'
-               END
-             WHERE state = 'active'
-               AND date_end IS NOT NULL
-            """,
-            (today,),
-        )
-        self._migrate_legacy_membership_numbers()
-        return result
-
-    def _migrate_legacy_membership_numbers(self):
-        self.env.cr.execute(
-            """
-            SELECT column_name
-              FROM information_schema.columns
-             WHERE table_schema = current_schema()
-               AND table_name = 'membership_membership'
-               AND column_name IN ('membership_number', 'member_number', 'external_ref')
-            """
-        )
-        available_columns = {row[0] for row in self.env.cr.fetchall()}
-        if "membership_number" not in available_columns:
-            return
-
-        if "member_number" in available_columns:
-            self.env.cr.execute(
-                """
-                UPDATE membership_membership
-                   SET membership_number = NULLIF(BTRIM(member_number), '')
-                 WHERE (membership_number IS NULL OR BTRIM(membership_number) = '')
-                   AND member_number IS NOT NULL
-                   AND BTRIM(member_number) != ''
-                """
-            )
-
-        if "external_ref" not in available_columns:
-            return
-
-        self.env.cr.execute(
-            """
-            SELECT id,
-                   NULLIF(BTRIM(membership_number), '') AS membership_number,
-                   NULLIF(BTRIM(external_ref), '') AS external_ref
-              FROM membership_membership
-            """
-        )
-        rows = self.env.cr.dictfetchall()
-        existing_numbers = {}
-        pending_numbers = {}
-        for row in rows:
-            if row["membership_number"]:
-                existing_numbers.setdefault(row["membership_number"], []).append(row["id"])
-            elif row["external_ref"]:
-                pending_numbers.setdefault(row["external_ref"], []).append(row["id"])
-
-        duplicate_number = next(
-            (number for number, ids in pending_numbers.items() if len(ids) > 1),
-            False,
-        )
-        if duplicate_number:
-            raise ValidationError(
-                _(
-                    "Cannot migrate legacy external references because '%s' is used on multiple memberships."
-                )
-                % duplicate_number
-            )
-
-        conflicting_number = next(
-            (number for number in pending_numbers if number in existing_numbers),
-            False,
-        )
-        if conflicting_number:
-            raise ValidationError(
-                _(
-                    "Cannot migrate legacy external references because '%s' is already used as a membership number."
-                )
-                % conflicting_number
-            )
-
-        self.env.cr.execute(
-            """
-            UPDATE membership_membership
-               SET membership_number = NULLIF(BTRIM(external_ref), '')
-             WHERE (membership_number IS NULL OR BTRIM(membership_number) = '')
-               AND external_ref IS NOT NULL
-               AND BTRIM(external_ref) != ''
-            """
-        )
 
     @api.depends("partner_id", "product_id", "company_id")
     def _compute_name(self):
@@ -313,15 +213,10 @@ class MembershipMembership(models.Model):
             record.last_contribution_year = latest.membership_year if latest else 0
             record.last_billing_status = latest.billing_status if latest else False
 
-    @api.depends("company_id")
-    def _compute_membership_category_id(self):
+    @api.depends("company_id", "partner_id.is_company")
+    def _compute_product_domain(self):
         for record in self:
-            record.membership_category_id = self._get_membership_category(company=record.company_id)
-
-    @api.model
-    def _get_membership_category(self, company=False):
-        company = company or self.env.company
-        return company._membership_product_category()
+            record.product_domain = record._membership_product_domain()
 
     @api.model
     def _is_auto_activate_on_payment_enabled(self, company=False):
@@ -412,29 +307,15 @@ class MembershipMembership(models.Model):
             return
         self.invoice_partner_id = self._resolve_default_invoice_partner(self.partner_id)
 
-    @api.model
-    def _membership_product_domain(self, company=False):
-        company = company or self.env.company
-        category = self._get_membership_category(company=company)
-        if not category:
-            return [("id", "=", 0)]
-        return [
-            ("active", "=", True),
-            ("categ_id", "child_of", category.id),
-            "|",
-            ("company_id", "=", False),
-            ("company_id", "=", company.id),
-        ]
+    def _membership_product_domain(self):
+        return self.env["product.product"]._membership_product_domain(
+            self.company_id or self.env.company, self.partner_id
+        )
 
-    @api.onchange("company_id")
-    def _onchange_company_id(self):
-        company = self.company_id or self.env.company
-        domain = self._membership_product_domain(company=company)
-        if self.product_id and not self.env["product.product"].search_count(
-            domain + [("id", "=", self.product_id.id)]
-        ):
+    @api.onchange("company_id", "partner_id")
+    def _onchange_membership_product(self):
+        if self.product_id and not self.product_id.filtered_domain(self._membership_product_domain()):
             self.product_id = False
-        return {"domain": {"product_id": domain}}
 
     @api.constrains("date_start", "date_end")
     def _check_dates(self):
@@ -455,19 +336,23 @@ class MembershipMembership(models.Model):
                     )
                 )
 
-    @api.constrains("product_id")
+    @api.constrains("product_id", "partner_id", "company_id")
     def _check_membership_product(self):
         for record in self:
-            category = self._get_membership_category(company=record.company_id)
-            if not category or not record.product_id:
-                continue
-            if not self.env["product.product"].search_count(
-                [("id", "=", record.product_id.id), ("categ_id", "child_of", category.id)]
-            ):
+            if not record.product_id.filtered_domain(record._membership_product_domain()):
                 raise ValidationError(
                     _(
-                        "Only products from the configured Membership category can be used."
+                        "%(product)s cannot be used for this membership. Use a membership"
+                        " product of %(company)s (or without company) that is meant"
+                        " for %(partner_type)s."
                     )
+                    % {
+                        "product": record.product_id.display_name,
+                        "company": record.company_id.display_name,
+                        "partner_type": _("organisations")
+                        if record.partner_id.is_company
+                        else _("individuals"),
+                    }
                 )
 
     @api.constrains("product_id")
@@ -623,7 +508,10 @@ class MembershipMembership(models.Model):
         ]
         self._check_explicit_membership_number_conflicts(prepared_vals_list)
         try:
-            records = super().create(prepared_vals_list)
+            # The creator does not follow: followers get copies of member emails (5.3).
+            records = super(
+                MembershipMembership, self.with_context(mail_create_nosubscribe=True)
+            ).create(prepared_vals_list)
             records._assign_membership_number_if_missing()
         except IntegrityError as exc:
             constraint_name = getattr(getattr(exc, "diag", None), "constraint_name", "")
@@ -690,6 +578,26 @@ class MembershipMembership(models.Model):
     def _get_invoice_partner(self):
         self.ensure_one()
         return self.invoice_partner_id or self._resolve_default_invoice_partner(self.partner_id)
+
+    def _get_communication_partners(self):
+        """Recipients of member emails, used by all membership wizards.
+
+        Individuals always get their own emails. For organisations the company
+        setting decides. The contact person comes from ``address_get``: that is
+        ``partner_contact_id`` when partner_contact_address_default is
+        installed, and otherwise the organisation itself.
+        """
+        self.ensure_one()
+        member = self.partner_id
+        setting = self.company_id.membership_company_mail_recipients
+        if not member.is_company or setting == "member":
+            return member
+        recipients = self.env["res.partner"]
+        if setting in ("contact_person", "contact_person_and_invoice_contact"):
+            recipients |= recipients.browse(member.address_get(["contact"])["contact"])
+        if setting in ("invoice_contact", "contact_person_and_invoice_contact"):
+            recipients |= self._get_invoice_partner()
+        return recipients or member
 
     def _get_default_cancel_values(self, cancel_date=False, cancel_reason=False):
         self.ensure_one()
@@ -866,16 +774,13 @@ class MembershipMembership(models.Model):
             options=options,
         ).get(self.id)
 
-    def action_create_contribution(self):
+    def _ensure_default_year_contribution(self):
+        """Return the contribution of the default year, creating it if missing."""
         self.ensure_one()
         contribution_year = self._default_contribution_year()
-        contribution = self.env["membership.contribution"].search(
-            [
-                ("membership_id", "=", self.id),
-                ("membership_year", "=", contribution_year),
-            ],
-            limit=1,
-        )
+        contribution = self.contribution_ids.filtered(
+            lambda contribution: contribution.membership_year == contribution_year
+        )[:1]
         if not contribution:
             contribution = self.env["membership.contribution"].create(
                 self._prepare_contribution_create_values(
@@ -886,6 +791,11 @@ class MembershipMembership(models.Model):
                 strategy=self.company_id.membership_invoicing_strategy,
                 invoice_date=fields.Date.context_today(self),
             )
+        return contribution
+
+    def action_create_contribution(self):
+        self.ensure_one()
+        self._ensure_default_year_contribution()
         return {
             "type": "ir.actions.client",
             "tag": "reload",

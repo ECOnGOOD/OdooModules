@@ -24,10 +24,17 @@ def normalize_year_value(value, field_label):
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    membership_product_category_id = fields.Many2one(
-        "product.category",
-        string="Membership Product Category",
-        default=lambda self: self._default_membership_product_category(),
+    membership_company_mail_recipients = fields.Selection(
+        [
+            ("member", "The organisation"),
+            ("contact_person", "Contact person"),
+            ("invoice_contact", "Invoice contact"),
+            ("contact_person_and_invoice_contact", "Contact person and invoice contact"),
+        ],
+        string="Email recipients for organisation members",
+        default="contact_person",
+        required=True,
+        help="Individuals always receive their own emails.",
     )
     membership_auto_activate_on_payment = fields.Boolean(
         string="Auto-activate membership on payment",
@@ -82,17 +89,6 @@ class ResCompany(models.Model):
         string="Member Number Padding",
         default=5,
     )
-
-    @api.model
-    def _default_membership_product_category(self):
-        return self.env.ref(
-            "association_membership.product_category_membership",
-            raise_if_not_found=False,
-        )
-
-    def _membership_product_category(self):
-        self.ensure_one()
-        return self.membership_product_category_id or self._default_membership_product_category()
 
     def _membership_cron_target_year(self):
         self.ensure_one()

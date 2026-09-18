@@ -295,11 +295,6 @@ class MembershipContribution(models.Model):
     def create(self, vals_list):
         prepared_vals_list = [self._prepare_membership_contribution_values(vals) for vals in vals_list]
         records = super().create(prepared_vals_list)
-        records.filtered(
-            lambda contribution: not contribution.invoice_id
-            and not contribution.refund_move_id
-            and not contribution.invoice_line_id
-        )._sync_accounting_links_from_lines()
         if self.env.context.get("create_membership_invoice"):
             strategy = self.env.context.get("membership_invoicing_strategy") or "draft"
             records._apply_invoicing_strategy(

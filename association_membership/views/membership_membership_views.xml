@@ -158,7 +158,14 @@
                         type="object"
                         class="oe_highlight"
                         groups="association_membership.group_membership_manager"
-                        invisible="state not in ('waiting', 'cancelled')"
+                        invisible="state != 'waiting'"
+                    />
+                    <button
+                        name="action_activate"
+                        string="Reactivate"
+                        type="object"
+                        groups="association_membership.group_membership_manager"
+                        invisible="state != 'cancelled'"
                     />
                     <button
                         name="action_cancel"
@@ -212,11 +219,8 @@
                                 <label for="override_membership_number" string="Override" class="o_form_label ms-2" />
                             </div>
                             <field name="membership_number" invisible="not id and not override_membership_number" />
-                            <field name="membership_category_id" invisible="1" />
-                            <field
-                                name="product_id"
-                                domain="[('active', '=', True), ('categ_id', 'child_of', membership_category_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"
-                            />
+                            <field name="product_domain" invisible="1" />
+                            <field name="product_id" domain="product_domain" />
                         </group>
                         <group>
                             <field name="date_start" />

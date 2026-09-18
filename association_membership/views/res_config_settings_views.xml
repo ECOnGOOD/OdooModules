@@ -8,8 +8,11 @@
             <xpath expr="//form" position="inside">
                 <app string="Membership" name="association_membership" groups="association_membership.group_membership_manager">
                     <block title="Membership">
-                        <setting string="Membership Product Category">
-                            <field name="membership_product_category_id" />
+                        <setting
+                            string="Email Recipients for Organisation Members"
+                            help="Who receives welcome and cancellation emails of organisation members. Individuals always receive their own emails. The contact person is the one set on the organisation, or the organisation itself."
+                        >
+                            <field name="membership_company_mail_recipients" />
                         </setting>
                         <setting string="Auto-activate on Payment">
                             <field name="membership_auto_activate_on_payment" />

@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from markupsafe import Markup, escape
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 
 
 class ResPartner(models.Model):
@@ -93,17 +93,8 @@ class ResPartner(models.Model):
 
     def action_create_membership(self):
         self.ensure_one()
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Create Membership"),
-            "res_model": "membership.membership",
-            "view_mode": "form",
-            "target": "current",
-            "context": {
-                "default_partner_id": self.id,
-                "default_invoice_partner_id": self.env["membership.membership"]
-                ._resolve_default_invoice_partner(self)
-                .id,
-                "default_company_id": self.env.company.id,
-            },
-        }
+        action = self.env["ir.actions.act_window"]._for_xml_id(
+            "association_membership.action_membership_new_wizard"
+        )
+        action["context"] = {"default_partner_id": self.id}
+        return action
