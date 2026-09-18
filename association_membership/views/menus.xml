@@ -115,6 +115,31 @@
         groups="association_membership.group_membership_manager"
     />
 
+    <!-- donation_base ships the actions but no menus. -->
+    <menuitem
+        id="menu_membership_tax_receipts_root"
+        name="Tax Receipts"
+        parent="association_membership.menu_membership_root"
+        sequence="35"
+        groups="account.group_account_invoice"
+    />
+
+    <menuitem
+        id="menu_membership_tax_receipts"
+        name="Tax Receipts"
+        parent="association_membership.menu_membership_tax_receipts_root"
+        action="donation_base.donation_tax_receipt_action"
+        sequence="10"
+    />
+
+    <menuitem
+        id="menu_membership_tax_receipts_annual"
+        name="Create Annual Receipts"
+        parent="association_membership.menu_membership_tax_receipts_root"
+        action="donation_base.tax_receipt_annual_create_action"
+        sequence="20"
+    />
+
     <menuitem
         id="menu_membership_configuration"
         name="Configuration"

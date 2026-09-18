@@ -60,6 +60,12 @@ class MembershipContribution(models.Model):
     )
     amount_invoiced = fields.Monetary(compute="_compute_amount_invoiced", store=True, readonly=False)
     amount_paid = fields.Monetary(compute="_compute_amount_paid", store=True, readonly=False)
+    date_paid = fields.Date(
+        string="Payment Date",
+        copy=False,
+        help="Date the money was received (manual mode). Annual tax receipts"
+        " only include contributions with a payment date.",
+    )
     billing_status = fields.Selection(
         selection=CONTRIBUTION_BILLING_STATUS,
         compute="_compute_billing_status",
@@ -429,26 +435,46 @@ class MembershipContribution(models.Model):
                 }
             )
 
+    def _tax_receipt_partner(self):
+        self.ensure_one()
+        return (self.invoice_partner_id or self.membership_id._get_invoice_partner()).commercial_partner_id
+
     def _is_tax_receipt_eligible(self, invoice):
         self.ensure_one()
-        if self.tax_receipt_id:
+        # Only once the money is confirmed, not while the payment is in_payment (6.4).
+        if self.tax_receipt_id or invoice.payment_state != "paid":
             return False
         if not self.product_id.tax_receipt_ok:
             return False
-        partner = self.invoice_partner_id or self.membership_id._get_invoice_partner()
-        option = partner.commercial_partner_id.tax_receipt_option
-        return option == "each"
+        return self._tax_receipt_partner().tax_receipt_option == "each"
+
+    def _flag_invalid_tax_receipts(self, move):
+        """A refund or reversed payment invalidates the receipt (6.4).
+
+        donation_base receipts have no cancelled state, and a sent receipt must
+        be reclaimed anyway: never delete, ask for a manual correction.
+        """
+        for receipt in self.tax_receipt_id:
+            receipt.sudo().activity_schedule(
+                "mail.mail_activity_data_todo",
+                summary=_("Reclaim or correct this tax receipt"),
+                note=_(
+                    "%(move)s reverses a payment this receipt was issued for."
+                    " Reclaim the receipt from the donor or issue a corrected one."
+                )
+                % {"move": move.display_name},
+                user_id=self.env.uid,
+            )
 
     def _prepare_tax_receipt_values(self, invoice):
         self.ensure_one()
-        partner = self.invoice_partner_id or self.membership_id._get_invoice_partner()
         return {
             "company_id": self.company_id.id,
             "currency_id": self.company_id.currency_id.id,
             "donation_date": invoice.invoice_date or fields.Date.context_today(self),
             "amount": self.amount_paid or self.amount_invoiced or self.amount,
             "type": "each",
-            "partner_id": partner.commercial_partner_id.id,
+            "partner_id": self._tax_receipt_partner().id,
         }
 
     def _maybe_issue_tax_receipt(self, invoice):
@@ -480,5 +506,6 @@ class MembershipContribution(models.Model):
                 "amount_invoiced": record.amount,
                 "amount_paid": record.amount,
                 "billing_status": "paid",
+                "date_paid": record.date_paid or fields.Date.context_today(record),
             })
         return True

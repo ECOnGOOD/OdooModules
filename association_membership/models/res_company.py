@@ -160,6 +160,28 @@ class ResCompany(models.Model):
             )
         return sequence
 
+    def _ensure_tax_receipt_sequence(self):
+        """Give the company its own receipt numbering.
+
+        donation_base creates one sequence for the company that installs it;
+        every association numbers its own receipts.
+        """
+        self.ensure_one()
+        sequence_model = self.env["ir.sequence"].sudo()
+        code = "donation.tax.receipt"
+        if sequence_model.search_count([("code", "=", code), ("company_id", "in", [self.id, False])]):
+            return
+        sequence_model.create(
+            {
+                "name": "Donation Tax Receipt (%s)" % self.name,
+                "code": code,
+                "company_id": self.id,
+                "prefix": "%(range_year)s-",
+                "use_date_range": True,
+                "padding": 5,
+            }
+        )
+
     def _render_member_number_prefix(self, target_date=False):
         self.ensure_one()
         sequence_date = fields.Date.to_date(target_date or fields.Date.today())

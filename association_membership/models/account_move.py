@@ -8,6 +8,10 @@ class AccountMove(models.Model):
         posted = super()._post(soft=soft)
         for refund in posted.filtered(lambda move: move.move_type == "out_refund"):
             refund.line_ids.membership_contribution_id.post_refund_review_message(refund)
+            # A credit note created with "Reverse" carries no contribution links itself.
+            (
+                refund.line_ids | refund.reversed_entry_id.line_ids
+            ).membership_contribution_id._flag_invalid_tax_receipts(refund)
         return posted
 
     def _invoice_paid_hook(self):

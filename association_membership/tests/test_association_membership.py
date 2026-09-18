@@ -48,6 +48,14 @@ class MembershipTestCommon(TransactionCase):
         vals.update(overrides)
         return self.env["membership.contribution"].create(vals)
 
+    def _run_annual_wizard(self):
+        action = self.env["tax.receipt.annual.create"].create({
+            "start_date": date(date.today().year, 1, 1),
+            "end_date": date(date.today().year, 12, 31),
+            "company_id": self.company.id,
+        }).generate_annual_receipts()
+        return self.env["donation.tax.receipt"].search(action["domain"])
+
     def _make_membership(self, **overrides):
         vals = {
             "partner_id": self.partner.id,
@@ -370,6 +378,37 @@ class TestTaxReceipts(MembershipTestCommon):
         self.assertFalse(contribution.tax_receipt_id)
 
 
+    def test_each_company_numbers_its_own_receipts(self):
+        branch = self.env["res.company"].create({"name": "Branch", "parent_id": self.company.id})
+        receipt = self.env["donation.tax.receipt"].create({
+            "company_id": branch.id,
+            "partner_id": self.partner.id,
+            "amount": 10.0,
+            "type": "each",
+            "donation_date": date.today(),
+        })
+        self.assertNotEqual(receipt.number, "New")
+        self.assertTrue(self.env["ir.sequence"].search_count([
+            ("code", "=", "donation.tax.receipt"), ("company_id", "=", branch.id),
+        ]))
+
+    def test_refund_flags_receipt(self):
+        contribution, invoice = self._make_paid_invoice()
+        receipt = contribution.tax_receipt_id
+        self.assertFalse(receipt.activity_ids)
+        refund = invoice._reverse_moves()
+        refund.action_post()
+        self.assertEqual(len(receipt.activity_ids), 1)
+        self.assertTrue(receipt.exists())
+
+    def test_unreconciled_payment_flags_receipt(self):
+        contribution, invoice = self._make_paid_invoice()
+        receipt = contribution.tax_receipt_id
+        invoice.line_ids.remove_move_reconcile()
+        self.assertNotEqual(invoice.payment_state, "paid")
+        self.assertEqual(len(receipt.activity_ids), 1)
+
+
 class TestAnnualReceiptHook(MembershipTestCommon):
     def test_annual_hook_aggregates_eligible_contributions(self):
         self.partner.tax_receipt_option = "annual"
@@ -395,38 +434,74 @@ class TestAnnualReceiptHook(MembershipTestCommon):
         self.assertIn(commercial, receipt_dict)
         self.assertEqual(receipt_dict[commercial]["amount"], contribution.amount_paid)
 
-    def test_annual_hook_skips_already_stamped_contributions(self):
+    def test_annual_wizard_links_contributions_once(self):
         self.partner.tax_receipt_option = "annual"
         membership = self._make_membership()
-        contribution = self.env["membership.contribution"].create({
-            "membership_id": membership.id,
-            "membership_year": date.today().year,
-            "amount": 50.0,
-        })
+        contribution = self._make_contribution(membership, amount=50.0)
         contribution._apply_invoicing_strategy(strategy="confirm")
         self.env["account.payment.register"].with_context(
             active_model="account.move",
             active_ids=contribution.invoice_id.ids,
         ).create({}).action_create_payments()
-        receipt = self.env["donation.tax.receipt"].create({
-            "company_id": self.company.id,
-            "currency_id": self.company.currency_id.id,
-            "partner_id": self.partner.commercial_partner_id.id,
-            "donation_date": date(date.today().year, 12, 31),
-            "amount": 50.0,
-            "type": "annual",
-        })
-        # Annual receipt creation auto-stamps via the override
+        receipt = self._run_annual_wizard()
+        self.assertEqual(receipt.membership_contribution_ids, contribution)
         self.assertEqual(contribution.tax_receipt_id, receipt)
-        # Subsequent hook call should not re-aggregate
+        self.assertEqual(receipt.amount, 50.0)
         receipt_dict = {}
         self.env["donation.tax.receipt"].update_tax_receipt_annual_dict(
-            receipt_dict,
-            date(date.today().year, 1, 1),
-            date(date.today().year, 12, 31),
-            self.company,
+            receipt_dict, date(date.today().year, 1, 1), date(date.today().year, 12, 31), self.company
         )
         self.assertNotIn(self.partner.commercial_partner_id, receipt_dict)
+
+
+class TestManualModeReceipts(MembershipTestCommon):
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+
+    def _paid_contribution(self, option, partner=None):
+        partner = partner or self.env["res.partner"].create({"name": option})
+        partner.tax_receipt_option = option
+        membership = self._make_membership(partner_id=partner.id)
+        contribution = self._make_contribution(membership, amount=50.0)
+        contribution.action_mark_as_paid()
+        return contribution
+
+    def test_mark_as_paid_sets_payment_date_and_issues_no_receipt(self):
+        contribution = self._paid_contribution("each")
+        self.assertEqual(contribution.date_paid, date.today())
+        self.assertFalse(contribution.tax_receipt_id)
+
+    def test_annual_receipt_covers_each_and_annual_partners(self):
+        annual = self._paid_contribution("annual")
+        each = self._paid_contribution("each")
+        none = self._paid_contribution("none")
+        receipts = self._run_annual_wizard()
+        self.assertEqual(receipts.membership_contribution_ids, annual | each)
+        self.assertEqual(set(receipts.mapped("type")), {"annual"})
+        self.assertFalse(none.tax_receipt_id)
+
+    def test_imported_paid_history_is_not_receipted(self):
+        partner = self.env["res.partner"].create({"name": "Imported", "tax_receipt_option": "annual"})
+        membership = self._make_membership(partner_id=partner.id)
+        # The importer writes the status directly, without a payment date.
+        self._make_contribution(membership, amount=50.0).write(
+            {"billing_status": "paid", "amount_paid": 50.0}
+        )
+        receipt_dict = {}
+        self.env["donation.tax.receipt"].update_tax_receipt_annual_dict(
+            receipt_dict, date(date.today().year, 1, 1), date(date.today().year, 12, 31), self.company
+        )
+        self.assertNotIn(partner, receipt_dict)
+
+    def test_product_not_eligible_is_not_receipted(self):
+        self.product.tax_receipt_ok = False
+        contribution = self._paid_contribution("annual")
+        receipt_dict = {}
+        self.env["donation.tax.receipt"].update_tax_receipt_annual_dict(
+            receipt_dict, date(date.today().year, 1, 1), date(date.today().year, 12, 31), self.company
+        )
+        self.assertNotIn(contribution._tax_receipt_partner(), receipt_dict)
 
 
 class TestMembershipNumberSequence(MembershipTestCommon):
@@ -664,6 +739,12 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
             "Willkommen, %s!" % self.partner.name,
         )
         self.assertIn("Guten Tag", german._render_field("body_html", membership.ids)[membership.id])
+        # The whole UI is translated, not only the templates.
+        fields_de = self.env["membership.membership"].with_context(lang="de_DE").fields_get(
+            ["state", "contribution_ids"], ["string", "selection"]
+        )
+        self.assertEqual(fields_de["contribution_ids"]["string"], "Beiträge")
+        self.assertIn(("cancelled", "Gekündigt"), fields_de["state"]["selection"])
 
     def test_activation_invoice_template_renders(self):
         membership = self._make_membership()

@@ -3,6 +3,7 @@ from . import membership_contribution  # noqa: F401
 from . import product_product  # noqa: F401
 from . import res_partner  # noqa: F401
 from . import account_move  # noqa: F401
+from . import account_partial_reconcile  # noqa: F401
 from . import account_move_line  # noqa: F401
 from . import donation_tax_receipt  # noqa: F401
 from . import res_company  # noqa: F401

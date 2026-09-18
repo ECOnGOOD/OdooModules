@@ -91,6 +91,7 @@
                             <field name="amount_invoiced" readonly="membership_invoicing_strategy != 'manual'" />
                             <field name="amount_paid" readonly="membership_invoicing_strategy != 'manual'" />
                             <field name="billing_status" readonly="membership_invoicing_strategy != 'manual'" />
+                            <field name="date_paid" invisible="membership_invoicing_strategy != 'manual'" />
                             <field name="tax_receipt_id" readonly="1" />
                         </group>
                     </group>

@@ -1,6 +1,6 @@
 {
     "name": "Association Membership — Germany",
-    "version": "18.0.1.0.0",
+    "version": "18.0.2.0.0",
     "category": "Association",
     "summary": "Zuwendungsbestätigung (German tax-deductible donation receipt) for memberships",
     "author": "ECOnGOOD",

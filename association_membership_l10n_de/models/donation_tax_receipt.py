@@ -26,6 +26,10 @@ class DonationTaxReceipt(models.Model):
         for record in self:
             record.de_amount_in_words = record._render_de_amount_in_words()
 
+    def _de_report_lang(self):
+        """German number and date formats when German is installed."""
+        return "de_DE" if self.env["res.lang"]._lang_get("de_DE") else self.env.lang
+
     def _render_de_amount_in_words(self):
         self.ensure_one()
         if not self.amount:
