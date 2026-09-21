@@ -11,11 +11,11 @@ erDiagram
     RES_PARTNER   ||--o{ MEMBERSHIP : "member / invoice contact"
     RES_COMPANY   ||--o{ MEMBERSHIP : owns
     PRODUCT       ||--o{ MEMBERSHIP : "type (tmpl) + tier (variant)"
-    MEMBERSHIP    ||--o{ CONTRIBUTION : "one per year"
-    CONTRIBUTION  |o--o| ACCOUNT_MOVE : "invoice / refund"
-    CONTRIBUTION  |o--o| TAX_RECEIPT : "per payment or annual"
+    MEMBERSHIP    ||--o{ PERIOD : "one per year"
+    PERIOD  |o--o| ACCOUNT_MOVE : "invoice / refund"
+    PERIOD  |o--o| TAX_RECEIPT : "per payment or annual"
     ACCOUNT_MOVE  ||--o{ MOVE_LINE : "lines"
-    MOVE_LINE     |o--o| CONTRIBUTION : "round-trip metadata"
+    MOVE_LINE     |o--o| PERIOD : "round-trip metadata"
 ```
 
 ### `membership.membership`
