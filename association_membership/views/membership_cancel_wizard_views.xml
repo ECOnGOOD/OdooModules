@@ -15,6 +15,17 @@
                         invisible="not cancellation_template_id"
                     />
                 </group>
+                <group string="Unpaid Periods" invisible="not open_period_ids">
+                    <field name="open_period_handling" widget="radio" nolabel="1" />
+                    <field name="open_period_ids" nolabel="1" readonly="1">
+                        <list>
+                            <field name="membership_year" string="Year" options="{'enable_formatting': false}" />
+                            <field name="amount" />
+                            <field name="billing_status" />
+                            <field name="invoice_id" />
+                        </list>
+                    </field>
+                </group>
                 <group invisible="not send_cancellation_message">
                     <field name="invoice_partner_included" invisible="1" />
                     <label for="mail_partner_ids" />

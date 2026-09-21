@@ -1,5 +1,7 @@
 from odoo import Command, _, api, fields, models
 
+from ..models.res_company import INVOICING_STRATEGY_SELECTION
+
 
 class MembershipActivateWizard(models.TransientModel):
     _name = "membership.activate.wizard"
@@ -10,14 +12,19 @@ class MembershipActivateWizard(models.TransientModel):
         required=True,
         readonly=True,
     )
+    invoicing_strategy = fields.Selection(
+        selection=INVOICING_STRATEGY_SELECTION,
+        string="Invoicing Strategy",
+        default=lambda self: self.env.company.membership_invoicing_strategy,
+        help="Applies from now on. Changing it here also sets it on the membership.",
+    )
 
-    contribution_year = fields.Integer(readonly=True)
-    has_contribution = fields.Boolean(readonly=True)
-    create_contribution = fields.Boolean(string="Create Contribution")
-    has_draft_invoice = fields.Boolean(readonly=True)
+    period_year = fields.Integer(readonly=True)
+    has_period = fields.Boolean(readonly=True)
+    create_period = fields.Boolean(string="Create Period")
     invoice_id = fields.Many2one("account.move", readonly=True)
-    confirm_invoice = fields.Boolean(string="Confirm Invoice")
     send_invoice_email = fields.Boolean(string="Send Invoice Email")
+    free_period_warning = fields.Char(compute="_compute_free_period_warning")
 
     welcome_template_id = fields.Many2one(
         "mail.template",
@@ -42,24 +49,31 @@ class MembershipActivateWizard(models.TransientModel):
         if not membership_id:
             return defaults
         membership = self.env["membership.membership"].browse(membership_id)
-        contribution_year = membership._default_contribution_year()
-        has_contribution = contribution_year in membership.contribution_ids.mapped("membership_year")
-        defaults["contribution_year"] = contribution_year
-        defaults["has_contribution"] = has_contribution
-        defaults["create_contribution"] = not has_contribution
-        invoice = self._get_current_year_draft_invoice(membership)
-        strategy = membership.company_id.membership_invoicing_strategy
-        if invoice and strategy != "manual":
+        period_year = membership._default_period_year()
+        has_period = period_year in membership.period_ids.mapped("membership_year")
+        defaults["period_year"] = period_year
+        defaults["has_period"] = has_period
+        defaults["create_period"] = not has_period
+        strategy = membership._get_invoicing_strategy()
+        defaults["invoicing_strategy"] = strategy
+        invoice = self._get_current_year_invoice(membership)
+        if invoice:
             defaults["invoice_id"] = invoice.id
-            defaults["has_draft_invoice"] = True
-            defaults["confirm_invoice"] = True
-            defaults["send_invoice_email"] = False
+        # An invoice can only be sent once it is posted, which only `confirm`
+        # does. `draft` deliberately leaves it in draft.
+        defaults["send_invoice_email"] = False
 
         defaults["mail_partner_ids"] = [(6, 0, membership._get_communication_partners().ids)]
 
         template = membership.company_id.membership_welcome_template_id
-        # No second welcome email when a cancelled membership is reactivated.
-        defaults["send_welcome_message"] = bool(template) and not membership.date_welcome_sent
+        # Only a first activation welcomes anybody: reactivating a cancelled
+        # membership, or activating a reopened one, must not send it again.
+        first_activation = (
+            membership.state == "waiting"
+            and not membership.date_welcome_sent
+            and not membership.period_ids
+        )
+        defaults["send_welcome_message"] = bool(template) and first_activation
         if template:
             defaults["welcome_template_id"] = template.id
             defaults["mail_subject"] = membership._render_mail_template_field(template, "subject") or ""
@@ -67,12 +81,15 @@ class MembershipActivateWizard(models.TransientModel):
         return defaults
 
     @api.model
-    def _get_current_year_draft_invoice(self, membership):
-        target_year = membership._default_contribution_year()
-        contribution = membership.contribution_ids.filtered(
-            lambda c: c.membership_year == target_year and c.invoice_id and c.invoice_id.state == "draft"
+    def _get_current_year_invoice(self, membership):
+        """The current year's invoice, draft or posted."""
+        target_year = membership._default_period_year()
+        period = membership.period_ids.filtered(
+            lambda c: c.membership_year == target_year
+            and c.invoice_id
+            and c.invoice_id.state in ("draft", "posted")
         )[:1]
-        return contribution.invoice_id if contribution else self.env["account.move"]
+        return period.invoice_id if period else self.env["account.move"]
 
     @api.onchange("welcome_template_id")
     def _onchange_welcome_template_id(self):
@@ -104,12 +121,21 @@ class MembershipActivateWizard(models.TransientModel):
             self.mail_partner_ids = [Command.link(invoice_partner.id)]
         return True
 
-    def _confirm_invoice(self):
-        self.ensure_one()
-        if not (self.confirm_invoice and self.invoice_id and self.invoice_id.state == "draft"):
-            return False
-        self.invoice_id.action_post()
-        return True
+    @api.depends("invoicing_strategy", "create_period", "has_period", "membership_id.amount")
+    def _compute_free_period_warning(self):
+        """A zero fee cannot be invoiced - say so instead of doing nothing."""
+        for wizard in self:
+            wizard.free_period_warning = False
+            if wizard.invoicing_strategy == "manual" or not wizard.membership_id:
+                continue
+            if not wizard.create_period and not wizard.has_period:
+                continue
+            if wizard.membership_id.amount:
+                continue
+            wizard.free_period_warning = _(
+                "The membership fee is 0, so no invoice will be created."
+                " Set an amount on the membership first if one is owed."
+            )
 
     def _send_invoice_email(self):
         self.ensure_one()
@@ -161,10 +187,23 @@ class MembershipActivateWizard(models.TransientModel):
 
     def action_confirm(self):
         self.ensure_one()
-        self.membership_id._do_transition("active")
-        if self.create_contribution:
-            self.membership_id._ensure_default_year_contribution()
-        self._confirm_invoice()
+        membership = self.membership_id
+        # Set the strategy first: the period billed below freezes it.
+        if self.invoicing_strategy != membership._get_invoicing_strategy():
+            membership.invoicing_strategy = self.invoicing_strategy
+        if membership.state == "draft":
+            # "New" leaves the form in draft, so activating from there is one
+            # click rather than Submit followed by Activate.
+            membership._do_transition("waiting")
+        membership._do_transition("active")
+        if self.create_period or self.has_period:
+            # Invoices an existing, never-billed period too, not only a new one.
+            membership._ensure_default_year_period()
+        # The period may have just produced the invoice, so resolve it
+        # again rather than trusting what default_get saw. The strategy alone
+        # decides whether it is a draft or already posted.
+        if not self.invoice_id:
+            self.invoice_id = self._get_current_year_invoice(membership)
         self._send_invoice_email()
         self._send_welcome_message()
         return {"type": "ir.actions.act_window_close"}

@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_membership_period_list" model="ir.ui.view">
+        <field name="name">membership.period.list</field>
+        <field name="model">membership.period</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="membership_id" />
+                <field name="partner_id" />
+                <field name="invoice_partner_id" optional="hide" />
+                <field name="company_id" />
+                <field name="product_id" />
+                <field name="membership_year" string="Year" options="{'enable_formatting': false}" />
+                <field name="date_start" optional="hide" />
+                <field name="date_end" optional="hide" />
+                <field name="amount" />
+                <field name="amount_paid" />
+                <field name="billing_status" />
+                <field name="invoice_id" />
+                <field name="refund_move_id" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+<record id="view_membership_period_search" model="ir.ui.view">
+        <field name="name">membership.period.search</field>
+        <field name="model">membership.period</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="membership_id" />
+                <field name="partner_id" />
+                <field name="company_id" />
+                <field name="product_id" />
+                <field name="membership_year" />
+                <field name="billing_status" />
+                <filter
+                    name="current_year"
+                    string="Current Year"
+                    domain="[('membership_year', '=', context.get('default_membership_year_filter'))]"
+                />
+                <filter
+                    name="unpaid_periods"
+                    string="Unpaid"
+                    domain="[('billing_status', 'in', ('to_invoice', 'invoiced', 'partial'))]"
+                />
+                <filter
+                    name="invoiced_only"
+                    string="Invoiced"
+                    domain="[('invoice_id', '!=', False)]"
+                />
+                <filter
+                    name="refunded_only"
+                    string="Refunded"
+                    domain="[('billing_status', '=', 'refunded')]"
+                />
+                <group expand="0" string="Group By">
+                    <filter string="Year" name="group_by_year" context="{'group_by': 'membership_year'}" />
+                    <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />
+                    <filter string="Product" name="group_by_product" context="{'group_by': 'product_id'}" />
+                    <filter string="Status" name="group_by_status" context="{'group_by': 'billing_status'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_membership_period_form" model="ir.ui.view">
+        <field name="name">membership.period.form</field>
+        <field name="model">membership.period</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button
+                        name="action_create_invoice"
+                        type="object"
+                        string="Create Invoice"
+                        class="oe_highlight"
+                        invisible="is_free or invoice_id or refund_move_id or billing_status != 'to_invoice'"
+                    />
+                    <button
+                        name="action_mark_as_paid"
+                        type="object"
+                        string="Mark as Paid"
+                        invisible="invoice_id or billing_status == 'paid' or membership_invoicing_strategy != 'manual'"
+                    />
+                    <button
+                        name="action_unmark_as_paid"
+                        type="object"
+                        string="Unmark as Paid"
+                        confirm="Undo the recorded payment for this period?"
+                        invisible="invoice_id or billing_status != 'paid' or membership_invoicing_strategy != 'manual'"
+                    />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="membership_id" />
+                            <field name="membership_invoicing_strategy" invisible="1" />
+                            <field name="is_free" invisible="1" />
+                            <field name="membership_year" string="Membership Year" options="{'enable_formatting': false}" />
+                            <label for="date_start" string="Period" />
+                            <div class="o_row" name="period_dates">
+                                <field name="date_start" readonly="1" nolabel="1" />
+                                <span class="mx-1">–</span>
+                                <field name="date_end" readonly="1" nolabel="1" />
+                            </div>
+                            <field name="partner_id" readonly="1" />
+                            <field name="invoice_partner_id" />
+                            <field name="company_id" readonly="1" />
+                            <field name="product_id" readonly="1" />
+                            <field name="note" />
+                        </group>
+                        <group>
+                            <field name="invoice_id" />
+                            <field name="invoice_line_id" readonly="1" />
+                            <field name="date_invoice" readonly="1" />
+                            <field name="refund_move_id" />
+                            <field name="amount" />
+                            <field name="amount_invoiced" readonly="invoice_id or membership_invoicing_strategy != 'manual'" />
+                            <field name="amount_paid" readonly="invoice_id or membership_invoicing_strategy != 'manual'" />
+                            <field name="billing_status" readonly="invoice_id or membership_invoicing_strategy != 'manual'" />
+                            <field name="date_paid" invisible="invoice_id or membership_invoicing_strategy != 'manual'" />
+                            <field name="tax_receipt_id" readonly="1" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_membership_period_pivot" model="ir.ui.view">
+        <field name="name">membership.period.pivot</field>
+        <field name="model">membership.period</field>
+        <field name="arch" type="xml">
+            <pivot string="Period Analysis">
+                <field name="membership_year" type="row" />
+                <field name="company_id" type="row" />
+                <field name="product_id" type="col" />
+                <field name="amount" type="measure" />
+                <field name="amount_paid" type="measure" />
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_membership_period_default_year" model="ir.actions.server">
+        <field name="name">Periods</field>
+        <field name="model_id" ref="association_membership.model_membership_period" />
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_default_year_periods()</field>
+    </record>
+
+    <record id="action_mark_period_as_paid" model="ir.actions.server">
+        <field name="name">Mark as Paid</field>
+        <field name="model_id" ref="association_membership.model_membership_period" />
+        <field name="binding_model_id" ref="association_membership.model_membership_period" />
+        <field name="state">code</field>
+        <field name="code">records.filtered(lambda period: not period.invoice_id).action_mark_as_paid()</field>
+    </record>
+
+    <record id="action_create_period_invoice" model="ir.actions.server">
+        <field name="name">Create Invoice</field>
+        <field name="model_id" ref="association_membership.model_membership_period" />
+        <field name="binding_model_id" ref="association_membership.model_membership_period" />
+        <field name="state">code</field>
+        <field name="code">action = records.filtered(lambda period: period.billing_status == 'to_invoice' and not period.is_free and not period.invoice_id).action_create_invoice()</field>
+    </record>
+
+    <record id="action_membership_period" model="ir.actions.act_window">
+        <field name="name">Periods</field>
+        <field name="res_model">membership.period</field>
+        <field name="view_mode">list,form,pivot</field>
+        <field name="view_id" ref="association_membership.view_membership_period_list" />
+        <field name="search_view_id" ref="association_membership.view_membership_period_search" />
+    </record>
+
+</odoo>

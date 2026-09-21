@@ -1,5 +1,5 @@
 from . import membership_membership  # noqa: F401
-from . import membership_contribution  # noqa: F401
+from . import membership_period  # noqa: F401
 from . import product_product  # noqa: F401
 from . import res_partner  # noqa: F401
 from . import account_move  # noqa: F401

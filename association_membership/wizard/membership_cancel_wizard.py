@@ -21,7 +21,25 @@ class MembershipCancelWizard(models.TransientModel):
         required=True,
         default=lambda self: date(fields.Date.context_today(self).year, 12, 31),
     )
-    cancel_reason = fields.Text()
+    # Required here, not on the membership: imported historical cancellations
+    # have no reason, and action_cancel_direct must keep accepting none.
+    cancel_reason = fields.Text(required=True)
+    open_period_ids = fields.Many2many(
+        "membership.period",
+        string="Unpaid Periods",
+        readonly=True,
+    )
+    open_period_handling = fields.Selection(
+        [
+            ("keep", "Keep them"),
+            ("drop", "Cancel draft invoices and delete the periods"),
+        ],
+        string="Unpaid periods",
+        default="keep",
+        required=True,
+        help="Periods of the cancellation year and later that are not paid."
+             " Posted invoices are never touched: reverse them with a credit note.",
+    )
     cancellation_template_id = fields.Many2one(
         "mail.template",
         readonly=True,
@@ -44,6 +62,15 @@ class MembershipCancelWizard(models.TransientModel):
         if not membership_id:
             return defaults
         membership = self.env["membership.membership"].browse(membership_id)
+        if membership.state == "cancelled":
+            # Correcting an existing cancellation: start from what is there.
+            defaults["date_cancelled"] = membership.date_cancelled
+            defaults["date_end"] = membership.date_end
+            defaults["cancel_reason"] = membership.cancel_reason
+        cancel_date = fields.Date.to_date(defaults.get("date_cancelled")) or fields.Date.context_today(self)
+        defaults["open_period_ids"] = [
+            (6, 0, membership._open_periods_from(cancel_date.year).ids)
+        ]
         defaults["mail_partner_ids"] = [(6, 0, membership._get_communication_partners().ids)]
         template = membership.company_id.membership_cancellation_template_id
         if template:
@@ -101,13 +128,17 @@ class MembershipCancelWizard(models.TransientModel):
 
     def action_confirm(self):
         self.ensure_one()
-        if self.membership_id.state not in ("active", "waiting"):
-            raise UserError(_("Only active or waiting memberships can be cancelled."))
+        if self.membership_id.state not in ("active", "waiting", "cancelled"):
+            raise UserError(
+                _("Only active, waiting or cancelled memberships can be cancelled.")
+            )
         values = {
             "date_cancelled": self.date_cancelled,
             "date_end": self.date_end,
             "cancel_reason": self.cancel_reason,
         }
         self.membership_id._schedule_termination(**values)
+        if self.open_period_handling == "drop":
+            self.open_period_ids._drop_unbilled()
         self._send_cancellation_message()
         return {"type": "ir.actions.act_window_close"}

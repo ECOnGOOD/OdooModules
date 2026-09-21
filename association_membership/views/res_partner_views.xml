@@ -1,19 +1,5 @@
 <?xml version="1.0" ?>
 <odoo>
-    <record id="view_partner_form_membership_numbers" model="ir.ui.view">
-        <field name="name">res.partner.form.membership.numbers</field>
-        <field name="model">res.partner</field>
-        <field name="priority" eval="5"/>
-        <field name="inherit_id" ref="base.view_partner_form"/>
-        <field name="arch" type="xml">
-            <field name="vat" position="after">
-                <label for="current_membership_number_display" string="Membership" class="o_form_label" invisible="not current_membership_number_display"/>
-                <div class="o_row" invisible="not current_membership_number_display">
-                    <field name="current_membership_number_display" nolabel="1" readonly="1" class="text-body"/>
-                </div>
-            </field>
-        </field>
-    </record>
     <record id="view_partner_form_membership" model="ir.ui.view">
         <field name="name">res.partner.form.membership</field>
         <field name="model">res.partner</field>
@@ -37,11 +23,11 @@
                             <field name="date_cancelled" optional="hide"/>
                         </list>
                     </field>
-                    <separator string="Contributions"/>
-                    <field name="membership_contribution_ids" nolabel="1">
+                    <separator string="Periods"/>
+                    <field name="membership_period_ids" nolabel="1">
                         <list>
                             <field name="membership_id"/>
-                            <field name="membership_year_display" string="Year"/>
+                            <field name="membership_year" string="Year" options="{'enable_formatting': false}"/>
                             <field name="billing_status"/>
                             <field name="amount"/>
                             <field name="amount_paid"/>
@@ -51,6 +37,35 @@
                     </field>
                 </page>
             </xpath>
+        </field>
+    </record>
+    <record id="view_partner_form_membership_numbers" model="ir.ui.view">
+        <field name="name">res.partner.form.membership.numbers</field>
+        <field name="model">res.partner</field>
+        <field name="priority" eval="5"/>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <field name="vat" position="after">
+                <label for="current_membership_number_display" string="Membership" class="o_form_label" invisible="not current_membership_number_display"/>
+                <div class="o_row" invisible="not current_membership_number_display">
+                    <field name="current_membership_number_display" nolabel="1" readonly="1" class="text-body"/>
+                </div>
+            </field>
+        </field>
+    </record>
+    <record id="view_partner_kanban_membership" model="ir.ui.view">
+        <field name="name">res.partner.kanban.membership</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.res_partner_kanban_view"/>
+        <field name="arch" type="xml">
+            <!-- Members are read from the kanban, so the number belongs on the card. -->
+            <field name="email" position="before">
+                <field
+                    name="current_membership_number_display"
+                    t-if="record.current_membership_number_display.raw_value"
+                    class="text-body fw-bold"
+                />
+            </field>
         </field>
     </record>
     <record id="action_membership_members" model="ir.actions.act_window">

@@ -33,33 +33,43 @@ class MembershipRenewalWizard(models.TransientModel):
     def _candidate_memberships(self):
         self.ensure_one()
         target_start, target_end = self._renewal_window()
+        today = fields.Date.context_today(self)
         domain = [
-            ("membership_active", "=", True),
+            # `cancelled` stays in: a member who cancels in March effective
+            # 31 Dec still owes that year. The date_end filter below excludes
+            # them from later years.
+            ("state", "in", ("active", "cancelled")),
             ("company_id", "in", self.company_ids.ids),
             ("date_start", "<=", target_end),
             "|",
             ("date_end", "=", False),
+            "&",
             ("date_end", ">=", target_start),
+            # Already expired: only the termination cron has not caught up yet.
+            ("date_end", ">=", today),
         ]
         if self.product_ids:
             domain.append(("product_id", "in", self.product_ids.ids))
         return self.env["membership.membership"].search(domain)
 
-    def _existing_contribution_membership_ids(self, memberships):
-        contribution_memberships = self.env["membership.contribution"].search(
+    def _existing_period_membership_ids(self, memberships):
+        period_memberships = self.env["membership.period"].search(
             [
                 ("membership_id", "in", memberships.ids),
                 ("membership_year", "=", self.target_year),
             ]
         ).mapped("membership_id")
-        return set(contribution_memberships.ids)
+        return set(period_memberships.ids)
 
     def _result_message(self, strategy, is_free=False):
+        if self.dry_run:
+            return _("Would create a period.")
         if is_free or strategy == "manual":
-            return _("Created contribution.")
-        if strategy == "draft":
-            return _("Created contribution and draft invoice.")
-        return _("Created contribution and confirmed invoice.")
+            return _("Created period.")
+        if strategy == "confirm":
+            return _("Created period and confirmed invoice.")
+        # `draft` and anything unexpected leave the invoice in draft.
+        return _("Created period and draft invoice.")
 
     def _build_result_values(self, item, status, message, invoice=False):
         return {
@@ -89,7 +99,7 @@ class MembershipRenewalWizard(models.TransientModel):
 
         result_commands = [Command.clear()]
         candidate_memberships = self._candidate_memberships()
-        existing_membership_ids = self._existing_contribution_membership_ids(candidate_memberships)
+        existing_membership_ids = self._existing_period_membership_ids(candidate_memberships)
         # Retiring a tier means archiving its variant; those members need a new tier first.
         archived_tier_memberships = candidate_memberships.filtered(
             lambda membership: membership.id not in existing_membership_ids
@@ -108,14 +118,14 @@ class MembershipRenewalWizard(models.TransientModel):
                 "amount": amount,
                 "invoice_partner": membership._get_invoice_partner(),
                 "is_free": is_free,
-                "strategy": membership.company_id.membership_invoicing_strategy,
+                "strategy": membership._get_invoicing_strategy(),
             }
             if is_free:
                 try:
                     with self.env.cr.savepoint():
                         if not self.dry_run:
-                            membership.env["membership.contribution"].create(
-                                membership._prepare_contribution_create_values(
+                            membership.env["membership.period"].create(
+                                membership._prepare_period_create_values(
                                     self.target_year,
                                     amount=0.0,
                                     invoice_partner_id=item["invoice_partner"].id,
@@ -157,7 +167,7 @@ class MembershipRenewalWizard(models.TransientModel):
             result_commands.append(
                 self._skipped_result(
                     membership,
-                    _("Skipped because a contribution already exists for %s.") % self.target_year,
+                    _("Skipped because a period already exists for %s.") % self.target_year,
                 )
             )
         for membership in archived_tier_memberships:
@@ -177,9 +187,9 @@ class MembershipRenewalWizard(models.TransientModel):
                 invoice = False
                 with self.env.cr.savepoint():
                     if not self.dry_run:
-                        contributions = self.env["membership.contribution"].create(
+                        periods = self.env["membership.period"].create(
                             [
-                                item["membership"]._prepare_contribution_create_values(
+                                item["membership"]._prepare_period_create_values(
                                     self.target_year,
                                     amount=item["amount"],
                                     invoice_partner_id=item["invoice_partner"].id,
@@ -187,8 +197,7 @@ class MembershipRenewalWizard(models.TransientModel):
                                 for item in group
                             ]
                         )
-                        invoice = contributions._apply_invoicing_strategy(
-                            strategy=group[0]["strategy"],
+                        invoice = periods._apply_invoicing_strategy(
                             invoice_date=self.invoice_date,
                         )[:1]
                 for item in group:

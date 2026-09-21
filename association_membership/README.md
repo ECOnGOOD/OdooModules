@@ -2,117 +2,261 @@
 
 `association_membership` is a lean Odoo 18 CE module for association membership management in multi-company setups. It models the membership relationship and its yearly billing artifacts on top of standard Odoo accounting and OCA `donation_base`, without forking either.
 
-## Architecture
+Multi-company first: settings, sequences, templates and periods are all per company, designed for federation hierarchies (national / regional / local as separate companies).
 
-Two core models, both `mail.thread`-tracked and `_check_company_auto`:
+## Data Model
 
-- **`membership.membership`** — the relationship between a partner, a company, and a membership product. Carries the lifecycle state, the start date (cancellation/end dates are kept only on cancelled or terminated memberships), the membership number, the (optionally separate) invoice contact, and the per-membership `amount` (defaults to the product price, editable per membership).
-- **`membership.contribution`** — the per-year billing artifact, one per `(membership, year)`. Keeps its own `product_id` and `amount` from the moment it is created, so later tier changes never rewrite history. `amount_invoiced` / `amount_paid` / `billing_status` come from the linked `account.move`, or from "Mark as Paid" (with a payment date) in manual mode. May link to a `donation.tax.receipt`.
+```mermaid
+erDiagram
+    RES_PARTNER   ||--o{ MEMBERSHIP : "member / invoice contact"
+    RES_COMPANY   ||--o{ MEMBERSHIP : owns
+    PRODUCT       ||--o{ MEMBERSHIP : "type (tmpl) + tier (variant)"
+    MEMBERSHIP    ||--o{ CONTRIBUTION : "one per year"
+    CONTRIBUTION  |o--o| ACCOUNT_MOVE : "invoice / refund"
+    CONTRIBUTION  |o--o| TAX_RECEIPT : "per payment or annual"
+    ACCOUNT_MOVE  ||--o{ MOVE_LINE : "lines"
+    MOVE_LINE     |o--o| CONTRIBUTION : "round-trip metadata"
+```
 
-`account.move.line` is extended with `membership_id` / `membership_contribution_id` / `membership_year` so invoice lines round-trip to contributions.
+### `membership.membership`
 
-### Products
+The relationship between a partner, a company and a membership product. `mail.thread` + `mail.activity.mixin`, `_check_company_auto`, ordered by `date_start desc`.
 
-- **Template = membership type, variant = tier** (e.g. an employee range). A membership stores the variant; `product_tmpl_id` is the type. A tier change stays within the membership; a type change means ending it and starting a new one. Open memberships may not overlap per type.
-- Membership products are flagged with `membership_ok` and `membership_partner_type` (`any` / `person` / `company`) on the product template. A membership may only use a flagged product of exactly its company (or without company) that matches the member's partner type.
-- The price is `lst_price` (template price plus the variant's `price_extra`), through `product.product._get_membership_price()`. No pricelists.
-- Retiring a tier = archiving its variant. The renewal wizard skips memberships on an archived tier and says so.
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | Char | computed, stored — display name |
+| `partner_id` | M2o `res.partner` | **Member**, required, tracked |
+| `invoice_partner_id` | M2o `res.partner` | optional separate invoice contact |
+| `company_id` | M2o `res.company` | required, default = current company |
+| `product_id` | M2o `product.product` | **tier** (variant), required, tracked |
+| `product_tmpl_id` | related, stored | **membership type** (template) |
+| `state` | Selection | `draft` / `waiting` / `active` / `cancelled` / `terminated` |
+| `date_start` | Date | required, default today |
+| `date_end`, `date_cancelled`, `cancel_reason` | Date / Date / Text | only on `cancelled` / `terminated` (constraint) |
+| `date_welcome_sent` | Date | set when the welcome mail goes out |
+| `membership_active` | Boolean | computed, stored — live today (`active` or `cancelled`) |
+| `membership_number` | Char | globally unique (SQL constraint), per-company sequence |
+| `override_membership_number` | Boolean | allows a manual number |
+| `membership_number_preview` | Char | computed preview of the next number |
+| `amount` | Monetary | computed from the product price, editable per membership |
+| `currency_id` | related | company currency |
+| `invoicing_strategy` | Selection | empty = follow the company setting |
+| `period_ids` | O2m | per-year billing artifacts |
+| `period_count`, `last_period_year`, `last_billing_status` | computed | list/kanban columns |
+| `duplicate_period_year_warning` | Char | computed UI warning |
+| `active` | Boolean | archiving |
 
-## Key Features
+Key state sets used by reports, partner filters and the number display:
+`BUSINESS_ACTIVE_STATES = (active, cancelled)` · `CURRENT_MEMBER_STATES = (waiting, active, cancelled)`.
 
-- **Multi-company first.** Settings, sequences, templates, contributions — all per company. Designed for federation hierarchies (national / regional / local as separate companies).
-- **One-step onboarding.** The *New Membership* wizard creates, activates and bills a membership and sends the welcome email.
-- **Three invoicing strategies** (`manual` / `draft` / `confirm`) per company. The strategy is stored on each contribution when it is created.
-- **Tax receipts via OCA `donation_base`**, per payment and annual (see below); the German Zuwendungsbestätigung is in `association_membership_l10n_de`.
-- **Email recipients for organisation members** per company: the organisation, its contact person, its invoice contact, or both.
-- **Auto-activation on payment** (per-company toggle).
-- **Manual annual renewal wizard** that groups eligible memberships by `(invoice partner, company, year, currency)` and creates one invoice per group atomically.
-- **Per-company membership-number sequence** with configurable prefix (supports `%(year)s`), padding, and exposed "next number".
-- **Pre-built reporting views** — Current/Unpaid/New/Cancelled members, Contribution History, Renewal Candidates, Per-company Member List.
+### `membership.period`
 
-## Dependencies
+The per-year billing artifact, one per `(membership, year)` (SQL constraint). Keeps its own `product_id` and `amount` from creation, so later tier changes never rewrite history.
 
-`account`, `contacts`, `donation_base`, `mail`, `product`. OCA `partner_contact_address_default` is optional: when installed, its `partner_contact_id` is the contact person for member emails.
+| Field | Type | Notes |
+| --- | --- | --- |
+| `membership_id` | M2o | required, `ondelete=restrict` |
+| `membership_year` | Integer | required; the identity of the period |
+| `date_start`, `date_end` | Date | computed, stored — 1 Jan–31 Dec, clipped to the membership |
+| `product_id`, `amount` | M2o / Monetary | **frozen at creation**, not re-derived |
+| `is_free` | Boolean | computed, stored — `amount == 0` |
+| `membership_invoicing_strategy` | Selection | the strategy that actually applied — refreshed while unbilled, then frozen |
+| `invoice_id`, `invoice_line_id`, `refund_move_id` | M2o `account.move` / line | |
+| `amount_invoiced`, `amount_paid` | Monetary | computed+stored, `readonly=False` (manual mode writes) |
+| `date_paid` | Date | manual mode; required for annual tax receipts |
+| `date_invoice` | related, stored | from the invoice |
+| `billing_status` | Selection | computed+stored, `readonly=False` — see below |
+| `tax_receipt_id` | M2o `donation.tax.receipt` | readonly |
+| `partner_id`, `company_id`, `currency_id` | related, stored | from the membership |
+| `invoice_partner_id`, `note` | M2o / Text | |
 
-## Tax Receipts
+### Extended standard models
 
-The module relies on `donation_base` for the receipt model, its annual wizard and its partner option (`tax_receipt_option`: None / Each / Annual). Eligibility is set per product with `tax_receipt_ok`. Receipts are under **Memberships → Tax Receipts** (accounting/invoicing users only, as in `donation_base`).
-
-- **Manual mode** (no invoices): "Mark as Paid" stores a payment date. Receipts are only issued annually: *Create Annual Receipts* collects the paid, eligible contributions of the period for partners with option Annual **or** Each. Contributions without a payment date (e.g. imported history) are never receipted.
-- **Invoice mode**: partners with option Each get a receipt automatically once the invoice is fully `paid` (not while `in_payment`). Partners with option Annual get their paid invoices on the annual receipt.
-- The annual receipt links the contributions it covers (`membership_contribution_ids`); they are skipped on later runs.
-- A refund, or a payment that is unreconciled (e.g. a returned direct debit), does **not** delete a receipt: it adds a to-do activity to reclaim or correct it.
+| Model | Added |
+| --- | --- |
+| `account.move.line` | `membership_id`, `membership_period_id`, `membership_year` — invoice lines round-trip to periods |
+| `account.move` | `_post` / `_invoice_paid_hook` — drive period status and per-payment receipts |
+| `account.partial.reconcile` | `unlink` — an unreconciled payment raises a to-do instead of deleting a receipt |
+| `product.template` | `membership_ok`, `membership_partner_type` (`any` / `person` / `company`) |
+| `product.product` | `_membership_product_domain()`, `_get_membership_price()` |
+| `res.partner` | `membership_ids`, `membership_period_ids`, number displays, **Create Membership** |
+| `res.company` | all membership settings (see Configuration) |
+| `donation.tax.receipt` | `membership_period_ids` + annual collection of paid periods |
 
 ## Membership Lifecycle
 
-States and allowed transitions:
-
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> waiting : Submit
+    waiting --> active : Activate (wizard / direct)
+    waiting --> draft
+    waiting --> cancelled
+    waiting --> terminated
+    active --> cancelled : Cancel (date_end in future)
+    active --> terminated : Cancel, end date reached
+    active --> draft
+    cancelled --> terminated : cron (date_end passed)
+    cancelled --> active : Reactivate
+    cancelled --> waiting
+    cancelled --> draft
+    terminated --> waiting : Reopen
+    terminated --> draft
 ```
-draft      ──→ waiting
-waiting    ──→ draft │ active │ cancelled │ terminated
-active     ──→ cancelled │ terminated │ draft
-cancelled  ──→ waiting │ active │ terminated │ draft
-terminated ──→ waiting │ draft
+
+| State | Meaning | Rules |
+| --- | --- | --- |
+| `draft` | editable scratch | Periods tab hidden; **only** state that can be deleted; periods forbidden by constraint |
+| `waiting` | created, not yet active | periods and invoicing allowed |
+| `active` | steady state | |
+| `cancelled` | *scheduled to end at `date_end`* | still business-active |
+| `terminated` | end state | **Reopen** → `waiting`, clears cancellation data |
+
+- Reverting to `draft` and deleting are blocked once periods exist.
+- `date_cancelled` / `date_end` / `cancel_reason` are only valid on `cancelled` / `terminated` and are cleared automatically on revert, reopen or reactivation.
+- Re-running a cancel on an already cancelled membership corrects its dates/reason rather than failing.
+
+## Period Billing Status
+
+An invoice, when there is one, always wins — in every strategy. Only without an invoice do strategies differ.
+
+```mermaid
+flowchart TD
+    A[period] --> B{posted refund?}
+    B -- yes --> R[refunded]
+    B -- no --> C{invoice linked?}
+    C -- yes --> D{invoice state}
+    D -- cancel --> X[cancelled]
+    D -- paid / in_payment --> P[paid]
+    D -- partial --> PP[partially paid]
+    D -- other --> I[invoiced]
+    C -- no --> M{strategy manual<br/>and status already set?}
+    M -- yes --> K[keep: Mark as Paid / import]
+    M -- no --> F{amount == 0?}
+    F -- yes --> W[waived]
+    F -- no --> T[to invoice]
 ```
 
-- `draft` is editable scratch; the Contributions tab is hidden. Memberships can only be deleted from this state.
-- Reverting to `draft` and deleting are blocked once a membership has contributions.
-- `waiting` allows contribution creation and invoicing.
-- `active` is the steady state.
-- `cancelled` is "scheduled to end at `date_end`" — still business-active.
-- `date_cancelled`, `date_end`, and `cancel_reason` can only be set on `cancelled`/`terminated` memberships (enforced by constraint) and are cleared automatically when reverting to `draft`, reopening or reactivating.
-- `terminated` is the final state; `action_reopen_waiting` (used by the importer) reopens it.
+`amount_invoiced` / `amount_paid` follow the invoice line and its residual whenever there is an invoice; in manual mode without one they keep what **Mark as Paid** or the importer wrote.
 
-## Workflows
+## Products
+
+- **Template = membership type, variant = tier** (e.g. an employee range). A membership stores the variant; a tier change stays within the membership, a type change means ending it and starting a new one. Open memberships may not overlap per type.
+- Products are flagged `membership_ok` with a `membership_partner_type`. A membership may only use a flagged product of exactly its company (or without company) matching the member's partner type.
+- The price is `lst_price` (template price + variant `price_extra`) via `_get_membership_price()`. No pricelists.
+- Retiring a tier = archiving its variant; the renewal wizard skips those memberships and says so.
+
+## Processes
 
 ### Onboarding a new member
 
-**Memberships → New Membership**, or **Create Membership** on the partner form, opens the wizard: member, invoice contact, company, product (filtered as described under Products), start date, with a preview of the price, the membership number and the email recipients. With **Activate immediately** (default) it also:
+**Memberships → New**, or **Create Membership** on the partner form. There is no separate
+creation wizard: the form already previews the member number and the fee and filters the
+products by partner type.
 
-- creates the contribution of the current year (in manual mode with status "To Invoice", no invoice),
-- sends the welcome email to the recipients shown.
+```mermaid
+flowchart LR
+    W[Membership form<br/>member · invoice contact · company<br/>product · start date · price/number preview] --> SV[Save: state = draft]
+    SV --> A{next step}
+    A -- Activate --> AC[state = active, via waiting]
+    A -- Submit --> WT[state = waiting]
+    WT -.-> AC
+    AC --> CO[period for the default year<br/>created, or an unbilled one reused]
+    CO --> S{strategy}
+    S -- manual --> TI[status: To Invoice, no invoice]
+    S -- draft --> DI[draft invoice, left in draft]
+    S -- confirm --> PI[posted invoice + optional email]
+    AC --> WM[welcome email to computed recipients]
+```
 
-Without it, the membership stays `waiting`; **Activate** later opens the activation wizard, which offers the same contribution and welcome email and, for invoice strategies, confirms and sends an existing draft invoice. When a cancelled membership is reactivated, the welcome email is not ticked again if one was already sent.
-
-### Importing members
-
-Imports run through the repository's `scripts/import_contacts.py`, not through a wizard in the module. The importer activates memberships with `action_activate_direct` (no wizard, no emails).
+The welcome email is pre-ticked only for a first activation — never when reactivating a
+cancelled membership or activating a reopened one. A fee of 0 cannot be invoiced; the
+wizard says so instead of silently skipping it.
 
 ### Renewal
 
-`Memberships → Configuration → Renewal` opens the renewal wizard. Pick target year, companies (default = all allowed), optional product filter, optional dry-run, and optional invoice date. The wizard groups eligible memberships by `(invoice partner, company, year, currency)` and creates one invoice per group, atomically.
+**Memberships → Configuration → Renewal** — the wizard is the intended path; the `Membership Renewal` cron exists but is **disabled** by default.
 
-A scheduled `Membership Renewal` cron exists but is disabled by default — annual renewal is intended to be operator-triggered. The `Membership Termination` cron runs daily and is enabled; it moves expired-cancelled memberships to `terminated`.
+```mermaid
+flowchart LR
+    I[target year · companies · optional product filter<br/>dry run · invoice date] --> E[eligible: active + cancelled<br/>whose date_end still covers the year]
+    E --> G[group by invoice partner × company × year × currency]
+    G --> V[one invoice per group, atomically]
+    V --> L[result lines: status · message · amount · invoice]
+```
 
 ### Cancellation
 
-Click **Cancel Membership** on the form (available for active and waiting memberships) → opens the Cancel wizard:
-- Pick cancel date and end date (defaults to Dec 31 of current year).
-- Optional cancellation reason.
-- Optional cancellation message via the company's cancellation template (editable in the wizard, recipients per the company setting).
-- On confirm: if `date_end <= today` → `terminated`, otherwise `cancelled`.
+**Cancel Membership** (active/waiting) or **Edit Cancellation** (already cancelled) → Cancel wizard.
+
+```mermaid
+flowchart LR
+    C[cancel date · end date default Dec 31<br/>reason, required] --> U{unpaid periods<br/>of the cancellation year onward}
+    U -- keep --> M
+    U -- drop --> D[cancel draft invoices + delete periods<br/>posted invoices never touched]
+    D --> M[optional cancellation email<br/>per company template, editable]
+    M --> R{end date reached?}
+    R -- yes --> T[terminated]
+    R -- no --> CA[cancelled]
+```
+
+### Tax receipts
+
+Built on `donation_base`: its receipt model, annual wizard and partner option (`tax_receipt_option`: None / Each / Annual). Eligibility per product via `tax_receipt_ok`. Receipts live under **Memberships → Tax Receipts** (accounting users only).
+
+| Mode | Option *Each* | Option *Annual* |
+| --- | --- | --- |
+| **Invoice** (`draft` / `confirm`) | receipt issued automatically once the invoice is fully `paid` (not `in_payment`) | paid invoices land on the annual receipt |
+| **Manual** (no invoice) | no per-payment receipt — collected annually | *Create Annual Receipts* collects paid, eligible periods with a `date_paid` |
+
+Periods without a payment date (e.g. imported history) are never receipted. The annual receipt links the periods it covers (`membership_period_ids`), which are skipped on later runs. A refund or an unreconciled payment does **not** delete a receipt — it adds a to-do activity to reclaim or correct it.
+
+### Scheduled actions
+
+| Cron | Interval | Default | Does |
+| --- | --- | --- | --- |
+| `Membership Termination` | daily | **enabled** | moves expired-`cancelled` memberships to `terminated` |
+| `Membership Renewal` | yearly | disabled | per-company renewal at `current_year + offset` |
+
+### Importing members
+
+Imports run through the repository's `scripts/import_contacts.py`, not through a wizard. The importer uses `action_activate_direct` / `action_cancel_direct` / `action_reopen_waiting` — no wizards, no emails.
 
 ### Followers
 
-Neither the user who creates a membership nor the sender of a welcome or cancellation email becomes a follower, so staff do not get copies of member emails by default. Follow a membership on purpose to get copies and reply notifications.
+Neither the creator of a membership nor the sender of a welcome or cancellation email becomes a follower, so staff do not get copies of member emails by default. Follow a membership on purpose to get copies and reply notifications.
 
 ## Configuration (per company)
 
 `Settings > Membership`:
 
-- **Email recipients for organisation members** — the organisation, contact person (default), invoice contact, or contact person and invoice contact. Individuals always receive their own emails.
-- **Auto-activate on payment** — toggle.
-- **Renewal year offset** — the cron defaults to `current_year + offset` (default 1).
-- **Invoicing strategy** — `manual` / `draft` / `confirm`.
-- **Contribution year override** — empty by default: new contributions default to the current year. Set a future year to pre-create next year's contributions (past values always fall back to the current year).
-- **Email templates** — Activation Invoice (account.move), Welcome (membership.membership), Cancellation (membership.membership). Defaults ship with the module (English and German) and are assigned automatically to companies that have none — customize per company.
-- **Member numbers** — prefix (`%(year)s` supported), padding, next number, and a live preview of the next generated number. Give every association its own prefix: numbers are unique across all companies.
+| Setting | Field | Default |
+| --- | --- | --- |
+| Email recipients for organisation members | `membership_company_mail_recipients` | contact person — also: the organisation, invoice contact, or both. Individuals always get their own emails |
+| Invoicing strategy | `membership_invoicing_strategy` | `manual` — `draft` / `confirm` create an invoice on activation and renewal; overridable per membership |
+| Period year override | `membership_default_period_year` | `0` = current year; a future year pre-creates next year's periods |
+| Renewal year offset | `membership_cron_year_offset` | `1` (cron only) |
+| Email templates | activation invoice / welcome / cancellation | shipped EN + DE, auto-assigned to companies without one |
+| Member numbers | `member_number_prefix` (`%(year)s` supported), `member_number_padding`, next number | give every association its own prefix — numbers are unique across all companies |
+
+## Reporting
+
+Pre-built list views: Current / Unpaid / New members, Scheduled to End, Former Members, Period History, Renewal Candidates, Per-company Member List.
+
+The **Members** menu opens the per-membership kanban (one card per membership record). A partner-aggregated overview is intentionally not provided.
 
 ## Permissions
 
-- `association_membership.group_membership_manager` — full CRUD on memberships and contributions, can run wizards, edit settings.
-- `association_membership.group_membership_viewer` — read-only access to memberships and contributions; can see them on partner forms.
-- Creating invoices and tax receipts additionally needs the accounting rights of `account` / `donation_base`.
+| Group | Can |
+| --- | --- |
+| `group_membership_manager` | full CRUD on memberships and periods, run wizards, edit settings |
+| `group_membership_viewer` | read-only memberships and periods, incl. on partner forms |
+
+Creating invoices and tax receipts additionally needs the accounting rights of `account` / `donation_base`.
+
+## Dependencies
+
+`account`, `contacts`, `donation_base`, `mail`, `product`. OCA `partner_contact_address_default` is optional: when installed, its `partner_contact_id` is the contact person for member emails. The German Zuwendungsbestätigung lives in `association_membership_l10n_de`.
 
 ## Testing
 
@@ -125,9 +269,5 @@ Neither the user who creates a membership nor the sender of a welcome or cancell
 
 - **Renewal cron** — currently disabled with a hardcoded next call; review enablement and add coverage for the cron-driven per-company renewal path.
 - **Archive exposure** — memberships support archiving (`active` field, kanban ribbon) but the form offers no archive/unarchive action.
-- **Reporting** — pre-built views are list-based only; consider dashboards/KPIs (member growth, churn, revenue per year) on top of contributions.
-- The open post-launch items are tracked in `docs/membership/association_membership_launch_gaps.md` (WP5) in the main repository.
-
-## Notes
-
-- **Members menu** opens the per-membership kanban (one card per membership record). A partner-aggregated "members overview" (one card per partner) is intentionally not provided.
+- **Reporting** — views are list-based only; consider dashboards/KPIs (member growth, churn, revenue per year) on top of periods.
+- Open post-launch items are tracked in `docs/membership/association_membership_launch_gaps.md` (WP5) in the main repository.

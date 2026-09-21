@@ -4,6 +4,8 @@ from markupsafe import Markup, escape
 
 from odoo import api, fields, models
 
+from .membership_membership import CURRENT_MEMBER_STATES
+
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
@@ -13,10 +15,10 @@ class ResPartner(models.Model):
         "partner_id",
         string="Memberships",
     )
-    membership_contribution_ids = fields.One2many(
-        "membership.contribution",
+    membership_period_ids = fields.One2many(
+        "membership.period",
         "partner_id",
-        string="Membership Contributions",
+        string="Membership Periods",
     )
     current_membership_number_display = fields.Char(
         string="Membership",
@@ -32,7 +34,7 @@ class ResPartner(models.Model):
         memberships = self.env["membership.membership"].sudo().search(
             [
                 ("partner_id", "in", self.ids),
-                ("state", "in", ("waiting", "active", "cancelled")),
+                ("state", "in", CURRENT_MEMBER_STATES),
                 ("membership_number", "!=", False),
             ]
         )
@@ -93,8 +95,11 @@ class ResPartner(models.Model):
 
     def action_create_membership(self):
         self.ensure_one()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
-            "association_membership.action_membership_new_wizard"
-        )
-        action["context"] = {"default_partner_id": self.id}
-        return action
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("New Membership"),
+            "res_model": "membership.membership",
+            "view_mode": "form",
+            "target": "current",
+            "context": {"default_partner_id": self.id},
+        }

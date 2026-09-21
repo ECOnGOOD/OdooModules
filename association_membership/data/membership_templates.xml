@@ -34,7 +34,7 @@
         <li>Membership number: <strong><t t-out="object.membership_number"/></strong></li>
         <li>Membership: <t t-out="object.product_id.name"/></li>
         <li>Member since: <t t-out="object.date_start" t-options="{'widget': 'date'}"/></li>
-        <li>Annual contribution: <t t-out="object.amount" t-options="{'widget': 'monetary', 'display_currency': object.currency_id}"/></li>
+        <li>Annual fee: <t t-out="object.amount" t-options="{'widget': 'monetary', 'display_currency': object.currency_id}"/></li>
     </ul>
     <p>If you have any questions about your membership, simply reply to this email.</p>
     <p>Best regards,<br/><t t-out="object.company_id.name"/></p>

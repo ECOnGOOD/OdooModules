@@ -1,5 +1,85 @@
 # Changelog
 
+## 18.0.5.0.0 — periods
+
+**Breaking: `membership.contribution` is now `membership.period`.** The model, its
+table, `contribution_ids` → `period_ids`, `account.move.line.membership_contribution_id`
+→ `membership_period_id`, `res.company.membership_default_contribution_year` →
+`membership_default_period_year`, the menus, the reports and the German translation all
+follow. `migrations/18.0.5.0.0/pre-migrate.py` renames the existing data in place; the
+canonical CSV column names in the importer (`contribution_paid` and friends) keep their
+names, because they describe the source data rather than Odoo.
+
+A period now also carries **`date_start` / `date_end`**: 1 January – 31 December of its
+year, clipped to the membership's own start and end date.
+
+Invoicing:
+
+- **An unbilled period follows the current strategy; it freezes when it is billed.**
+  `membership_invoicing_strategy` used to be frozen at creation, so a period created in
+  manual mode suppressed the invoice for good — activating with `draft` or `confirm`
+  afterwards silently did nothing. It is now refreshed whenever the period is about to be
+  invoiced, and only while it has no invoice, no refund and no recorded payment. Imported
+  "paid" history is unaffected, which is what gap-doc decision 2.4 protects.
+- The activation wizard **invoices an existing, never-billed period**, not only one it
+  creates itself.
+- **`draft` means draft.** The wizard's "Confirm Invoice" checkbox is gone: the strategy
+  alone decides whether the invoice is left in draft (`draft`) or posted (`confirm`). It
+  used to post the invoice in `draft` mode too.
+- **"Send Invoice Email" only appears for `confirm`**, the one strategy that posts the
+  invoice; a draft invoice cannot be sent.
+- The activation wizard **warns when the fee is 0** and no invoice can therefore be
+  created, instead of doing nothing.
+
+Lifecycle and UI:
+
+- The **New Membership wizard is gone.** "New" opens the membership form, which already
+  offers the product domain, the member-number preview and the fee. **Activate** is now
+  available straight from `draft` and passes through `waiting` itself, so onboarding is
+  New → Save → Activate.
+- A **cancellation reason is mandatory** in the cancel wizard. The field on the membership
+  stays optional: imported historical cancellations have none.
+- **No welcome email on reactivation.** It used to be pre-ticked whenever
+  `date_welcome_sent` was empty, which is true for every imported member; it is now
+  pre-ticked only for a genuine first activation.
+- The **Members kanban shows the membership number**.
+- **`2,026` is fixed.** The year fields used `options="{'format': false}"`, which Odoo 18
+  ignores; the option is `enable_formatting`. The three Char shadow fields that existed
+  only to work around it (`membership_year_display`, `membership_year_text`,
+  `res.config.settings.membership_default_contribution_year_text`) are removed, along
+  with `date_refund`.
+
+## 18.0.4.0.0 — invoicing strategies and lifecycle
+
+Invoicing:
+
+- **Create Invoice** on a contribution, in every strategy. `manual` and `draft` produce a draft invoice, `confirm` a posted one. Contributions created outside the wizards are no longer stuck at "To Invoice".
+- **An invoice, when there is one, always wins.** `billing_status`, `amount_invoiced` and `amount_paid` now follow the invoice in all three strategies, so registering a payment updates the contribution even in manual mode. Only contributions *without* an invoice keep the manual behaviour ("Mark as Paid", imported history).
+- **Unmark as Paid** undoes "Mark as Paid"; it refuses once a tax receipt was issued. "Mark as Paid" refuses when an invoice exists — register the payment there instead.
+- The activation wizard now **confirms and can send the invoice it creates itself**. Previously it resolved the invoice before creating the contribution, so a draft invoice was left unconfirmed and unsent and the activation-invoice email was unreachable.
+- **Invoicing strategy per membership** (blank = company default), editable in the New Membership and activation wizards. Each contribution still freezes the strategy that applied when it was created; the field is now labelled "Applied Invoicing Strategy".
+- The company default is now **manual** for new companies.
+
+Lifecycle:
+
+- **Reopen** on a terminated membership: the transition existed but nothing exposed it.
+- A cancellation's **end date and reason can be corrected** without reactivating first ("Edit Cancellation"). Re-cancelling no longer silently dropped the new values.
+- The cancel wizard lists the **unpaid contributions** of the cancellation year onward and can cancel their draft invoices and remove them. Posted invoices are never touched.
+- Contributions can no longer be created on a **draft** membership, which used to lock it out of "Revert to Draft" and delete.
+- The importer cancels through `action_cancel_direct` instead of writing `state` directly.
+- `_schedule_termination` coerces `date_end` with `fields.Date.to_date()`. It compared a string to a date whenever the caller passed an ISO string, which every RPC caller does; only the wizard's `date` objects worked before.
+
+Removed:
+
+- **Auto-activate on payment** (company setting, `action_activate_from_payment`, and the hook call). Activation happens before payment; the New Membership wizard's "Activate Immediately" covers it.
+- The unreachable `none` billing status, the no-op `_normalize_state_value`, and the dead `create_membership_invoice` context branch.
+
+Other:
+
+- The renewal wizard skips cancelled memberships whose end date has passed, reports dry runs as "would create", and reads the membership's strategy.
+- "Cancellations" is split into **Scheduled to End** and **Former Members**.
+- Help texts for the invoicing strategy and the renewal year offset; the activation invoice template is hidden in manual mode.
+
 ## 18.0.3.0.0 — first release
 
 - Memberships per company with the lifecycle draft → waiting → active → cancelled → terminated, yearly contributions, and invoicing strategies manual / draft / confirm.

@@ -49,25 +49,27 @@ class TestZuwendungsbestaetigung(TransactionCase):
         self.assertIn("Tag der Zuwendung", html)
         self.assertNotIn("Anlage zur Sammelbestätigung", html)
 
-    def test_annual_receipt_lists_contributions(self):
+    def test_annual_receipt_lists_periods(self):
         membership = self.env["membership.membership"].create({
             "partner_id": self.partner.id,
             "product_id": self.product.id,
             "date_start": date(self.year, 1, 1),
         })
-        contribution = self.env["membership.contribution"].create({
+        # A draft membership may not be billed.
+        membership.action_submit()
+        period = self.env["membership.period"].create({
             "membership_id": membership.id,
             "membership_year": self.year,
         })
-        contribution.action_mark_as_paid()
-        contribution.date_paid = date(self.year, 2, 15)
+        period.action_mark_as_paid()
+        period.date_paid = date(self.year, 2, 15)
         action = self.env["tax.receipt.annual.create"].create({
             "start_date": date(self.year, 1, 1),
             "end_date": date(self.year, 12, 31),
             "company_id": self.company.id,
         }).generate_annual_receipts()
         receipt = self.env["donation.tax.receipt"].search(action["domain"])
-        self.assertEqual(receipt.membership_contribution_ids, contribution)
+        self.assertEqual(receipt.membership_period_ids, period)
         html = self._render(receipt)
         self.assertIn("Sammelbestätigung über Geldzuwendungen / Mitgliedsbeiträge", html)
         self.assertIn("Zeitraum der Sammelbestätigung", html)

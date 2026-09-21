@@ -40,13 +40,28 @@ class MembershipTestCommon(TransactionCase):
         cls.tier_small.product_template_attribute_value_ids.price_extra = 100.0
         cls.tier_large.product_template_attribute_value_ids.price_extra = 200.0
 
-    def _make_contribution(self, membership, **overrides):
+    def _make_period(self, membership, **overrides):
+        # A draft membership may not be billed; submitting mirrors what every
+        # UI path does before a period is created.
+        if membership.state == "draft":
+            membership.action_submit()
         vals = {
             "membership_id": membership.id,
             "membership_year": date.today().year,
         }
         vals.update(overrides)
-        return self.env["membership.contribution"].create(vals)
+        return self.env["membership.period"].create(vals)
+
+    def _make_billed_period(self, membership, strategy="draft", **overrides):
+        """Period created under `strategy`, then invoiced by that strategy.
+
+        The strategy is frozen when the period is created, so it has to be
+        set on the membership first.
+        """
+        membership.invoicing_strategy = strategy
+        period = self._make_period(membership, **overrides)
+        period._apply_invoicing_strategy()
+        return period
 
     def _run_annual_wizard(self):
         action = self.env["tax.receipt.annual.create"].create({
@@ -163,17 +178,17 @@ class TestMembershipUnlink(MembershipTestCommon):
         with self.assertRaises(UserError):
             membership.unlink()
 
-    def test_unlink_blocked_with_contributions(self):
+    def test_unlink_blocked_with_periods(self):
         membership = self._make_membership()
-        self._make_contribution(membership)
+        self._make_period(membership)
         with self.assertRaises(UserError):
             membership.unlink()
 
-    def test_revert_to_draft_blocked_with_contributions(self):
+    def test_revert_to_draft_blocked_with_periods(self):
         membership = self._make_membership()
         membership.action_submit()
         membership._do_transition("active")
-        self._make_contribution(membership)
+        self._make_period(membership)
         membership._do_transition("terminated")
         with self.assertRaises(UserError):
             membership.action_revert_to_draft()
@@ -211,56 +226,56 @@ class TestMembershipAmount(MembershipTestCommon):
     def test_amount_includes_variant_price_extra(self):
         membership = self._make_membership(product_id=self.tier_small.id)
         self.assertEqual(membership.amount, 100.0)
-        contribution = self._make_contribution(membership)
-        self.assertFalse(contribution.is_free)
-        self.assertEqual(contribution.billing_status, "to_invoice")
+        period = self._make_period(membership)
+        self.assertFalse(period.is_free)
+        self.assertEqual(period.billing_status, "to_invoice")
 
 
 class TestMembershipTiers(MembershipTestCommon):
-    def test_tier_change_keeps_past_contributions(self):
+    def test_tier_change_keeps_past_periods(self):
         membership = self._make_membership(product_id=self.tier_small.id)
-        contribution = self._make_contribution(membership)
+        period = self._make_period(membership)
         membership.product_id = self.tier_large
         self.assertEqual(membership.amount, 200.0)
-        self.assertEqual(contribution.product_id, self.tier_small)
-        self.assertEqual(contribution.amount, 100.0)
-        next_contribution = self._make_contribution(
+        self.assertEqual(period.product_id, self.tier_small)
+        self.assertEqual(period.amount, 100.0)
+        next_period = self._make_period(
             membership, membership_year=date.today().year + 1
         )
-        self.assertEqual(next_contribution.product_id, self.tier_large)
-        self.assertEqual(next_contribution.amount, 200.0)
+        self.assertEqual(next_period.product_id, self.tier_large)
+        self.assertEqual(next_period.amount, 200.0)
 
     def test_parallel_membership_of_same_type_rejected(self):
         self._make_membership(product_id=self.tier_small.id)
         with self.assertRaises(ValidationError):
             self._make_membership(product_id=self.tier_large.id)
 
-    def test_type_change_rejected_once_contributions_exist(self):
+    def test_type_change_rejected_once_periods_exist(self):
         membership = self._make_membership(product_id=self.tier_small.id)
         membership.product_id = self.product
         membership.product_id = self.tier_small
-        self._make_contribution(membership)
+        self._make_period(membership)
         with self.assertRaises(ValidationError):
             membership.product_id = self.product
 
 
-class TestContributionBilling(MembershipTestCommon):
+class TestPeriodBilling(MembershipTestCommon):
     def test_amount_defaults_from_membership_amount(self):
         membership = self._make_membership()
         membership.amount = 99.0
-        contribution = self._make_contribution(membership)
-        self.assertEqual(contribution.amount, 99.0)
+        period = self._make_period(membership)
+        self.assertEqual(period.amount, 99.0)
 
     def test_zero_amount_is_free_and_waived(self):
-        contribution = self._make_contribution(self._make_membership(), amount=0.0)
-        self.assertTrue(contribution.is_free)
-        self.assertEqual(contribution.billing_status, "waived")
+        period = self._make_period(self._make_membership(), amount=0.0)
+        self.assertTrue(period.is_free)
+        self.assertEqual(period.billing_status, "waived")
 
     def test_nonzero_amount_with_no_invoice_is_to_invoice(self):
-        contribution = self._make_contribution(self._make_membership(), amount=50.0)
-        self.assertFalse(contribution.is_free)
-        self.assertEqual(contribution.billing_status, "to_invoice")
-        self.assertEqual(contribution.amount_paid, 0.0)
+        period = self._make_period(self._make_membership(), amount=50.0)
+        self.assertFalse(period.is_free)
+        self.assertEqual(period.billing_status, "to_invoice")
+        self.assertEqual(period.amount_paid, 0.0)
 
 
 class TestInvoicingStrategies(MembershipTestCommon):
@@ -268,40 +283,30 @@ class TestInvoicingStrategies(MembershipTestCommon):
         super().setUp()
         self.membership = self._make_membership()
 
-    def _create_contribution_with_strategy(self, strategy):
-        contribution = self.env["membership.contribution"].create({
-            "membership_id": self.membership.id,
-            "membership_year": date.today().year,
-        })
-        contribution._apply_invoicing_strategy(strategy=strategy)
-        return contribution
+    def _create_period_with_strategy(self, strategy):
+        return self._make_billed_period(self.membership, strategy=strategy)
 
     def test_manual_strategy_creates_no_invoice(self):
-        contribution = self._create_contribution_with_strategy("manual")
-        self.assertFalse(contribution.invoice_id)
-        self.assertEqual(contribution.billing_status, "to_invoice")
+        period = self._create_period_with_strategy("manual")
+        self.assertFalse(period.invoice_id)
+        self.assertEqual(period.billing_status, "to_invoice")
 
     def test_draft_strategy_creates_draft_invoice(self):
-        contribution = self._create_contribution_with_strategy("draft")
-        self.assertTrue(contribution.invoice_id)
-        self.assertEqual(contribution.invoice_id.state, "draft")
-        self.assertEqual(contribution.billing_status, "invoiced")
+        period = self._create_period_with_strategy("draft")
+        self.assertTrue(period.invoice_id)
+        self.assertEqual(period.invoice_id.state, "draft")
+        self.assertEqual(period.billing_status, "invoiced")
 
     def test_confirm_strategy_posts_invoice(self):
-        contribution = self._create_contribution_with_strategy("confirm")
-        self.assertTrue(contribution.invoice_id)
-        self.assertEqual(contribution.invoice_id.state, "posted")
-        self.assertEqual(contribution.billing_status, "invoiced")
+        period = self._create_period_with_strategy("confirm")
+        self.assertTrue(period.invoice_id)
+        self.assertEqual(period.invoice_id.state, "posted")
+        self.assertEqual(period.billing_status, "invoiced")
 
-    def test_free_contribution_skips_invoicing(self):
-        contribution = self.env["membership.contribution"].create({
-            "membership_id": self.membership.id,
-            "membership_year": date.today().year,
-            "amount": 0.0,
-        })
-        contribution._apply_invoicing_strategy(strategy="confirm")
-        self.assertFalse(contribution.invoice_id)
-        self.assertEqual(contribution.billing_status, "waived")
+    def test_free_period_skips_invoicing(self):
+        period = self._make_billed_period(self.membership, strategy="confirm", amount=0.0)
+        self.assertFalse(period.invoice_id)
+        self.assertEqual(period.billing_status, "waived")
 
 
 class TestManualInvoicing(MembershipTestCommon):
@@ -310,27 +315,27 @@ class TestManualInvoicing(MembershipTestCommon):
         self.company.membership_invoicing_strategy = "manual"
         self.membership = self._make_membership()
 
-    def test_new_contribution_is_to_invoice(self):
-        contribution = self._make_contribution(self.membership)
-        self.assertEqual(contribution.membership_invoicing_strategy, "manual")
-        self.assertEqual(contribution.billing_status, "to_invoice")
+    def test_new_period_is_to_invoice(self):
+        period = self._make_period(self.membership)
+        self.assertEqual(period.membership_invoicing_strategy, "manual")
+        self.assertEqual(period.billing_status, "to_invoice")
 
-    def test_free_contribution_is_waived(self):
-        contribution = self._make_contribution(self.membership, amount=0.0)
-        self.assertEqual(contribution.billing_status, "waived")
+    def test_free_period_is_waived(self):
+        period = self._make_period(self.membership, amount=0.0)
+        self.assertEqual(period.billing_status, "waived")
 
     def test_mark_as_paid(self):
-        contribution = self._make_contribution(self.membership)
-        contribution.action_mark_as_paid()
-        self.assertEqual(contribution.billing_status, "paid")
-        self.assertEqual(contribution.amount_paid, contribution.amount)
+        period = self._make_period(self.membership)
+        period.action_mark_as_paid()
+        self.assertEqual(period.billing_status, "paid")
+        self.assertEqual(period.amount_paid, period.amount)
 
     def test_strategy_is_frozen_at_creation(self):
-        contribution = self._make_contribution(self.membership)
-        contribution.action_mark_as_paid()
+        period = self._make_period(self.membership)
+        period.action_mark_as_paid()
         self.company.membership_invoicing_strategy = "draft"
-        self.assertEqual(contribution.membership_invoicing_strategy, "manual")
-        self.assertEqual(contribution.billing_status, "paid")
+        self.assertEqual(period.membership_invoicing_strategy, "manual")
+        self.assertEqual(period.billing_status, "paid")
 
 
 class TestTaxReceipts(MembershipTestCommon):
@@ -341,42 +346,36 @@ class TestTaxReceipts(MembershipTestCommon):
 
     def _make_paid_invoice(self, amount=50.0):
         membership = self._make_membership()
-        contribution = self.env["membership.contribution"].create({
-            "membership_id": membership.id,
-            "membership_year": date.today().year,
-            "amount": amount,
-        })
-        contribution._apply_invoicing_strategy(strategy="confirm")
-        invoice = contribution.invoice_id
+        period = self._make_billed_period(membership, strategy="confirm", amount=amount)
+        invoice = period.invoice_id
         self.env["account.payment.register"].with_context(
             active_model="account.move",
             active_ids=invoice.ids,
         ).create({}).action_create_payments()
-        return contribution, invoice
+        return period, invoice
 
     def test_each_option_auto_issues_receipt_on_payment(self):
-        contribution, invoice = self._make_paid_invoice()
+        period, invoice = self._make_paid_invoice()
         self.assertIn(invoice.payment_state, ("in_payment", "paid"))
-        self.assertTrue(contribution.tax_receipt_id)
-        self.assertEqual(contribution.tax_receipt_id.type, "each")
-        self.assertEqual(contribution.tax_receipt_id.partner_id, self.partner)
-        self.assertEqual(contribution.tax_receipt_id.amount, contribution.amount_paid)
+        self.assertTrue(period.tax_receipt_id)
+        self.assertEqual(period.tax_receipt_id.type, "each")
+        self.assertEqual(period.tax_receipt_id.partner_id, self.partner)
+        self.assertEqual(period.tax_receipt_id.amount, period.amount_paid)
 
     def test_no_receipt_when_product_not_eligible(self):
         self.product.tax_receipt_ok = False
-        contribution, _ = self._make_paid_invoice()
-        self.assertFalse(contribution.tax_receipt_id)
+        period, _ = self._make_paid_invoice()
+        self.assertFalse(period.tax_receipt_id)
 
     def test_no_receipt_when_partner_option_none(self):
         self.partner.tax_receipt_option = "none"
-        contribution, _ = self._make_paid_invoice()
-        self.assertFalse(contribution.tax_receipt_id)
+        period, _ = self._make_paid_invoice()
+        self.assertFalse(period.tax_receipt_id)
 
     def test_no_receipt_when_partner_option_annual(self):
         self.partner.tax_receipt_option = "annual"
-        contribution, _ = self._make_paid_invoice()
-        self.assertFalse(contribution.tax_receipt_id)
-
+        period, _ = self._make_paid_invoice()
+        self.assertFalse(period.tax_receipt_id)
 
     def test_each_company_numbers_its_own_receipts(self):
         branch = self.env["res.company"].create({"name": "Branch", "parent_id": self.company.id})
@@ -393,8 +392,8 @@ class TestTaxReceipts(MembershipTestCommon):
         ]))
 
     def test_refund_flags_receipt(self):
-        contribution, invoice = self._make_paid_invoice()
-        receipt = contribution.tax_receipt_id
+        period, invoice = self._make_paid_invoice()
+        receipt = period.tax_receipt_id
         self.assertFalse(receipt.activity_ids)
         refund = invoice._reverse_moves()
         refund.action_post()
@@ -402,26 +401,21 @@ class TestTaxReceipts(MembershipTestCommon):
         self.assertTrue(receipt.exists())
 
     def test_unreconciled_payment_flags_receipt(self):
-        contribution, invoice = self._make_paid_invoice()
-        receipt = contribution.tax_receipt_id
+        period, invoice = self._make_paid_invoice()
+        receipt = period.tax_receipt_id
         invoice.line_ids.remove_move_reconcile()
         self.assertNotEqual(invoice.payment_state, "paid")
         self.assertEqual(len(receipt.activity_ids), 1)
 
 
 class TestAnnualReceiptHook(MembershipTestCommon):
-    def test_annual_hook_aggregates_eligible_contributions(self):
+    def test_annual_hook_aggregates_eligible_periods(self):
         self.partner.tax_receipt_option = "annual"
         membership = self._make_membership()
-        contribution = self.env["membership.contribution"].create({
-            "membership_id": membership.id,
-            "membership_year": date.today().year,
-            "amount": 50.0,
-        })
-        contribution._apply_invoicing_strategy(strategy="confirm")
+        period = self._make_billed_period(membership, strategy="confirm", amount=50.0)
         self.env["account.payment.register"].with_context(
             active_model="account.move",
-            active_ids=contribution.invoice_id.ids,
+            active_ids=period.invoice_id.ids,
         ).create({}).action_create_payments()
         # Hook population
         receipt_dict = {}
@@ -432,20 +426,19 @@ class TestAnnualReceiptHook(MembershipTestCommon):
         )
         commercial = self.partner.commercial_partner_id
         self.assertIn(commercial, receipt_dict)
-        self.assertEqual(receipt_dict[commercial]["amount"], contribution.amount_paid)
+        self.assertEqual(receipt_dict[commercial]["amount"], period.amount_paid)
 
-    def test_annual_wizard_links_contributions_once(self):
+    def test_annual_wizard_links_periods_once(self):
         self.partner.tax_receipt_option = "annual"
         membership = self._make_membership()
-        contribution = self._make_contribution(membership, amount=50.0)
-        contribution._apply_invoicing_strategy(strategy="confirm")
+        period = self._make_billed_period(membership, strategy="confirm", amount=50.0)
         self.env["account.payment.register"].with_context(
             active_model="account.move",
-            active_ids=contribution.invoice_id.ids,
+            active_ids=period.invoice_id.ids,
         ).create({}).action_create_payments()
         receipt = self._run_annual_wizard()
-        self.assertEqual(receipt.membership_contribution_ids, contribution)
-        self.assertEqual(contribution.tax_receipt_id, receipt)
+        self.assertEqual(receipt.membership_period_ids, period)
+        self.assertEqual(period.tax_receipt_id, receipt)
         self.assertEqual(receipt.amount, 50.0)
         receipt_dict = {}
         self.env["donation.tax.receipt"].update_tax_receipt_annual_dict(
@@ -459,25 +452,25 @@ class TestManualModeReceipts(MembershipTestCommon):
         super().setUp()
         self.company.membership_invoicing_strategy = "manual"
 
-    def _paid_contribution(self, option, partner=None):
+    def _paid_period(self, option, partner=None):
         partner = partner or self.env["res.partner"].create({"name": option})
         partner.tax_receipt_option = option
         membership = self._make_membership(partner_id=partner.id)
-        contribution = self._make_contribution(membership, amount=50.0)
-        contribution.action_mark_as_paid()
-        return contribution
+        period = self._make_period(membership, amount=50.0)
+        period.action_mark_as_paid()
+        return period
 
     def test_mark_as_paid_sets_payment_date_and_issues_no_receipt(self):
-        contribution = self._paid_contribution("each")
-        self.assertEqual(contribution.date_paid, date.today())
-        self.assertFalse(contribution.tax_receipt_id)
+        period = self._paid_period("each")
+        self.assertEqual(period.date_paid, date.today())
+        self.assertFalse(period.tax_receipt_id)
 
     def test_annual_receipt_covers_each_and_annual_partners(self):
-        annual = self._paid_contribution("annual")
-        each = self._paid_contribution("each")
-        none = self._paid_contribution("none")
+        annual = self._paid_period("annual")
+        each = self._paid_period("each")
+        none = self._paid_period("none")
         receipts = self._run_annual_wizard()
-        self.assertEqual(receipts.membership_contribution_ids, annual | each)
+        self.assertEqual(receipts.membership_period_ids, annual | each)
         self.assertEqual(set(receipts.mapped("type")), {"annual"})
         self.assertFalse(none.tax_receipt_id)
 
@@ -485,7 +478,7 @@ class TestManualModeReceipts(MembershipTestCommon):
         partner = self.env["res.partner"].create({"name": "Imported", "tax_receipt_option": "annual"})
         membership = self._make_membership(partner_id=partner.id)
         # The importer writes the status directly, without a payment date.
-        self._make_contribution(membership, amount=50.0).write(
+        self._make_period(membership, amount=50.0).write(
             {"billing_status": "paid", "amount_paid": 50.0}
         )
         receipt_dict = {}
@@ -496,12 +489,12 @@ class TestManualModeReceipts(MembershipTestCommon):
 
     def test_product_not_eligible_is_not_receipted(self):
         self.product.tax_receipt_ok = False
-        contribution = self._paid_contribution("annual")
+        period = self._paid_period("annual")
         receipt_dict = {}
         self.env["donation.tax.receipt"].update_tax_receipt_annual_dict(
             receipt_dict, date(date.today().year, 1, 1), date(date.today().year, 12, 31), self.company
         )
-        self.assertNotIn(contribution._tax_receipt_partner(), receipt_dict)
+        self.assertNotIn(period._tax_receipt_partner(), receipt_dict)
 
 
 class TestMembershipNumberSequence(MembershipTestCommon):
@@ -581,7 +574,7 @@ class TestMembershipWizardRecipients(MembershipTestCommon):
         cancel = (
             self.env["membership.cancel.wizard"]
             .with_context(default_membership_id=membership.id)
-            .create({})
+            .create({"cancel_reason": "Moved away"})
         )
         return activate, cancel
 
@@ -619,41 +612,74 @@ class TestMembershipWizardRecipients(MembershipTestCommon):
         self.assertEqual(len(activate.mail_partner_ids), 2)
 
 
-class TestMembershipContributionYear(MembershipTestCommon):
+class TestMembershipPeriodYear(MembershipTestCommon):
     def _set_override(self, value):
-        self.company.membership_default_contribution_year = value
+        self.company.membership_default_period_year = value
 
     def test_zero_means_current_year(self):
         self._set_override(0)
-        self.assertEqual(self.company._membership_contribution_year(), date.today().year)
+        self.assertEqual(self.company._membership_period_year(), date.today().year)
 
     def test_past_override_falls_back_to_current_year(self):
         self._set_override(date.today().year - 1)
-        self.assertEqual(self.company._membership_contribution_year(), date.today().year)
+        self.assertEqual(self.company._membership_period_year(), date.today().year)
 
     def test_future_override_wins(self):
         self._set_override(date.today().year + 1)
-        self.assertEqual(self.company._membership_contribution_year(), date.today().year + 1)
+        self.assertEqual(self.company._membership_period_year(), date.today().year + 1)
 
     def test_membership_default_year_uses_override(self):
         self._set_override(date.today().year + 1)
         membership = self._make_membership()
-        self.assertEqual(membership._default_contribution_year(), date.today().year + 1)
+        self.assertEqual(membership._default_period_year(), date.today().year + 1)
 
-    def test_contribution_default_year_follows_override(self):
+    def test_period_default_year_follows_override(self):
         self._set_override(date.today().year + 1)
         membership = self._make_membership()
-        contribution = self.env["membership.contribution"].create({
+        membership.action_submit()
+        # No membership_year on purpose: the default must come from the override.
+        period = self.env["membership.period"].create({
             "membership_id": membership.id,
             "amount": 50.0,
         })
-        self.assertEqual(contribution.membership_year, date.today().year + 1)
+        self.assertEqual(period.membership_year, date.today().year + 1)
 
-    def test_settings_year_text_can_be_cleared(self):
-        self.company.membership_default_contribution_year = date.today().year + 2
+    def test_settings_year_can_be_cleared(self):
+        # The Char shadow field is gone: settings edit the integer directly.
+        self.company.membership_default_period_year = date.today().year + 2
         settings = self.env["res.config.settings"].create({})
-        settings.membership_default_contribution_year_text = False
-        self.assertEqual(self.company.membership_default_contribution_year, 0)
+        settings.membership_default_period_year = 0
+        settings.execute()
+        self.assertEqual(self.company.membership_default_period_year, 0)
+        self.assertEqual(self.company._membership_period_year(), date.today().year)
+
+    def test_period_dates_span_the_full_year(self):
+        membership = self._make_membership(date_start=date(date.today().year, 1, 1))
+        period = self._make_period(membership)
+        self.assertEqual(period.date_start, date(date.today().year, 1, 1))
+        self.assertEqual(period.date_end, date(date.today().year, 12, 31))
+
+    def test_period_dates_are_clipped_to_the_membership(self):
+        joined = date(date.today().year, 4, 15)
+        membership = self._make_membership(date_start=joined)
+        period = self._make_period(membership)
+        self.assertEqual(period.date_start, joined)
+        self.assertEqual(period.date_end, date(date.today().year, 12, 31))
+
+        membership._do_transition("active")
+        leaves = date(date.today().year, 6, 30)
+        membership._do_transition("cancelled", date_end=leaves, cancel_reason="left")
+        self.assertEqual(period.date_end, leaves)
+
+    def test_year_fields_are_plain_integers(self):
+        # "2,026" came from a mistyped view option, not from the model.
+        period_fields = self.env["membership.period"]._fields
+        self.assertNotIn("membership_year_text", period_fields)
+        self.assertNotIn("membership_year_display", period_fields)
+        self.assertNotIn(
+            "membership_default_period_year_text",
+            self.env["res.config.settings"]._fields,
+        )
 
 
 class TestMembershipDefaultTemplates(MembershipTestCommon):
@@ -710,9 +736,8 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
         subject = cancellation._render_field("subject", membership.ids)[membership.id]
         self.assertIn(self.company.name, subject)
         self.assertNotIn("${", subject)
-        contribution = self._make_contribution(membership, amount=50.0)
-        contribution._apply_invoicing_strategy(strategy="draft")
-        invoice = contribution.invoice_id
+        period = self._make_billed_period(membership, strategy="draft", amount=50.0)
+        invoice = period.invoice_id
         invoice_template = self.env.ref(
             "association_membership.mail_template_membership_activation_invoice"
         )
@@ -741,20 +766,15 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
         self.assertIn("Guten Tag", german._render_field("body_html", membership.ids)[membership.id])
         # The whole UI is translated, not only the templates.
         fields_de = self.env["membership.membership"].with_context(lang="de_DE").fields_get(
-            ["state", "contribution_ids"], ["string", "selection"]
+            ["state", "period_ids"], ["string", "selection"]
         )
-        self.assertEqual(fields_de["contribution_ids"]["string"], "Beiträge")
+        self.assertEqual(fields_de["period_ids"]["string"], "Beitragszeiträume")
         self.assertIn(("cancelled", "Gekündigt"), fields_de["state"]["selection"])
 
     def test_activation_invoice_template_renders(self):
         membership = self._make_membership()
-        contribution = self.env["membership.contribution"].create({
-            "membership_id": membership.id,
-            "membership_year": date.today().year,
-            "amount": 50.0,
-        })
-        contribution._apply_invoicing_strategy(strategy="draft")
-        invoice = contribution.invoice_id
+        period = self._make_billed_period(membership, strategy="draft", amount=50.0)
+        invoice = period.invoice_id
         template = self.env.ref("association_membership.mail_template_membership_activation_invoice")
         rendered = template._render_field("body_html", invoice.ids)[invoice.id]
         self.assertIn(self.partner.name, rendered)
@@ -835,54 +855,70 @@ class TestMembershipRenewal(MembershipTestCommon):
         line = wizard.result_line_ids.filtered(lambda l: l.membership_id == membership)
         self.assertEqual(line.status, "skipped")
         self.assertIn("archived", line.message)
-        self.assertFalse(membership.contribution_ids)
+        self.assertFalse(membership.period_ids)
 
 
 class TestPaymentHooks(MembershipTestCommon):
-    def test_payment_activates_and_issues_receipt_once(self):
-        self.company.membership_auto_activate_on_payment = True
+    def test_payment_issues_receipt_once_and_leaves_state_alone(self):
         self.partner.tax_receipt_option = "each"
         membership = self._make_membership()
         membership.action_submit()
-        contribution = self._make_contribution(membership, amount=50.0)
-        contribution._apply_invoicing_strategy(strategy="confirm")
-        invoice = contribution.invoice_id
+        period = self._make_billed_period(membership, strategy="confirm", amount=50.0)
+        invoice = period.invoice_id
         self.env["account.payment.register"].with_context(
             active_model="account.move",
             active_ids=invoice.ids,
         ).create({}).action_create_payments()
-        self.assertEqual(membership.state, "active")
-        receipt = contribution.tax_receipt_id
+        # Payment no longer activates: activation happens before payment.
+        self.assertEqual(membership.state, "waiting")
+        self.assertEqual(period.billing_status, "paid")
+        receipt = period.tax_receipt_id
         self.assertTrue(receipt)
         message_count = len(membership.message_ids)
         invoice._invoice_paid_hook()
-        self.assertEqual(contribution.tax_receipt_id, receipt)
+        self.assertEqual(period.tax_receipt_id, receipt)
         self.assertEqual(len(membership.message_ids), message_count)
 
     def test_posting_a_refund_posts_one_review_message(self):
         membership = self._make_membership()
-        contribution = self._make_contribution(membership, amount=50.0)
-        contribution._apply_invoicing_strategy(strategy="confirm")
-        refund = contribution.invoice_id._reverse_moves()
-        refund.invoice_line_ids.membership_contribution_id = contribution
+        period = self._make_billed_period(membership, strategy="confirm", amount=50.0)
+        refund = period.invoice_id._reverse_moves()
+        refund.invoice_line_ids.membership_period_id = period
         refund.action_post()
         messages = membership.message_ids.filtered(lambda m: "A refund was posted" in (m.body or ""))
         self.assertEqual(len(messages), 1)
 
 
 class TestReactivation(MembershipTestCommon):
+    def _wizard(self, membership):
+        return self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({})
+
     def test_welcome_message_unticked_when_already_sent(self):
         membership = self._make_membership()
         membership.action_submit()
-        wizard = self.env["membership.activate.wizard"].with_context(
-            default_membership_id=membership.id
-        ).create({})
-        self.assertTrue(wizard.send_welcome_message)
+        self.assertTrue(self._wizard(membership).send_welcome_message)
         membership.date_welcome_sent = date.today()
-        wizard = self.env["membership.activate.wizard"].with_context(
-            default_membership_id=membership.id
-        ).create({})
-        self.assertFalse(wizard.send_welcome_message)
+        self.assertFalse(self._wizard(membership).send_welcome_message)
+
+    def test_welcome_message_unticked_on_reactivation(self):
+        # Imported members carry no date_welcome_sent, so the date alone is
+        # not enough to recognise a second activation.
+        membership = self._make_membership()
+        membership.action_submit()
+        membership._do_transition("active")
+        membership._do_transition("cancelled", cancel_reason="left")
+        self.assertFalse(self._wizard(membership).send_welcome_message)
+
+    def test_welcome_message_unticked_after_reopen(self):
+        membership = self._make_membership()
+        self._make_period(membership)
+        membership._do_transition("active")
+        membership._do_transition("terminated", cancel_reason="left")
+        membership.action_reopen_waiting()
+        self.assertEqual(membership.state, "waiting")
+        self.assertFalse(self._wizard(membership).send_welcome_message)
 
 
 class TestCommunicationPartners(MembershipTestCommon):
@@ -919,12 +955,16 @@ class TestCommunicationPartners(MembershipTestCommon):
         self.company.membership_company_mail_recipients = "invoice_contact"
         membership = self._make_membership(partner_id=self.organisation.id)
         membership.action_submit()
-        for model in ("membership.activate.wizard", "membership.cancel.wizard"):
-            wizard = self.env[model].with_context(default_membership_id=membership.id).create({})
+        for model, vals in (
+            ("membership.activate.wizard", {}),
+            # A cancellation always has to say why.
+            ("membership.cancel.wizard", {"cancel_reason": "Moved away"}),
+        ):
+            wizard = self.env[model].with_context(default_membership_id=membership.id).create(vals)
             self.assertEqual(wizard.mail_partner_ids, self.billing)
 
 
-class TestActivationContribution(MembershipTestCommon):
+class TestActivationPeriod(MembershipTestCommon):
     def setUp(self):
         super().setUp()
         self.company.membership_invoicing_strategy = "manual"
@@ -934,73 +974,460 @@ class TestActivationContribution(MembershipTestCommon):
             default_membership_id=membership.id
         ).create({"send_welcome_message": False})
 
-    def test_creates_contribution_when_missing(self):
+    def test_creates_period_when_missing(self):
         membership = self._make_membership()
         membership.action_submit()
         wizard = self._activation_wizard(membership)
-        self.assertTrue(wizard.create_contribution)
+        self.assertTrue(wizard.create_period)
         wizard.action_confirm()
         self.assertEqual(membership.state, "active")
-        self.assertEqual(len(membership.contribution_ids), 1)
-        self.assertEqual(membership.contribution_ids.billing_status, "to_invoice")
-        self.assertFalse(membership.contribution_ids.invoice_id)
+        self.assertEqual(len(membership.period_ids), 1)
+        self.assertEqual(membership.period_ids.billing_status, "to_invoice")
+        self.assertFalse(membership.period_ids.invoice_id)
 
-    def test_keeps_existing_contribution(self):
+    def test_keeps_existing_period(self):
         membership = self._make_membership()
         membership.action_submit()
-        self._make_contribution(membership, membership_year=membership._default_contribution_year())
+        self._make_period(membership, membership_year=membership._default_period_year())
         wizard = self._activation_wizard(membership)
-        self.assertTrue(wizard.has_contribution)
-        self.assertFalse(wizard.create_contribution)
+        self.assertTrue(wizard.has_period)
+        self.assertFalse(wizard.create_period)
         wizard.action_confirm()
-        self.assertEqual(len(membership.contribution_ids), 1)
+        self.assertEqual(len(membership.period_ids), 1)
 
 
-class TestNewMembershipWizard(MembershipTestCommon):
-    def setUp(self):
-        super().setUp()
-        self.company.membership_invoicing_strategy = "manual"
-
-    def _wizard(self, **vals):
-        return self.env["membership.new.wizard"].create({
-            "partner_id": self.partner.id,
-            "product_id": self.tier_small.id,
-            **vals,
-        })
-
-    def test_previews(self):
-        wizard = self._wizard()
-        self.assertEqual(wizard.amount, 100.0)
-        self.assertEqual(wizard.mail_partner_ids, self.partner)
-        self.assertTrue(wizard.send_welcome_message)
-        number = wizard.membership_number_preview
-        wizard.send_welcome_message = False
-        action = wizard.action_confirm()
-        membership = self.env["membership.membership"].browse(action["res_id"])
-        self.assertEqual(membership.membership_number, number)
-
-    def test_create_activate_contribute_and_welcome(self):
-        action = self._wizard().action_confirm()
-        membership = self.env["membership.membership"].browse(action["res_id"])
-        self.assertEqual(membership.state, "active")
-        self.assertEqual(membership.amount, 100.0)
-        self.assertEqual(membership.contribution_ids.billing_status, "to_invoice")
-        self.assertEqual(membership.contribution_ids.amount, 100.0)
-        self.assertTrue(membership.date_welcome_sent)
-        welcome = membership.message_ids.filtered(lambda m: m.partner_ids == self.partner)
-        self.assertEqual(len(welcome), 1)
-
-    def test_without_activation_stays_waiting(self):
-        action = self._wizard(activate=False).action_confirm()
-        membership = self.env["membership.membership"].browse(action["res_id"])
-        self.assertEqual(membership.state, "waiting")
-        self.assertFalse(membership.contribution_ids)
-        self.assertFalse(membership.date_welcome_sent)
+class TestMembershipCreation(MembershipTestCommon):
+    """The form is the creation UI; there is no separate creation wizard."""
 
     def test_started_from_partner(self):
         action = self.partner.action_create_membership()
-        self.assertEqual(action["res_model"], "membership.new.wizard")
+        self.assertEqual(action["res_model"], "membership.membership")
+        self.assertEqual(action["view_mode"], "form")
         self.assertEqual(action["context"]["default_partner_id"], self.partner.id)
+
+    def test_form_previews_number_and_fee_before_saving(self):
+        draft = self.env["membership.membership"].new({
+            "partner_id": self.partner.id,
+            "company_id": self.company.id,
+            "product_id": self.tier_small.id,
+        })
+        self.assertEqual(draft.amount, 100.0)
+        self.assertTrue(draft.membership_number_preview)
+        self.assertIn(self.tier_small, self.env["product.product"].search(draft.product_domain))
+
+
+class TestStrategyResolution(MembershipTestCommon):
+    def test_membership_override_beats_company(self):
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership()
+        self.assertEqual(membership._get_invoicing_strategy(), "manual")
+        membership.invoicing_strategy = "confirm"
+        self.assertEqual(membership._get_invoicing_strategy(), "confirm")
+        period = self._make_period(membership, amount=50.0)
+        self.assertEqual(period.membership_invoicing_strategy, "confirm")
+
+    def test_applied_strategy_survives_later_changes(self):
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership()
+        period = self._make_period(membership, amount=50.0)
+        self.assertEqual(period.membership_invoicing_strategy, "manual")
+        membership.invoicing_strategy = "confirm"
+        self.company.membership_invoicing_strategy = "draft"
+        self.assertEqual(period.membership_invoicing_strategy, "manual")
+        self.assertEqual(period.billing_status, "to_invoice")
+
+
+class TestCreateInvoiceAction(MembershipTestCommon):
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+        self.membership = self._make_membership()
+
+    def test_manual_create_invoice_gives_a_draft(self):
+        period = self._make_period(self.membership, amount=50.0)
+        self.assertEqual(period.billing_status, "to_invoice")
+        period.action_create_invoice()
+        self.assertTrue(period.invoice_id)
+        self.assertEqual(period.invoice_id.state, "draft")
+        self.assertEqual(period.billing_status, "invoiced")
+
+    def test_confirm_strategy_create_invoice_posts(self):
+        self.membership.invoicing_strategy = "confirm"
+        period = self._make_period(self.membership, amount=50.0)
+        period.action_create_invoice()
+        self.assertEqual(period.invoice_id.state, "posted")
+
+    def test_manual_period_follows_its_invoice_to_paid(self):
+        period = self._make_period(self.membership, amount=50.0)
+        period.action_create_invoice()
+        period.invoice_id.action_post()
+        self.assertEqual(period.billing_status, "invoiced")
+        self.assertEqual(period.amount_invoiced, 50.0)
+        self.env["account.payment.register"].with_context(
+            active_model="account.move",
+            active_ids=period.invoice_id.ids,
+        ).create({}).action_create_payments()
+        self.assertEqual(period.billing_status, "paid")
+        self.assertEqual(period.amount_paid, 50.0)
+
+    def test_create_invoice_refused_when_free_or_invoiced(self):
+        free = self._make_period(self.membership, amount=0.0)
+        with self.assertRaises(UserError):
+            free.action_create_invoice()
+        other = self._make_membership(
+            partner_id=self.env["res.partner"].create({"name": "Second"}).id,
+        )
+        billed = self._make_period(other, amount=50.0)
+        billed.action_create_invoice()
+        with self.assertRaises(UserError):
+            billed.action_create_invoice()
+
+    def test_mark_as_paid_refused_once_an_invoice_exists(self):
+        period = self._make_period(self.membership, amount=50.0)
+        period.action_create_invoice()
+        with self.assertRaises(UserError):
+            period.action_mark_as_paid()
+
+
+class TestUnmarkAsPaid(MembershipTestCommon):
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+        self.membership = self._make_membership()
+
+    def test_unmark_restores_open_period(self):
+        period = self._make_period(self.membership, amount=50.0)
+        period.action_mark_as_paid()
+        self.assertEqual(period.billing_status, "paid")
+        self.assertTrue(period.date_paid)
+        period.action_unmark_as_paid()
+        self.assertEqual(period.billing_status, "to_invoice")
+        self.assertFalse(period.date_paid)
+        self.assertEqual(period.amount_paid, 0.0)
+
+    def test_unmark_blocked_when_a_receipt_exists(self):
+        self.partner.tax_receipt_option = "annual"
+        period = self._make_period(self.membership, amount=50.0)
+        period.action_mark_as_paid()
+        self._run_annual_wizard()
+        self.assertTrue(period.tax_receipt_id)
+        with self.assertRaises(UserError):
+            period.action_unmark_as_paid()
+
+    def test_imported_paid_history_keeps_its_status(self):
+        period = self._make_period(self.membership, amount=50.0)
+        period.write({"billing_status": "paid", "amount_paid": 50.0})
+        period.invalidate_recordset()
+        self.assertEqual(period.billing_status, "paid")
+        self.assertEqual(period.amount_paid, 50.0)
+
+
+class TestActivationInvoicing(MembershipTestCommon):
+    def _activate(self, membership, **vals):
+        wizard = self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({"send_welcome_message": False, **vals})
+        wizard.action_confirm()
+        return wizard
+
+    def test_draft_strategy_leaves_the_invoice_in_draft(self):
+        self.company.membership_invoicing_strategy = "draft"
+        membership = self._make_membership()
+        membership.action_submit()
+        self._activate(membership)
+        period = membership.period_ids
+        self.assertEqual(len(period), 1)
+        self.assertTrue(period.invoice_id)
+        # "Draft" means draft: only `confirm` posts.
+        self.assertEqual(period.invoice_id.state, "draft")
+        self.assertEqual(period.billing_status, "invoiced")
+
+    def test_confirm_strategy_can_send_the_invoice_email(self):
+        self.company.membership_invoicing_strategy = "confirm"
+        membership = self._make_membership()
+        membership.action_submit()
+        self._activate(membership, send_invoice_email=True)
+        invoice = membership.period_ids.invoice_id
+        self.assertEqual(invoice.state, "posted")
+        self.assertTrue(invoice.message_ids)
+
+    def test_strategy_chosen_in_the_wizard_sticks(self):
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership()
+        membership.action_submit()
+        self._activate(membership, invoicing_strategy="draft")
+        self.assertEqual(membership.invoicing_strategy, "draft")
+        self.assertEqual(
+            membership.period_ids.membership_invoicing_strategy, "draft"
+        )
+        self.assertTrue(membership.period_ids.invoice_id)
+
+    def test_existing_unbilled_period_is_invoiced_by_the_wizard(self):
+        """The bug found on the live instance: a period created in manual mode
+        kept its frozen strategy and suppressed the invoice for good."""
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership()
+        membership.action_submit()
+        period = membership._ensure_default_year_period()
+        self.assertEqual(period.membership_invoicing_strategy, "manual")
+        self.assertFalse(period.invoice_id)
+
+        self.company.membership_invoicing_strategy = "draft"
+        self._activate(membership, invoicing_strategy="draft")
+        self.assertEqual(membership.period_ids, period)
+        self.assertEqual(period.membership_invoicing_strategy, "draft")
+        self.assertTrue(period.invoice_id)
+        self.assertEqual(period.invoice_id.state, "draft")
+
+    def test_a_billed_period_keeps_its_applied_strategy(self):
+        self.company.membership_invoicing_strategy = "draft"
+        membership = self._make_membership()
+        period = self._make_billed_period(membership, strategy="draft")
+        self.company.membership_invoicing_strategy = "confirm"
+        membership.invoicing_strategy = False
+        period._refresh_unbilled_invoicing_strategy()
+        self.assertEqual(period.membership_invoicing_strategy, "draft")
+
+    def test_imported_paid_history_keeps_manual(self):
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership()
+        # No invoice and no payment date - exactly what the importer writes.
+        period = self._make_period(membership, amount=50.0)
+        period.write({"billing_status": "paid", "amount_paid": 50.0})
+        self.company.membership_invoicing_strategy = "confirm"
+        period._refresh_unbilled_invoicing_strategy()
+        self.assertEqual(period.membership_invoicing_strategy, "manual")
+        self.assertEqual(period.billing_status, "paid")
+
+    def test_zero_fee_warns_instead_of_failing_silently(self):
+        self.company.membership_invoicing_strategy = "draft"
+        membership = self._make_membership(product_id=self.tier_template.product_variant_ids[0].id)
+        membership.amount = 0.0
+        membership.action_submit()
+        wizard = self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({"send_welcome_message": False})
+        self.assertTrue(wizard.free_period_warning)
+        wizard.action_confirm()
+        self.assertEqual(membership.period_ids.billing_status, "waived")
+        self.assertFalse(membership.period_ids.invoice_id)
+
+    def test_activate_straight_from_draft(self):
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership()
+        self.assertEqual(membership.state, "draft")
+        self._activate(membership)
+        self.assertEqual(membership.state, "active")
+        self.assertEqual(len(membership.period_ids), 1)
+
+
+class TestCancellationHandling(MembershipTestCommon):
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+        self.membership = self._make_membership()
+        self.membership.action_submit()
+        self.membership._do_transition("active")
+
+    def _cancel_wizard(self, **vals):
+        vals.setdefault("cancel_reason", "Moved away")
+        return self.env["membership.cancel.wizard"].with_context(
+            default_membership_id=self.membership.id
+        ).create(vals)
+
+    def test_cancellation_requires_a_reason(self):
+        with self.assertRaises(Exception):
+            self.env["membership.cancel.wizard"].with_context(
+                default_membership_id=self.membership.id
+            ).create({"date_end": date(date.today().year, 12, 31)})
+
+    def test_end_date_can_be_corrected_while_cancelled(self):
+        self._cancel_wizard(
+            date_cancelled=date(date.today().year, 3, 1),
+            date_end=date(date.today().year, 12, 31),
+        ).action_confirm()
+        self.assertEqual(self.membership.state, "cancelled")
+        # Still in the future, so the membership stays cancelled rather than ending.
+        corrected = date(date.today().year + 1, 6, 30)
+        self._cancel_wizard(
+            date_cancelled=date(date.today().year, 3, 1),
+            date_end=corrected,
+        ).action_confirm()
+        self.assertEqual(self.membership.state, "cancelled")
+        self.assertEqual(self.membership.date_end, corrected)
+        self.assertEqual(self.membership.date_cancelled, date(date.today().year, 3, 1))
+
+    def test_open_periods_can_be_dropped(self):
+        period = self._make_period(self.membership, amount=50.0)
+        period.action_create_invoice()
+        invoice = period.invoice_id
+        wizard = self._cancel_wizard(
+            date_cancelled=date(date.today().year, 3, 1),
+            date_end=date(date.today().year, 12, 31),
+            open_period_handling="drop",
+        )
+        self.assertIn(period, wizard.open_period_ids)
+        wizard.action_confirm()
+        self.assertFalse(self.membership.period_ids)
+        self.assertEqual(invoice.state, "cancel")
+
+    def test_open_periods_are_kept_by_default(self):
+        period = self._make_period(self.membership, amount=50.0)
+        self._cancel_wizard(
+            date_cancelled=date(date.today().year, 3, 1),
+            date_end=date(date.today().year, 12, 31),
+        ).action_confirm()
+        self.assertEqual(self.membership.period_ids, period)
+
+    def test_posted_invoice_period_survives_the_drop(self):
+        period = self._make_period(self.membership, amount=50.0)
+        period.action_create_invoice()
+        period.invoice_id.action_post()
+        self._cancel_wizard(
+            date_cancelled=date(date.today().year, 3, 1),
+            date_end=date(date.today().year, 12, 31),
+            open_period_handling="drop",
+        ).action_confirm()
+        self.assertEqual(self.membership.period_ids, period)
+        self.assertEqual(period.invoice_id.state, "posted")
+
+
+class TestCancelDirect(MembershipTestCommon):
+    """The importer's non-interactive cancellation path."""
+
+    def _cancel_direct(self, membership, **vals):
+        membership.action_cancel_direct(
+            date_cancelled=date(date.today().year, 3, 1),
+            date_end=date(date.today().year + 1, 12, 31),
+            cancel_reason="left",
+            **vals,
+        )
+
+    def test_from_draft_goes_through_waiting(self):
+        membership = self._make_membership()
+        self._cancel_direct(membership)
+        self.assertEqual(membership.state, "cancelled")
+        self.assertEqual(membership.cancel_reason, "left")
+
+    def test_from_terminated_reopens_first(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        membership._do_transition("active")
+        membership._do_transition("terminated", cancel_reason="old")
+        self._cancel_direct(membership)
+        self.assertEqual(membership.state, "cancelled")
+        self.assertEqual(membership.date_end, date(date.today().year + 1, 12, 31))
+
+    def test_accepts_date_strings_from_rpc(self):
+        # The importer sends ISO strings over XML-RPC, not date objects.
+        membership = self._make_membership()
+        membership.action_cancel_direct(
+            date_cancelled="%s-03-01" % date.today().year,
+            date_end="%s-12-31" % (date.today().year + 1),
+            cancel_reason="rpc",
+        )
+        self.assertEqual(membership.state, "cancelled")
+        self.assertEqual(membership.date_end, date(date.today().year + 1, 12, 31))
+
+    def test_past_end_date_string_terminates(self):
+        membership = self._make_membership(
+            date_start=date(date.today().year - 1, 1, 1),
+        )
+        membership.action_cancel_direct(
+            date_cancelled="%s-01-15" % (date.today().year - 1),
+            date_end="%s-12-31" % (date.today().year - 1),
+            cancel_reason="rpc",
+        )
+        self.assertEqual(membership.state, "terminated")
+
+    def test_rerun_updates_an_existing_cancellation(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        self._cancel_direct(membership)
+        membership.action_cancel_direct(
+            date_cancelled=date(date.today().year, 3, 1),
+            date_end=date(date.today().year + 2, 6, 30),
+            cancel_reason="moved",
+        )
+        self.assertEqual(membership.state, "cancelled")
+        self.assertEqual(membership.date_end, date(date.today().year + 2, 6, 30))
+        self.assertEqual(membership.cancel_reason, "moved")
+
+
+class TestDraftMembershipGuard(MembershipTestCommon):
+    def test_period_refused_on_a_draft_membership(self):
+        membership = self._make_membership()
+        with self.assertRaises(ValidationError):
+            self.env["membership.period"].create({
+                "membership_id": membership.id,
+                "membership_year": date.today().year,
+            })
+
+
+class TestRenewalCandidates(MembershipTestCommon):
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+        self.target_year = date.today().year + 1
+
+    def _run(self, dry_run=False):
+        wizard = self.env["membership.renewal.wizard"].create({
+            "target_year": self.target_year,
+            "company_ids": [(6, 0, self.company.ids)],
+            "dry_run": dry_run,
+        })
+        wizard.action_run()
+        return wizard
+
+    def _membership_in_state(self, name, state):
+        membership = self._make_membership(
+            partner_id=self.env["res.partner"].create({"name": name}).id,
+        )
+        membership.action_submit()
+        if state in ("active", "cancelled"):
+            membership._do_transition("active")
+        if state == "cancelled":
+            membership._schedule_termination(
+                date_end=date(self.target_year, 12, 31),
+            )
+        return membership
+
+    def test_active_renews_and_waiting_does_not(self):
+        active = self._membership_in_state("Active", "active")
+        waiting = self._membership_in_state("Waiting", "waiting")
+        self._run()
+        self.assertTrue(active.period_ids)
+        self.assertFalse(waiting.period_ids)
+
+    def test_cancelled_within_the_target_year_still_renews(self):
+        cancelled = self._membership_in_state("Cancelled", "cancelled")
+        self._run()
+        self.assertTrue(cancelled.period_ids)
+
+    def test_expired_cancellation_does_not_renew(self):
+        membership = self._make_membership(
+            partner_id=self.env["res.partner"].create({"name": "Expired"}).id,
+            date_start=date(date.today().year - 1, 1, 1),
+        )
+        membership.action_submit()
+        membership._do_transition("active")
+        # Cancelled and already past its end date: the termination cron has not
+        # caught up, but it must not be renewed.
+        membership._do_transition(
+            "cancelled", date_end=date(date.today().year - 1, 12, 31)
+        )
+        self.assertEqual(membership.state, "cancelled")
+        self._run()
+        self.assertFalse(membership.period_ids)
+
+    def test_dry_run_writes_nothing_and_says_so(self):
+        active = self._membership_in_state("Dry", "active")
+        wizard = self._run(dry_run=True)
+        self.assertFalse(active.period_ids)
+        line = wizard.result_line_ids.filtered(
+            lambda result: result.membership_id == active
+        )
+        self.assertIn("Would create", line.message)
 
 
 class TestMemberEmailFollowers(MembershipTestCommon):
@@ -1016,18 +1443,25 @@ class TestMemberEmailFollowers(MembershipTestCommon):
                 self.env.ref("association_membership.group_membership_manager").id,
             ])],
         })
-        wizard = self.env["membership.new.wizard"].with_user(office).create({
+        membership = self.env["membership.membership"].with_user(office).create({
             "partner_id": self.partner.id,
+            "company_id": self.company.id,
             "product_id": self.product.id,
         })
-        membership = self.env["membership.membership"].browse(wizard.action_confirm()["res_id"])
+        membership.action_submit()
+        self.env["membership.activate.wizard"].with_user(office).with_context(
+            default_membership_id=membership.id
+        ).create({}).action_confirm()
         self.assertNotIn(office.partner_id, membership.message_partner_ids)
         welcome = membership.message_ids.filtered(lambda m: self.partner in m.partner_ids)
         self.assertEqual(len(welcome), 1)
         self.assertNotIn(office.partner_id, welcome.notification_ids.res_partner_id)
         self.env["membership.cancel.wizard"].with_user(office).with_context(
             default_membership_id=membership.id
-        ).create({"send_cancellation_message": True}).action_confirm()
+        ).create({
+            "send_cancellation_message": True,
+            "cancel_reason": "Left the association",
+        }).action_confirm()
         self.assertEqual(membership.state, "cancelled")
         self.assertNotIn(office.partner_id, membership.message_partner_ids)
 

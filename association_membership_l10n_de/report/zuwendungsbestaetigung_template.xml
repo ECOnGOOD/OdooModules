@@ -160,7 +160,7 @@
                             <th>Verzicht auf die Erstattung von Aufwendungen (ja/nein)</th>
                             <th class="text-end">Betrag</th>
                         </tr>
-                        <tr t-foreach="o.membership_contribution_ids.sorted(lambda c: c.date_paid or c.date_invoice)" t-as="c">
+                        <tr t-foreach="o.membership_period_ids.sorted(lambda c: c.date_paid or c.date_invoice)" t-as="c">
                             <td><t t-out="(c.date_paid or c.date_invoice).strftime('%d.%m.%Y')" /></td>
                             <td>Mitgliedsbeitrag</td>
                             <td>nein</td>

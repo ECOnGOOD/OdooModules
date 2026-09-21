@@ -7,17 +7,27 @@
             <form string="Activate Membership">
                 <group>
                     <field name="membership_id" />
+                    <field name="invoicing_strategy" />
                 </group>
-                <group string="Contribution" invisible="has_contribution">
-                    <field name="has_contribution" invisible="1" />
-                    <field name="contribution_year" options="{'format': false}" readonly="1" />
-                    <field name="create_contribution" />
+                <group string="Period" invisible="has_period">
+                    <field name="has_period" invisible="1" />
+                    <field name="period_year" options="{'enable_formatting': false}" readonly="1" />
+                    <field name="create_period" />
                 </group>
-                <group string="Invoice" invisible="not has_draft_invoice">
-                    <field name="has_draft_invoice" invisible="1" />
-                    <field name="invoice_id" readonly="1" />
-                    <field name="confirm_invoice" />
-                    <field name="send_invoice_email" invisible="not confirm_invoice" />
+                <field name="free_period_warning" invisible="1" />
+                <div
+                    class="alert alert-warning"
+                    role="alert"
+                    invisible="not free_period_warning"
+                >
+                    <field name="free_period_warning" nolabel="1" readonly="1" />
+                </div>
+                <group
+                    string="Invoice"
+                    invisible="invoicing_strategy != 'confirm' or (not invoice_id and not create_period and not has_period)"
+                >
+                    <field name="invoice_id" readonly="1" invisible="not invoice_id" />
+                    <field name="send_invoice_email" />
                 </group>
                 <group string="Welcome Message">
                     <field name="send_welcome_message" />

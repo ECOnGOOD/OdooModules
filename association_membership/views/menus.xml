@@ -9,15 +9,6 @@
     />
 
     <menuitem
-        id="menu_membership_new"
-        name="New Membership"
-        parent="association_membership.menu_membership_root"
-        action="association_membership.action_membership_new_wizard"
-        sequence="1"
-        groups="association_membership.group_membership_manager"
-    />
-
-    <menuitem
         id="menu_membership_members"
         name="Members"
         parent="association_membership.menu_membership_root"
@@ -26,20 +17,12 @@
         groups="association_membership.group_membership_manager"
     />
 
-    <record id="menu_membership_memberships" model="ir.ui.menu">
-        <field name="name">Membership Records</field>
-        <field name="parent_id" ref="association_membership.menu_membership_root" />
-        <field name="action" ref="association_membership.action_membership_membership" />
-        <field name="sequence">10</field>
-        <field name="groups_id" eval="[(6, 0, [ref('association_membership.group_membership_manager')])]" />
-        <field name="active" eval="False" />
-    </record>
 
     <menuitem
-        id="menu_membership_contributions"
-        name="Contributions"
+        id="menu_membership_periods"
+        name="Periods"
         parent="association_membership.menu_membership_root"
-        action="association_membership.action_membership_contribution_default_year"
+        action="association_membership.action_membership_period_default_year"
         sequence="20"
         groups="association_membership.group_membership_manager"
     />
@@ -72,9 +55,9 @@
 
     <menuitem
         id="menu_membership_report_history"
-        name="Contribution History"
+        name="Period History"
         parent="association_membership.menu_membership_reporting"
-        action="association_membership.action_report_contribution_history"
+        action="association_membership.action_report_period_history"
         sequence="30"
         groups="association_membership.group_membership_manager"
     />
@@ -90,10 +73,18 @@
 
     <menuitem
         id="menu_membership_report_cancellations"
-        name="Cancellations"
+        name="Scheduled to End"
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_cancellations"
         sequence="50"
+        groups="association_membership.group_membership_manager"
+    />
+    <menuitem
+        id="menu_membership_report_former_members"
+        name="Former Members"
+        parent="association_membership.menu_membership_reporting"
+        action="association_membership.action_report_former_members"
+        sequence="55"
         groups="association_membership.group_membership_manager"
     />
 

@@ -36,26 +36,29 @@ class ResCompany(models.Model):
         required=True,
         help="Individuals always receive their own emails.",
     )
-    membership_auto_activate_on_payment = fields.Boolean(
-        string="Auto-activate membership on payment",
-        default=False,
-    )
     membership_cron_year_offset = fields.Integer(
         string="Renewal Year Offset",
         default=1,
+        help="Only used by the Membership Renewal scheduled action, which is"
+             " disabled by default. The renewal wizard asks for its own target year.",
     )
-    membership_default_contribution_year = fields.Integer(
-        string="Contribution Year Override",
+    membership_default_period_year = fields.Integer(
+        string="Period Year Override",
         default=0,
-        help="Leave 0 to always default new contributions to the current year. "
-             "Set a future year to default new contributions to that year, "
+        help="Leave 0 to always default new periods to the current year. "
+             "Set a future year to default new periods to that year, "
              "e.g. for early renewals. Past years always fall back to the current year.",
     )
     membership_invoicing_strategy = fields.Selection(
         selection=INVOICING_STRATEGY_SELECTION,
         string="Invoicing Strategy",
-        default="draft",
+        default="manual",
         required=True,
+        help="Default for new memberships of this company; a membership may override it.\n"
+             "Manual: no invoice is created automatically. Record payments with"
+             " \"Mark as Paid\", or create an invoice by hand when one is needed.\n"
+             "Draft: activation and renewal create a draft invoice.\n"
+             "Confirm: activation and renewal create and post the invoice.",
     )
     membership_activation_invoice_template_id = fields.Many2one(
         "mail.template",
@@ -94,16 +97,16 @@ class ResCompany(models.Model):
         self.ensure_one()
         return fields.Date.today().year + (self.membership_cron_year_offset or 1)
 
-    def _membership_contribution_year(self):
+    def _membership_period_year(self):
         self.ensure_one()
         current_year = fields.Date.today().year
-        override = self.membership_default_contribution_year
+        override = self.membership_default_period_year
         return override if override and override >= current_year else current_year
 
     @api.constrains(
         "member_number_padding",
         "member_number_prefix",
-        "membership_default_contribution_year",
+        "membership_default_period_year",
         "membership_activation_invoice_template_id",
         "membership_welcome_template_id",
         "membership_cancellation_template_id",
@@ -112,10 +115,10 @@ class ResCompany(models.Model):
         for company in self:
             if company.member_number_padding <= 0:
                 raise ValidationError(_("Member Number Padding must be greater than zero."))
-            if company.membership_default_contribution_year:
+            if company.membership_default_period_year:
                 normalize_year_value(
-                    company.membership_default_contribution_year,
-                    company._fields["membership_default_contribution_year"].string,
+                    company.membership_default_period_year,
+                    company._fields["membership_default_period_year"].string,
                 )
             try:
                 company._render_member_number_prefix()

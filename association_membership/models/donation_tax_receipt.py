@@ -4,10 +4,10 @@ from odoo import Command, api, fields, models
 class DonationTaxReceipt(models.Model):
     _inherit = "donation.tax.receipt"
 
-    membership_contribution_ids = fields.One2many(
-        "membership.contribution",
+    membership_period_ids = fields.One2many(
+        "membership.period",
         "tax_receipt_id",
-        string="Membership Contributions",
+        string="Membership Periods",
         readonly=True,
     )
 
@@ -19,14 +19,14 @@ class DonationTaxReceipt(models.Model):
         return super().create(vals_list)
 
     @api.model
-    def _membership_annual_contributions(self, company, start_date, end_date):
-        """Paid, receipt-eligible contributions of the period without a receipt.
+    def _membership_annual_periods(self, company, start_date, end_date):
+        """Paid, receipt-eligible periods of the period without a receipt.
 
         Manual mode: marked as paid with a payment date in the period. Imported
         history has no payment date and is never included. Invoice mode: the
         invoice is fully paid and dated in the period.
         """
-        contributions = self.env["membership.contribution"].search(
+        periods = self.env["membership.period"].search(
             [
                 ("company_id", "=", company.id),
                 ("product_id.tax_receipt_ok", "=", True),
@@ -45,11 +45,11 @@ class DonationTaxReceipt(models.Model):
         )
         # Manual mode issues no per-payment receipts (decision 5), so partners
         # who chose "each" get their manually paid fees on the annual receipt.
-        return contributions.filtered(
-            lambda contribution: contribution._tax_receipt_partner().tax_receipt_option == "annual"
+        return periods.filtered(
+            lambda period: period._tax_receipt_partner().tax_receipt_option == "annual"
             or (
-                contribution.membership_invoicing_strategy == "manual"
-                and contribution._tax_receipt_partner().tax_receipt_option == "each"
+                period.membership_invoicing_strategy == "manual"
+                and period._tax_receipt_partner().tax_receipt_option == "each"
             )
         )
 
@@ -58,14 +58,14 @@ class DonationTaxReceipt(models.Model):
         super().update_tax_receipt_annual_dict(
             tax_receipt_annual_dict, start_date, end_date, company
         )
-        for contribution in self._membership_annual_contributions(company, start_date, end_date):
+        for period in self._membership_annual_periods(company, start_date, end_date):
             partner_dict = tax_receipt_annual_dict.setdefault(
-                contribution._tax_receipt_partner(),
+                period._tax_receipt_partner(),
                 {"amount": 0.0, "extra_vals": {}},
             )
-            # Paid contributions always carry amount_paid, in both modes.
-            partner_dict["amount"] += contribution.amount_paid
+            # Paid periods always carry amount_paid, in both modes.
+            partner_dict["amount"] += period.amount_paid
             # donation_base passes extra_vals to the receipt it creates.
-            partner_dict["extra_vals"].setdefault("membership_contribution_ids", []).append(
-                Command.link(contribution.id)
+            partner_dict["extra_vals"].setdefault("membership_period_ids", []).append(
+                Command.link(period.id)
             )

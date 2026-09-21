@@ -6,6 +6,8 @@ from psycopg2 import IntegrityError
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from .res_company import INVOICING_STRATEGY_SELECTION
+
 
 MEMBERSHIP_STATE_SELECTION = [
     ("draft", "Draft"),
@@ -15,7 +17,13 @@ MEMBERSHIP_STATE_SELECTION = [
     ("terminated", "Terminated"),
 ]
 
+# Business-active: the membership is live today. `cancelled` is "scheduled to
+# end at date_end", so it still counts.
 BUSINESS_ACTIVE_STATES = ("active", "cancelled")
+# Everything an association would call "a member on the books", including the
+# ones not activated yet. The single definition used by reports, the partner
+# number display and the partner filters.
+CURRENT_MEMBER_STATES = ("waiting", "active", "cancelled")
 
 
 class MembershipMembership(models.Model):
@@ -112,21 +120,28 @@ class MembershipMembership(models.Model):
         readonly=False,
         tracking=True,
     )
-    contribution_ids = fields.One2many(
-        "membership.contribution",
+    invoicing_strategy = fields.Selection(
+        selection=INVOICING_STRATEGY_SELECTION,
+        string="Invoicing Strategy",
+        tracking=True,
+        help="Leave empty to follow the company setting. Each period keeps"
+             " the strategy that applied when it was created.",
+    )
+    period_ids = fields.One2many(
+        "membership.period",
         "membership_id",
-        string="Contributions",
+        string="Periods",
     )
-    duplicate_contribution_year_warning = fields.Char(
-        compute="_compute_duplicate_contribution_year_warning",
+    duplicate_period_year_warning = fields.Char(
+        compute="_compute_duplicate_period_year_warning",
     )
-    contribution_count = fields.Integer(compute="_compute_contribution_count")
-    last_contribution_year = fields.Integer(
-        compute="_compute_last_contribution_data",
+    period_count = fields.Integer(compute="_compute_period_count")
+    last_period_year = fields.Integer(
+        compute="_compute_last_period_data",
         store=True,
     )
     last_billing_status = fields.Char(
-        compute="_compute_last_contribution_data",
+        compute="_compute_last_period_data",
         store=True,
     )
     active = fields.Boolean(default=True)
@@ -187,30 +202,30 @@ class MembershipMembership(models.Model):
         for record in self:
             record.amount = record.product_id._get_membership_price(record.company_id)
 
-    @api.depends("contribution_ids.membership_year")
-    def _compute_duplicate_contribution_year_warning(self):
+    @api.depends("period_ids.membership_year")
+    def _compute_duplicate_period_year_warning(self):
         for record in self:
-            duplicate_years = record._get_duplicate_contribution_years()
-            record.duplicate_contribution_year_warning = (
-                _("More than one contribution exists for year(s): %s.")
+            duplicate_years = record._get_duplicate_period_years()
+            record.duplicate_period_year_warning = (
+                _("More than one period exists for year(s): %s.")
                 % ", ".join(str(year) for year in duplicate_years)
                 if duplicate_years
                 else False
             )
 
-    @api.depends("contribution_ids")
-    def _compute_contribution_count(self):
+    @api.depends("period_ids")
+    def _compute_period_count(self):
         for record in self:
-            record.contribution_count = len(record.contribution_ids)
+            record.period_count = len(record.period_ids)
 
-    @api.depends("contribution_ids.membership_year", "contribution_ids.billing_status")
-    def _compute_last_contribution_data(self):
+    @api.depends("period_ids.membership_year", "period_ids.billing_status")
+    def _compute_last_period_data(self):
         for record in self:
-            contributions = record.contribution_ids.sorted(
-                key=lambda contribution: (contribution.membership_year, contribution.id)
+            periods = record.period_ids.sorted(
+                key=lambda period: (period.membership_year, period.id)
             )
-            latest = contributions[-1:] if contributions else self.env["membership.contribution"]
-            record.last_contribution_year = latest.membership_year if latest else 0
+            latest = periods[-1:] if periods else self.env["membership.period"]
+            record.last_period_year = latest.membership_year if latest else 0
             record.last_billing_status = latest.billing_status if latest else False
 
     @api.depends("company_id", "partner_id.is_company")
@@ -218,32 +233,32 @@ class MembershipMembership(models.Model):
         for record in self:
             record.product_domain = record._membership_product_domain()
 
-    @api.model
-    def _is_auto_activate_on_payment_enabled(self, company=False):
-        company = company or self.env.company
-        return bool(company.membership_auto_activate_on_payment)
-
-    def _get_duplicate_contribution_years(self):
+    def _get_invoicing_strategy(self):
+        """The strategy that applies to this membership: own override, else company."""
         self.ensure_one()
-        contribution_years = [
+        return self.invoicing_strategy or self.company_id.membership_invoicing_strategy
+
+    def _get_duplicate_period_years(self):
+        self.ensure_one()
+        period_years = [
             year
-            for year in self.contribution_ids.mapped("membership_year")
+            for year in self.period_ids.mapped("membership_year")
             if year
         ]
         duplicates = [
-            year for year, count in Counter(contribution_years).items() if count > 1
+            year for year, count in Counter(period_years).items() if count > 1
         ]
         return sorted(duplicates)
 
-    @api.onchange("contribution_ids", "contribution_ids.membership_year")
-    def _onchange_contribution_ids_warning(self):
-        duplicate_years = self._get_duplicate_contribution_years()
+    @api.onchange("period_ids", "period_ids.membership_year")
+    def _onchange_period_ids_warning(self):
+        duplicate_years = self._get_duplicate_period_years()
         if not duplicate_years:
             return {}
         return {
             "warning": {
-                "title": _("Duplicate Contribution Year"),
-                "message": _("More than one contribution exists for year(s): %s.")
+                "title": _("Duplicate Period Year"),
+                "message": _("More than one period exists for year(s): %s.")
                 % ", ".join(str(year) for year in duplicate_years),
             }
         }
@@ -260,10 +275,6 @@ class MembershipMembership(models.Model):
         return self.env["res.partner"].browse(invoice_partner_id) or partner
 
     @api.model
-    def _normalize_state_value(self, value):
-        return value
-
-    @api.model
     def _prepare_membership_values(
         self,
         vals,
@@ -278,8 +289,6 @@ class MembershipMembership(models.Model):
         if for_create:
             vals.setdefault("company_id", self.env.company.id)
             vals.setdefault("date_start", fields.Date.context_today(self))
-        if "state" in vals:
-            vals["state"] = self._normalize_state_value(vals["state"])
         if "membership_number" in vals:
             vals["membership_number"] = self._normalize_membership_number_value(
                 vals["membership_number"]
@@ -358,11 +367,11 @@ class MembershipMembership(models.Model):
     @api.constrains("product_id")
     def _check_membership_type_unchanged(self):
         for record in self:
-            contribution_types = record.contribution_ids.product_id.product_tmpl_id
-            if contribution_types - record.product_tmpl_id:
+            period_types = record.period_ids.product_id.product_tmpl_id
+            if period_types - record.product_tmpl_id:
                 raise ValidationError(
                     _(
-                        "The membership type cannot be changed once contributions exist."
+                        "The membership type cannot be changed once periods exist."
                         " Only a tier of the same type can be selected. To change the type,"
                         " end this membership and start a new one."
                     )
@@ -481,17 +490,17 @@ class MembershipMembership(models.Model):
                 }
             )
 
-    def _default_contribution_year(self):
+    def _default_period_year(self):
         self.ensure_one()
-        return self.company_id._membership_contribution_year()
+        return self.company_id._membership_period_year()
 
-    def _prepare_contribution_create_values(self, membership_year=False, **overrides):
+    def _prepare_period_create_values(self, membership_year=False, **overrides):
         self.ensure_one()
         vals = {"membership_id": self.id}
         if membership_year not in (False, None, ""):
             vals["membership_year"] = membership_year
         vals.update(overrides)
-        return self.env["membership.contribution"]._prepare_membership_contribution_values(
+        return self.env["membership.period"]._prepare_membership_period_values(
             vals,
             membership=self,
         )
@@ -534,7 +543,7 @@ class MembershipMembership(models.Model):
                         "Cancel or terminate the membership instead."
                     )
                 )
-            record._check_no_contributions()
+            record._check_no_periods()
         return super().unlink()
 
     def write(self, vals):
@@ -564,12 +573,12 @@ class MembershipMembership(models.Model):
             "terminated": {"waiting", "draft"},
         }
 
-    def _check_no_contributions(self):
+    def _check_no_periods(self):
         for record in self:
-            if record.contribution_ids:
+            if record.period_ids:
                 raise UserError(
                     _(
-                        "Membership %s has contributions, so it cannot be deleted or"
+                        "Membership %s has periods, so it cannot be deleted or"
                         " reverted to draft. Cancel or terminate it instead."
                     )
                     % record.display_name
@@ -610,11 +619,13 @@ class MembershipMembership(models.Model):
         today = fields.Date.context_today(self)
         for record in self:
             vals = record._get_default_cancel_values(
-                cancel_date=kwargs.get("date_cancelled"),
+                # Keep the original cancellation date when only the end date is corrected.
+                cancel_date=kwargs.get("date_cancelled") or record.date_cancelled,
                 cancel_reason=kwargs.get("cancel_reason"),
             )
             if kwargs.get("date_end"):
-                vals["date_end"] = kwargs["date_end"]
+                # Callers over RPC (the importer) send date strings.
+                vals["date_end"] = fields.Date.to_date(kwargs["date_end"])
             if vals.get("date_end") and vals["date_end"] <= today:
                 record._do_transition(
                     "terminated",
@@ -633,9 +644,12 @@ class MembershipMembership(models.Model):
 
     def _do_transition(self, new_state, **kwargs):
         allowed = self._get_allowed_transitions()
-        new_state = self._normalize_state_value(new_state)
         for record in self:
             if new_state == record.state:
+                # Not a transition, but re-cancelling is how a wrong end date or
+                # reason gets corrected: apply the values instead of dropping them.
+                if new_state in {"cancelled", "terminated"} and kwargs:
+                    record._write_cancellation_values(**kwargs)
                 continue
             if new_state not in allowed.get(record.state, set()):
                 raise UserError(
@@ -648,7 +662,7 @@ class MembershipMembership(models.Model):
                     }
                 )
             if new_state == "draft":
-                record._check_no_contributions()
+                record._check_no_periods()
             vals = {"state": new_state}
             if new_state in {"cancelled", "terminated"}:
                 vals.update(
@@ -670,6 +684,18 @@ class MembershipMembership(models.Model):
             record.with_context(allow_membership_state_write=True).write(vals)
         return True
 
+    def _write_cancellation_values(self, **kwargs):
+        """Update the cancellation data of an already cancelled/terminated membership."""
+        self.ensure_one()
+        vals = self._get_default_cancel_values(
+            cancel_date=kwargs.get("date_cancelled") or self.date_cancelled,
+            cancel_reason=kwargs.get("cancel_reason"),
+        )
+        if kwargs.get("date_end"):
+            vals["date_end"] = fields.Date.to_date(kwargs["date_end"])
+        self.write(vals)
+        return True
+
     def action_submit(self):
         self._do_transition("waiting")
         return True
@@ -686,21 +712,6 @@ class MembershipMembership(models.Model):
                 "default_membership_id": self.id,
             },
         }
-
-    def action_activate_from_payment(self, invoice=False):
-        waiting_memberships = self.filtered(lambda membership: membership.state == "waiting")
-        if not waiting_memberships:
-            return True
-        waiting_memberships._do_transition("active")
-        if invoice:
-            for membership in waiting_memberships:
-                membership.message_post(
-                    body=_(
-                        "Membership activated automatically after payment of invoice %s."
-                    )
-                    % invoice.display_name
-                )
-        return True
 
     def action_activate_direct(self):
         """Activate without the wizard and without sending any email.
@@ -723,10 +734,30 @@ class MembershipMembership(models.Model):
         self._do_transition("waiting")
         return True
 
+    def action_cancel_direct(self, date_cancelled=False, date_end=False, cancel_reason=False):
+        """Cancel without the wizard and without emails.
+
+        Used by the contact importer. A draft membership is submitted first and
+        a terminated one is reopened, so neither draft -> cancelled nor
+        terminated -> cancelled is needed. Re-running it on an already cancelled
+        membership updates its dates and reason.
+        """
+        for record in self:
+            if record.state in ("draft", "terminated"):
+                record._do_transition("waiting")
+            record._schedule_termination(
+                date_cancelled=date_cancelled,
+                date_end=date_end,
+                cancel_reason=cancel_reason,
+            )
+        return True
+
     def action_cancel(self):
         self.ensure_one()
-        if self.state not in ("active", "waiting"):
-            raise UserError(_("Only active or waiting memberships can be cancelled."))
+        if self.state not in ("active", "waiting", "cancelled"):
+            raise UserError(
+                _("Only active, waiting or cancelled memberships can be cancelled.")
+            )
         return {
             "type": "ir.actions.act_window",
             "name": _("Cancel Membership"),
@@ -738,10 +769,10 @@ class MembershipMembership(models.Model):
             },
         }
 
-    def action_view_contributions(self):
+    def action_view_periods(self):
         self.ensure_one()
         action = self.env.ref(
-            "association_membership.action_membership_contribution"
+            "association_membership.action_membership_period"
         ).read()[0]
         action["domain"] = [("membership_id", "=", self.id)]
         action["context"] = {"default_membership_id": self.id}
@@ -750,8 +781,8 @@ class MembershipMembership(models.Model):
     def action_view_invoices(self):
         self.ensure_one()
         invoice_ids = (
-            self.contribution_ids.mapped("invoice_id")
-            | self.contribution_ids.mapped("refund_move_id")
+            self.period_ids.mapped("invoice_id")
+            | self.period_ids.mapped("refund_move_id")
         ).ids
         return {
             "type": "ir.actions.act_window",
@@ -774,28 +805,41 @@ class MembershipMembership(models.Model):
             options=options,
         ).get(self.id)
 
-    def _ensure_default_year_contribution(self):
-        """Return the contribution of the default year, creating it if missing."""
+    def _ensure_default_year_period(self):
+        """Return the period of the default year, creating it if missing.
+
+        An existing period is invoiced too when it never was: a period created
+        in manual mode used to suppress the invoice for good, whatever strategy
+        was chosen later.
+        """
         self.ensure_one()
-        contribution_year = self._default_contribution_year()
-        contribution = self.contribution_ids.filtered(
-            lambda contribution: contribution.membership_year == contribution_year
+        period_year = self._default_period_year()
+        period = self.period_ids.filtered(
+            lambda period: period.membership_year == period_year
         )[:1]
-        if not contribution:
-            contribution = self.env["membership.contribution"].create(
-                self._prepare_contribution_create_values(
-                    membership_year=contribution_year,
+        if not period:
+            period = self.env["membership.period"].create(
+                self._prepare_period_create_values(
+                    membership_year=period_year,
                 )
             )
-            contribution._apply_invoicing_strategy(
-                strategy=self.company_id.membership_invoicing_strategy,
+        if not period._is_billed():
+            period._apply_invoicing_strategy(
                 invoice_date=fields.Date.context_today(self),
             )
-        return contribution
+        return period
 
-    def action_create_contribution(self):
+    def _open_periods_from(self, year):
+        """Unpaid periods of `year` and later, for the cancellation wizard."""
         self.ensure_one()
-        self._ensure_default_year_contribution()
+        return self.period_ids.filtered(
+            lambda period: period.membership_year >= year
+            and period.billing_status in ("to_invoice", "invoiced", "partial")
+        )
+
+    def action_create_period(self):
+        self.ensure_one()
+        self._ensure_default_year_period()
         return {
             "type": "ir.actions.client",
             "tag": "reload",

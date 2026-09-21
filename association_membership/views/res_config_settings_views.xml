@@ -14,30 +14,35 @@
                         >
                             <field name="membership_company_mail_recipients" />
                         </setting>
-                        <setting string="Auto-activate on Payment">
-                            <field name="membership_auto_activate_on_payment" />
-                        </setting>
                         <setting
-                            string="Contribution Year Override"
-                            help="Leave empty to always use the current year. Set a future year to default new contributions to that year, e.g. for early renewals."
+                            string="Period Year Override"
+                            help="Leave at 0 to always use the current year. Set a future year to default new periods to that year, e.g. for early renewals."
                         >
                             <field
-                                name="membership_default_contribution_year_text"
-                                placeholder="e.g. 2027 (empty = current year)"
+                                name="membership_default_period_year"
+                                options="{'enable_formatting': false}"
+                                placeholder="e.g. 2027 (0 = current year)"
                             />
                         </setting>
-                        <setting string="Invoicing Strategy">
+                        <setting
+                            string="Invoicing Strategy"
+                            help="Default for new memberships; a membership may override it. Manual: no invoice is created automatically - record payments with &quot;Mark as Paid&quot;, or create an invoice by hand when one is needed. Draft: activation and renewal create a draft invoice. Confirm: activation and renewal create and post the invoice."
+                        >
                             <field name="membership_invoicing_strategy" />
                         </setting>
                         <setting
                             string="Renewal Year Offset"
-                            help="Target year used by the renewal cron: current year + offset."
+                            help="Target year used by the Membership Renewal scheduled action (current year + offset). That action is disabled by default; the renewal wizard asks for its own target year."
                         >
                             <field name="membership_cron_year_offset" />
                         </setting>
                     </block>
                     <block title="Communications">
-                        <setting string="Activation Invoice Email Template">
+                        <setting
+                            string="Activation Invoice Email Template"
+                            help="Used when an activation sends the membership invoice. Not used while the invoicing strategy is Manual."
+                            invisible="membership_invoicing_strategy == 'manual'"
+                        >
                             <field
                                 name="membership_activation_invoice_template_id"
                                 domain="[('model', '=', 'account.move')]"
