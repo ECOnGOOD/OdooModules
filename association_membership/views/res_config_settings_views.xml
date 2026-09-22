@@ -75,8 +75,14 @@
                             <field name="member_number_padding" />
                         </setting>
                         <setting
+                            string="Own Member Number Counter"
+                            help="Off (recommended): this company draws from the counter shared by all companies, so member numbers cannot collide whatever prefix each association uses. On: this company counts on its own, starting where the shared counter stands — for an association that continues its existing numbering."
+                        >
+                            <field name="member_number_own_sequence" />
+                        </setting>
+                        <setting
                             string="Next Member Number"
-                            help="Raw counter used for the next generated member number."
+                            help="Raw counter used for the next generated member number. While the shared counter is in use, this edits that shared counter and therefore affects every company using it."
                         >
                             <field name="member_number_next" />
                         </setting>

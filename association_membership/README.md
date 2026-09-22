@@ -35,7 +35,7 @@ The relationship between a partner, a company and a membership product. `mail.th
 | `date_end`, `date_cancelled`, `cancel_reason` | Date / Date / Text | only on `cancelled` / `terminated` (constraint) |
 | `date_welcome_sent` | Date | set when the welcome mail goes out |
 | `membership_active` | Boolean | computed, stored — live today (`active` or `cancelled`) |
-| `membership_number` | Char | globally unique (SQL constraint), per-company sequence |
+| `membership_number` | Char | globally unique (SQL constraint); drawn from the shared counter unless the company opts out |
 | `override_membership_number` | Boolean | allows a manual number |
 | `membership_number_preview` | Char | computed preview of the next number |
 | `amount` | Monetary | computed from the product price, editable per membership |
@@ -237,7 +237,8 @@ Neither the creator of a membership nor the sender of a welcome or cancellation 
 | Period year override | `membership_default_period_year` | `0` = current year; a future year pre-creates next year's periods |
 | Renewal year offset | `membership_cron_year_offset` | `1` (cron only) |
 | Email templates | activation invoice / welcome / cancellation | shipped EN + DE, auto-assigned to companies without one |
-| Member numbers | `member_number_prefix` (`%(year)s` supported), `member_number_padding`, next number | give every association its own prefix — numbers are unique across all companies |
+| Member numbers | `member_number_prefix` (`%(year)s` supported), `member_number_padding`, next number | prefix and padding decide how the number *looks*; they are per company |
+| Own member number counter | `member_number_own_sequence` | **off by default: all companies draw from one shared counter**, so numbers stay unique whatever prefix each association uses. On = this association counts on its own, starting where the shared counter stands |
 
 ## Reporting
 
@@ -270,4 +271,4 @@ Creating invoices and tax receipts additionally needs the accounting rights of `
 - **Renewal cron** — currently disabled with a hardcoded next call; review enablement and add coverage for the cron-driven per-company renewal path.
 - **Archive exposure** — memberships support archiving (`active` field, kanban ribbon) but the form offers no archive/unarchive action.
 - **Reporting** — views are list-based only; consider dashboards/KPIs (member growth, churn, revenue per year) on top of periods.
-- Open post-launch items are tracked in `docs/membership/association_membership_launch_gaps.md` (WP5) in the main repository.
+- Open post-launch items are tracked in `docs/membership/association_membership_launch_gaps.md` in the main repository.

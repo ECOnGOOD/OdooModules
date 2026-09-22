@@ -40,13 +40,17 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.member_number_padding",
         readonly=False,
     )
+    member_number_own_sequence = fields.Boolean(
+        related="company_id.member_number_own_sequence",
+        readonly=False,
+    )
     member_number_next = fields.Integer(
         string="Next Member Number",
         compute="_compute_member_number_next",
         inverse="_inverse_member_number_next",
     )
 
-    @api.depends("company_id")
+    @api.depends("company_id", "member_number_own_sequence")
     def _compute_member_number_next(self):
         for record in self:
             sequence = record.company_id._get_membership_number_sequence()
@@ -68,6 +72,7 @@ class ResConfigSettings(models.TransientModel):
         "member_number_prefix",
         "member_number_padding",
         "member_number_next",
+        "member_number_own_sequence",
     )
     def _compute_member_number_preview(self):
         for record in self:

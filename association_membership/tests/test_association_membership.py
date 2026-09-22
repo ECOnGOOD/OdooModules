@@ -498,9 +498,17 @@ class TestManualModeReceipts(MembershipTestCommon):
 
 
 class TestMembershipNumberSequence(MembershipTestCommon):
-    def test_sequence_lazily_created_per_company(self):
+    def test_companies_share_one_counter_by_default(self):
         sequence = self.company._get_membership_number_sequence()
         self.assertEqual(sequence.code, "association.membership.number.seq")
+        self.assertFalse(
+            sequence.company_id,
+            "the default counter is the shared one, not a per-company copy",
+        )
+
+    def test_opting_in_gives_the_company_its_own_counter(self):
+        self.company.member_number_own_sequence = True
+        sequence = self.company._get_membership_number_sequence()
         self.assertEqual(sequence.company_id, self.company)
 
     def test_membership_number_assigned_on_create(self):
@@ -521,6 +529,75 @@ class TestMembershipNumberSequence(MembershipTestCommon):
                 partner_id=other_partner.id,
                 membership_number="DUP-001",
             )
+
+    def _second_company_membership(self, prefix):
+        """A membership in a second company using the same number prefix."""
+        other_company = self.env["res.company"].create({"name": "Second Association"})
+        other_company.member_number_prefix = prefix
+        self.env.user.company_ids |= other_company
+        product = self.env["product.product"].create({
+            "name": "Membership Second",
+            "membership_ok": True,
+            "company_id": other_company.id,
+            "list_price": 10.0,
+        })
+        partner = self.env["res.partner"].create({"name": "Second Member"})
+        return other_company, self._make_membership(
+            partner_id=partner.id,
+            company_id=other_company.id,
+            product_id=product.id,
+        )
+
+    def test_two_companies_with_the_same_prefix_do_not_collide(self):
+        # This is the collision the shared counter exists to prevent: the
+        # bootstrap gives every company the same prefix, and member numbers are
+        # globally unique.
+        prefix = "SHARED/"
+        self.company.member_number_prefix = prefix
+        first = self._make_membership()
+        _other_company, second = self._second_company_membership(prefix)
+        self.assertTrue(first.membership_number.startswith(prefix))
+        self.assertTrue(second.membership_number.startswith(prefix))
+        self.assertNotEqual(first.membership_number, second.membership_number)
+
+    def test_an_own_counter_never_restarts_behind_the_shared_one(self):
+        # Numbers the shared counter already issued must not be handed out again.
+        self._make_membership()
+        self._make_membership(
+            partner_id=self.env["res.partner"].create({"name": "Another"}).id,
+        )
+        shared = self.company._shared_membership_number_sequence()
+        shared_next = shared.number_next_actual
+
+        self.company.member_number_own_sequence = True
+        own = self.company._get_membership_number_sequence()
+        self.env.invalidate_all()
+        self.assertEqual(own.company_id, self.company)
+        self.assertGreaterEqual(own.number_next_actual, shared_next)
+
+    def test_an_existing_own_counter_is_lifted_when_switching_back_on(self):
+        self.company.member_number_own_sequence = True
+        own = self.company._get_membership_number_sequence()
+        own.sudo().write({"number_next": 1})
+        self.company.member_number_own_sequence = False
+
+        shared = self.company._shared_membership_number_sequence()
+        shared.sudo().write({"number_next": 50})
+        self.env.invalidate_all()
+        self.company.member_number_own_sequence = True
+        self.env.invalidate_all()
+        self.assertGreaterEqual(
+            self.company._get_membership_number_sequence().number_next_actual, 50
+        )
+
+    def test_an_own_counter_is_independent_once_enabled(self):
+        self.company.member_number_own_sequence = True
+        own = self.company._get_membership_number_sequence()
+        shared = self.company._shared_membership_number_sequence()
+        before = shared.number_next_actual
+        self._make_membership()
+        self.assertEqual(shared.number_next_actual, before)
+        self.assertGreater(own.number_next_actual, 0)
 
 
 class TestMembershipCancellationRules(MembershipTestCommon):
@@ -790,12 +867,26 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
         )
         self.assertEqual(settings.member_number_preview, expected)
 
-    def test_lazy_sequence_uses_company_padding(self):
+    def test_lazy_own_sequence_uses_company_padding(self):
+        self.company.member_number_own_sequence = True
         sequence = self.company._get_membership_number_sequence()
         sequence.sudo().unlink()
         self.company.member_number_padding = 7
         sequence = self.company._get_membership_number_sequence()
         self.assertEqual(sequence.padding, 7)
+
+    def test_settings_next_number_follows_the_shared_counter_while_sharing(self):
+        settings = self.env["res.config.settings"].create({})
+        shared = self.company._shared_membership_number_sequence()
+        self.assertFalse(shared.company_id)
+        self.assertEqual(settings.member_number_next, shared.number_next_actual)
+
+    def test_settings_next_number_follows_the_own_counter_when_opted_in(self):
+        self.company.member_number_own_sequence = True
+        settings = self.env["res.config.settings"].create({})
+        own = self.company._get_membership_number_sequence()
+        self.assertEqual(own.company_id, self.company)
+        self.assertEqual(settings.member_number_next, own.number_next_actual)
 
 
 class TestMembershipProducts(MembershipTestCommon):
@@ -1479,3 +1570,45 @@ class TestMigration(MembershipTestCommon):
         migration._flag_membership_products(self.env)
         self.assertTrue(legacy.membership_ok)
         self.assertFalse(other.membership_ok)
+
+    def _load_6_0_0_migration(self):
+        path = get_module_path("association_membership") + "/migrations/18.0.6.0.0/post-migrate.py"
+        spec = importlib.util.spec_from_file_location("association_membership_6_0_0", path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        return migration
+
+    def _highest_own_counter(self):
+        sequences = self.env["ir.sequence"].sudo().search([
+            ("code", "=", "association.membership.number.seq"),
+            ("company_id", "!=", False),
+        ])
+        return max(sequences.mapped("number_next_actual") or [0])
+
+    def test_6_0_0_lifts_the_shared_counter_above_every_company_counter(self):
+        # Companies counted on their own before this version; the shared counter
+        # must not re-issue numbers those counters already handed out.
+        migration = self._load_6_0_0_migration()
+        self.company.member_number_own_sequence = True
+        own = self.company._get_membership_number_sequence()
+        shared = self.company._shared_membership_number_sequence()
+        target = max(self._highest_own_counter(), shared.number_next_actual) + 500
+        own.sudo().write({"number_next": target})
+        self.env.invalidate_all()
+
+        migration._raise_shared_counter(self.env)
+        self.env.invalidate_all()
+        self.assertGreaterEqual(shared.number_next_actual, target)
+
+    def test_6_0_0_migration_never_lowers_the_shared_counter(self):
+        migration = self._load_6_0_0_migration()
+        shared = self.company._shared_membership_number_sequence()
+        # Above every per-company counter, wherever they happen to stand.
+        high = self._highest_own_counter() + 1000
+        shared.sudo().write({"number_next": high})
+        self.env.invalidate_all()
+
+        migration._raise_shared_counter(self.env)
+        migration._raise_shared_counter(self.env)
+        self.env.invalidate_all()
+        self.assertEqual(shared.number_next_actual, high)

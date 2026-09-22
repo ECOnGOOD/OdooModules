@@ -1,5 +1,26 @@
 # Changelog
 
+## 18.0.6.0.0 — shared member numbering
+
+**Companies now share one member number counter by default.** Member numbers are
+globally unique, but every company used to count independently while the bootstrap gave
+them all the same prefix `MEM/%(year)s/` — so the second association to create a member
+failed with a uniqueness error. Sharing the counter makes that impossible by
+construction: the per-company prefix and padding only decide how the number *looks*.
+
+An association that continues its own numbering ticks **Own Member Number Counter**
+(`res.company.member_number_own_sequence`) in Settings → Membership. Its counter starts
+where the shared one stands, and is lifted to the shared value whenever the setting is
+switched on, so numbers already issued are never handed out twice.
+
+`migrations/18.0.6.0.0/post-migrate.py` raises the shared counter above every existing
+per-company counter, so upgrading a database cannot re-issue numbers. It reads each
+sequence's *live* value (`number_next_actual`), not the `number_next` column, which is
+stale for standard sequences. The migration only ever raises, so it is re-runnable.
+
+While the shared counter is in use, **Next Member Number** in a company's settings edits
+that shared counter and therefore affects every company using it.
+
 ## 18.0.5.0.0 — periods
 
 **Breaking: `membership.contribution` is now `membership.period`.** The model, its
