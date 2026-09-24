@@ -846,17 +846,14 @@ class MembershipMembership(models.Model):
         }
 
     @api.model
-    def _cron_target_year(self, company=False):
-        company = company or self.env.company
-        return company._membership_cron_target_year()
-
-    @api.model
     def cron_generate_membership_renewals(self):
+        """Renew every company's memberships for next year (the job is disabled by default)."""
+        next_year = fields.Date.context_today(self).year + 1
         companies = self.env["res.company"].search([])
         for company in companies:
             wizard = self.env["membership.renewal.wizard"].with_company(company).create(
                 {
-                    "target_year": self._cron_target_year(company=company),
+                    "target_year": next_year,
                     "company_ids": [(6, 0, [company.id])],
                     "dry_run": False,
                 }

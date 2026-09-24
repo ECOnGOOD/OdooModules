@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="donation_tax_receipt_form_membership" model="ir.ui.view">
+        <field name="name">donation.tax.receipt.form.membership</field>
+        <field name="model">donation.tax.receipt</field>
+        <field name="inherit_id" ref="donation_base.donation_tax_receipt_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group[@name='main']" position="before">
+                <div class="oe_button_box" name="button_box">
+                    <button
+                        name="action_view_membership_periods"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-calendar"
+                        invisible="not membership_period_count"
+                    >
+                        <field name="membership_period_count" widget="statinfo" string="Periods" />
+                    </button>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

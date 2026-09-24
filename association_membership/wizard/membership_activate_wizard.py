@@ -152,6 +152,15 @@ class MembershipActivateWizard(models.TransientModel):
                 body=_("Invoice sent."),
                 subtype_xmlid="mail.mt_comment",
             )
+        # The email itself is logged on the invoice; the membership gets one line.
+        self.membership_id.message_post(
+            body=_("Invoice %(invoice)s sent to %(recipient)s.")
+            % {
+                "invoice": self.invoice_id.display_name,
+                "recipient": self.invoice_id.partner_id.display_name,
+            },
+            subtype_xmlid="mail.mt_note",
+        )
         return True
 
     def _create_welcome_mail_composer(self):

@@ -226,13 +226,28 @@
                             <field name="partner_id" />
                             <field name="invoice_partner_id" />
                             <field name="company_id" />
-                            <label for="membership_number_preview" string="Membership Number (Preview)" invisible="id or override_membership_number" />
-                            <div class="o_row" invisible="id">
-                                <field name="membership_number_preview" readonly="1" nolabel="1" invisible="override_membership_number" />
-                                <field name="override_membership_number" nolabel="1" class="ms-3" />
-                                <label for="override_membership_number" string="Override" class="o_form_label ms-2" />
+                            <!-- One row: the preview and the input take turns in the same place,
+                                 and the Override box stays on the right. -->
+                            <label for="membership_number" string="Membership Number" />
+                            <div class="d-flex align-items-baseline w-100">
+                                <field
+                                    name="membership_number_preview"
+                                    readonly="1"
+                                    nolabel="1"
+                                    class="flex-grow-1 text-muted"
+                                    invisible="id or override_membership_number"
+                                />
+                                <field
+                                    name="membership_number"
+                                    nolabel="1"
+                                    class="flex-grow-1"
+                                    invisible="not id and not override_membership_number"
+                                />
+                                <div class="d-flex align-items-baseline flex-shrink-0 ms-3" invisible="id">
+                                    <field name="override_membership_number" nolabel="1" />
+                                    <label for="override_membership_number" string="Override" class="o_form_label ms-1" />
+                                </div>
                             </div>
-                            <field name="membership_number" invisible="not id and not override_membership_number" />
                             <field name="product_domain" invisible="1" />
                             <field name="product_id" domain="product_domain" />
                         </group>
@@ -290,6 +305,7 @@
                                     <field name="billing_status" />
                                     <field name="invoice_id" />
                                     <field name="refund_move_id" optional="hide" />
+                                    <field name="tax_receipt_id" optional="show" />
                                 </list>
                             </field>
                         </page>

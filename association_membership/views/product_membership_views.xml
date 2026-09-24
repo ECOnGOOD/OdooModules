@@ -45,12 +45,40 @@
         </field>
     </record>
 
+    <!-- Fixed columns: the standard variant list hides Company and lets the
+         browser drop the others. Sorted by reference, which carries type and tier. -->
+    <record id="view_product_membership_list" model="ir.ui.view">
+        <field name="name">product.product.membership.list</field>
+        <field name="model">product.product</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list default_order="default_code">
+                <field name="default_code" string="Reference" />
+                <field name="name" />
+                <field name="product_template_variant_value_ids" string="Tier" widget="many2many_tags" />
+                <field name="company_id" />
+                <field name="lst_price" string="Sales Price" />
+                <field name="membership_partner_type" />
+                <field name="tax_receipt_ok" />
+                <field name="product_tmpl_id" column_invisible="True" />
+            </list>
+        </field>
+    </record>
+
+    <!-- New membership products are services that can be sold, not bought. -->
     <record id="action_membership_products" model="ir.actions.act_window">
         <field name="name">Membership Products</field>
         <field name="res_model">product.product</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('membership_ok', '=', True)]</field>
         <field name="search_view_id" ref="association_membership.view_product_membership_search" />
-        <field name="context">{'search_default_membership_products': 1, 'default_membership_ok': True}</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_product_membership_list')})]" />
+        <field name="context">{
+            'search_default_membership_products': 1,
+            'default_membership_ok': True,
+            'default_type': 'service',
+            'default_sale_ok': True,
+            'default_purchase_ok': False,
+        }</field>
     </record>
 </odoo>

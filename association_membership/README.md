@@ -235,7 +235,6 @@ Neither the creator of a membership nor the sender of a welcome or cancellation 
 | Email recipients for organisation members | `membership_company_mail_recipients` | contact person — also: the organisation, invoice contact, or both. Individuals always get their own emails |
 | Invoicing strategy | `membership_invoicing_strategy` | `manual` — `draft` / `confirm` create an invoice on activation and renewal; overridable per membership |
 | Period year override | `membership_default_period_year` | `0` = current year; a future year pre-creates next year's periods |
-| Renewal year offset | `membership_cron_year_offset` | `1` (cron only) |
 | Email templates | activation invoice / welcome / cancellation | shipped EN + DE, auto-assigned to companies without one |
 | Member numbers | `member_number_prefix` (`%(year)s` supported), `member_number_padding`, next number | prefix and padding decide how the number *looks*; they are per company |
 | Own member number counter | `member_number_own_sequence` | **off by default: all companies draw from one shared counter**, so numbers stay unique whatever prefix each association uses. On = this association counts on its own, starting where the shared counter stands |

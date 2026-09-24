@@ -10,6 +10,21 @@ class DonationTaxReceipt(models.Model):
         string="Membership Periods",
         readonly=True,
     )
+    membership_period_count = fields.Integer(
+        compute="_compute_membership_period_count",
+    )
+
+    @api.depends("membership_period_ids")
+    def _compute_membership_period_count(self):
+        for receipt in self:
+            receipt.membership_period_count = len(receipt.membership_period_ids)
+
+    def action_view_membership_periods(self):
+        self.ensure_one()
+        action = self.env.ref("association_membership.action_membership_period").read()[0]
+        action["domain"] = [("tax_receipt_id", "=", self.id)]
+        action["context"] = {"create": False}
+        return action
 
     @api.model_create_multi
     def create(self, vals_list):

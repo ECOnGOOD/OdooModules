@@ -18,6 +18,7 @@
                 <field name="billing_status" />
                 <field name="invoice_id" />
                 <field name="refund_move_id" optional="hide" />
+                <field name="tax_receipt_id" optional="show" />
             </list>
         </field>
     </record>

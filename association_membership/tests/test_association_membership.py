@@ -4,6 +4,7 @@ from datetime import date
 from odoo.exceptions import UserError, ValidationError
 from odoo.modules.module import get_module_path
 from odoo.tests import TransactionCase
+from odoo.tools.safe_eval import safe_eval
 
 
 class MembershipTestCommon(TransactionCase):
@@ -1241,6 +1242,13 @@ class TestActivationInvoicing(MembershipTestCommon):
         invoice = membership.period_ids.invoice_id
         self.assertEqual(invoice.state, "posted")
         self.assertTrue(invoice.message_ids)
+        # One line on the membership says the invoice went out (15.9).
+        self.assertTrue(
+            membership.message_ids.filtered(
+                lambda message: invoice.display_name in (message.body or "")
+                and "sent to" in (message.body or "")
+            )
+        )
 
     def test_strategy_chosen_in_the_wizard_sticks(self):
         self.company.membership_invoicing_strategy = "manual"
@@ -1612,3 +1620,52 @@ class TestMigration(MembershipTestCommon):
         migration._raise_shared_counter(self.env)
         self.env.invalidate_all()
         self.assertEqual(shared.number_next_actual, high)
+
+
+class TestAnnualReceiptWizard(MembershipTestCommon):
+    def test_empty_run_explains_instead_of_raising(self):
+        """15.4: no eligible period is not an "Invalid Operation"."""
+        action = self.env["tax.receipt.annual.create"].create({
+            "start_date": date(2000, 1, 1),
+            "end_date": date(2000, 12, 31),
+            "company_id": self.company.id,
+        }).generate_annual_receipts()
+        self.assertEqual(action["tag"], "display_notification")
+        self.assertIn(self.company.display_name, action["params"]["message"])
+        self.assertFalse(
+            self.env["donation.tax.receipt"].search([("donation_date", "=", date(2000, 12, 31))])
+        )
+
+    def test_receipt_links_to_its_periods(self):
+        """15.27: the receipt form opens the periods it covers."""
+        self.company.membership_invoicing_strategy = "manual"
+        self.partner.tax_receipt_option = "annual"
+        membership = self._make_membership()
+        period = self._make_period(membership, amount=50.0)
+        period.action_mark_as_paid()
+        receipt = self._run_annual_wizard()
+        self.assertEqual(receipt.membership_period_count, 1)
+        action = receipt.action_view_membership_periods()
+        self.assertEqual(self.env["membership.period"].search(action["domain"]), period)
+
+
+class TestRenewalCron(MembershipTestCommon):
+    def test_cron_renews_for_next_year(self):
+        """15.20: without the offset setting the job targets next year."""
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership()
+        membership.action_activate_direct()
+        self.env["membership.membership"].cron_generate_membership_renewals()
+        self.assertIn(date.today().year + 1, membership.period_ids.mapped("membership_year"))
+
+
+class TestMembershipProductDefaults(MembershipTestCommon):
+    def test_new_membership_product_is_a_sellable_service(self):
+        """15.18: the Membership Products menu creates services for sale only."""
+        action = self.env.ref("association_membership.action_membership_products")
+        context = safe_eval(action.context)
+        product = self.env["product.product"].with_context(**context).create({"name": "New Type"})
+        self.assertEqual(product.type, "service")
+        self.assertTrue(product.sale_ok)
+        self.assertFalse(product.purchase_ok)
+        self.assertTrue(product.membership_ok)

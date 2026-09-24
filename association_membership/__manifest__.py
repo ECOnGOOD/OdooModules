@@ -1,6 +1,6 @@
 {
     "name": "Association Membership",
-    "version": "18.0.6.0.0",
+    "version": "18.0.6.1.0",
     "category": "Association",
     "summary": "Lean multi-company membership management for associations",
     "author": "ECOnGOOD",
@@ -25,6 +25,7 @@
         "views/product_membership_views.xml",
         "views/res_partner_views.xml",
         "views/res_config_settings_views.xml",
+        "views/donation_tax_receipt_views.xml",
         "views/membership_activate_wizard_views.xml",
         "views/membership_cancel_wizard_views.xml",
         "views/membership_renewal_wizard_views.xml",

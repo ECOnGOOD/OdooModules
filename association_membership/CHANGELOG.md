@@ -1,5 +1,29 @@
 # Changelog
 
+## 18.0.6.1.0 — fixes from the browser test (WP10)
+
+- **Annual tax receipts:** a run with nothing to receipt now shows a notice that names the
+  company, the date range and what makes a period count, instead of donation_base's
+  "Invalid Operation – No annual tax receipt to generate". The dialog stays open so the
+  range can be changed.
+- **Tax receipts and periods are linked in the interface:** a **Periods** smart button on
+  the receipt form, and a Tax Receipt column in the period lists.
+- **Invoice email logged on the membership:** when the activation sends the invoice, the
+  membership chatter gets one line naming the invoice and the recipient.
+- **Membership number on the form:** preview and override input share one row labelled
+  "Membership Number"; the Override box stays on the right.
+- **Partner form:** the membership number moved below Tags as a normal labelled field, and
+  both partner-form extensions are now one view (no more load-order dependency).
+- **Membership Products:** own list with fixed columns (Reference, Name, Tier, Company,
+  Sales Price, Membership For, Tax Receipt), sorted by reference. New products default to
+  a service that can be sold but not purchased.
+- **Removed: Renewal Year Offset.** It only fed the disabled renewal job, which now simply
+  targets next year. The column stays in the database until the module is uninstalled;
+  nothing reads it.
+
+Needs OCA `donation_base` 18.0.1.2.0 or later: older versions fail on "Send by Email"
+with `Deprecated usage of 'default_res_id'` (fixed upstream in OCA commit `7f11dd6`).
+
 ## 18.0.6.0.0 — shared member numbering
 
 **Companies now share one member number counter by default.** Member numbers are

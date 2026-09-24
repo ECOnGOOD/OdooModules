@@ -30,12 +30,6 @@
                         >
                             <field name="membership_invoicing_strategy" />
                         </setting>
-                        <setting
-                            string="Renewal Year Offset"
-                            help="Target year used by the Membership Renewal scheduled action (current year + offset). That action is disabled by default; the renewal wizard asks for its own target year."
-                        >
-                            <field name="membership_cron_year_offset" />
-                        </setting>
                     </block>
                     <block title="Communications">
                         <setting

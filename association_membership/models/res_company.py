@@ -38,12 +38,6 @@ class ResCompany(models.Model):
         required=True,
         help="Individuals always receive their own emails.",
     )
-    membership_cron_year_offset = fields.Integer(
-        string="Renewal Year Offset",
-        default=1,
-        help="Only used by the Membership Renewal scheduled action, which is"
-             " disabled by default. The renewal wizard asks for its own target year.",
-    )
     membership_default_period_year = fields.Integer(
         string="Period Year Override",
         default=0,
@@ -104,10 +98,6 @@ class ResCompany(models.Model):
             "own numbering; its counter then starts where the shared one stands."
         ),
     )
-
-    def _membership_cron_target_year(self):
-        self.ensure_one()
-        return fields.Date.today().year + (self.membership_cron_year_offset or 1)
 
     def _membership_period_year(self):
         self.ensure_one()

@@ -5,6 +5,14 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
+            <!-- A plain field in the right-hand group, so it keeps its label. -->
+            <field name="category_id" position="after">
+                <field
+                    name="current_membership_number_display"
+                    readonly="1"
+                    invisible="not current_membership_number_display"
+                />
+            </field>
             <xpath expr="//notebook/page[@name='contact_addresses']" position="after">
                 <page string="Memberships" groups="association_membership.group_membership_viewer">
                     <div class="oe_button_box" name="membership_partner_button_box">
@@ -37,20 +45,6 @@
                     </field>
                 </page>
             </xpath>
-        </field>
-    </record>
-    <record id="view_partner_form_membership_numbers" model="ir.ui.view">
-        <field name="name">res.partner.form.membership.numbers</field>
-        <field name="model">res.partner</field>
-        <field name="priority" eval="5"/>
-        <field name="inherit_id" ref="base.view_partner_form"/>
-        <field name="arch" type="xml">
-            <field name="vat" position="after">
-                <label for="current_membership_number_display" string="Membership" class="o_form_label" invisible="not current_membership_number_display"/>
-                <div class="o_row" invisible="not current_membership_number_display">
-                    <field name="current_membership_number_display" nolabel="1" readonly="1" class="text-body"/>
-                </div>
-            </field>
         </field>
     </record>
     <record id="view_partner_kanban_membership" model="ir.ui.view">

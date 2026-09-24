@@ -16,10 +16,6 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.membership_invoicing_strategy",
         readonly=False,
     )
-    membership_cron_year_offset = fields.Integer(
-        related="company_id.membership_cron_year_offset",
-        readonly=False,
-    )
     membership_activation_invoice_template_id = fields.Many2one(
         related="company_id.membership_activation_invoice_template_id",
         readonly=False,
