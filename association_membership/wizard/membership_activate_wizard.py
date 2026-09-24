@@ -67,9 +67,10 @@ class MembershipActivateWizard(models.TransientModel):
 
         template = membership.company_id.membership_welcome_template_id
         # Only a first activation welcomes anybody: reactivating a cancelled
-        # membership, or activating a reopened one, must not send it again.
+        # membership, or activating one reverted to draft, must not send it
+        # again. Such a membership has periods or a welcome date.
         first_activation = (
-            membership.state == "waiting"
+            membership.state in ("draft", "waiting")
             and not membership.date_welcome_sent
             and not membership.period_ids
         )

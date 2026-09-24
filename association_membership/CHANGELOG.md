@@ -1,5 +1,30 @@
 # Changelog
 
+## 18.0.6.3.0 — lifecycle, contacts and numbering (WP12)
+
+- **Simpler state machine.** Draft → Waiting / Active · Waiting → Draft / Active · Active →
+  Cancelled · Cancelled → Active / Terminated / Draft · Terminated → Draft.
+  - "Reopen" is gone; Revert to Draft is available from Waiting, Cancelled and Terminated, also when periods exist.
+  - A draft keeps its periods and its number. It gets no new periods, cannot be deleted while it has periods, and closes the "Member Of" relation.
+  - A waiting membership is no longer cancelled; it goes back to draft.
+  - An end date of today or earlier still terminates in one click, through Cancelled.
+  - The importer's direct methods route through the new transitions.
+- **Invoice contact and contact person come from the member.** The membership's Invoice
+  Contact is computed from the partner's invoice address, so a new or changed invoice
+  child reaches every membership. An organisation's Contact Person is shown next to it,
+  read-only. An unbilled period takes the invoice contact when its invoice is created.
+- **Members is the app.** The root menu is "Members" and opens the members. Submenus:
+  Members, Memberships, Periods, Tax Receipts, Reporting, Configuration. The default
+  filter is "Current Members" (waiting, active, cancelled), as in the reports.
+- **Member numbers come from `ir.sequence` alone.** The default sequence holds the whole
+  format (`MEM/%(year)s/`, 5 digits, `no_gap`). Own numbering is a company sequence with
+  the same code, edited in Settings (prefix, suffix, digits, next number). The company
+  fields for prefix and padding are gone.
+- **Migration:** every company switches to the default numbering. Own counters are
+  archived, and the default counter is lifted above them. Companies with a prefix of their
+  own are logged. Invoice contacts are recomputed.
+- The welcome email is also pre-ticked when activating straight from Draft.
+
 ## 18.0.6.2.0 — membership types and tiers (WP11)
 
 - **Membership Products lists membership types** (product templates), one row per type

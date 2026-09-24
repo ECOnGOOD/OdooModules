@@ -321,8 +321,8 @@ class MembershipPeriod(models.Model):
 
     @api.constrains("membership_id")
     def _check_membership_not_draft(self):
-        # A period locks the membership out of "Revert to Draft" and delete,
-        # so a draft membership must be submitted before it can be billed.
+        # Draft is "not in force": it may keep the periods it had when it was
+        # reverted, but gets no new ones until it is submitted again (15.12).
         for record in self:
             if record.membership_id.state == "draft":
                 raise ValidationError(
@@ -387,6 +387,12 @@ class MembershipPeriod(models.Model):
             and not period.refund_move_id
         )
         invoices = self.env["account.move"]
+        # An unbilled period follows the member's invoice contact; only an issued
+        # invoice fixes it (15.26).
+        for period in eligible:
+            current = period.membership_id._get_invoice_partner()
+            if period.invoice_partner_id != current:
+                period.invoice_partner_id = current
         grouped = defaultdict(lambda: self.env["membership.period"])
         for period in eligible.sorted(key=lambda record: (record.membership_year, record.id)):
             group_key = (

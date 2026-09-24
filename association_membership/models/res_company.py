@@ -3,6 +3,12 @@ from odoo.exceptions import ValidationError
 
 
 MEMBERSHIP_NUMBER_SEQUENCE_CODE = "association.membership.number.seq"
+# The default numbering (D31); administrators change it on the sequence itself.
+DEFAULT_MEMBER_NUMBER_FORMAT = {
+    "prefix": "MEM/%(year)s/",
+    "suffix": False,
+    "padding": 5,
+}
 
 INVOICING_STRATEGY_SELECTION = [
     ("manual", "Manual"),
@@ -80,22 +86,18 @@ class ResCompany(models.Model):
             raise_if_not_found=False,
         ),
     )
-    member_number_prefix = fields.Char(
-        string="Member Number Prefix",
-        default="MEM/%(year)s/",
-    )
-    member_number_padding = fields.Integer(
-        string="Member Number Padding",
-        default=5,
-    )
+    # The whole member number is an ir.sequence (15.22): the default one without
+    # company, or the company's own with the same code.
     member_number_own_sequence = fields.Boolean(
-        string="Own Member Number Counter",
-        default=False,
+        string="Own Member Numbering",
+        compute="_compute_member_number_own_sequence",
+        inverse="_inverse_member_number_own_sequence",
         help=(
-            "By default all companies draw member numbers from one shared counter, "
-            "so numbers stay unique across the federation whatever prefix each "
-            "association uses. Tick this only for an association that continues its "
-            "own numbering; its counter then starts where the shared one stands."
+            "Off (recommended): the company uses the default numbering, one counter "
+            "shared by all companies, so member numbers cannot collide. On: the "
+            "company numbers on its own, with its own format and counter, starting "
+            "where the default counter stands. Its prefix must then differ from "
+            "every other company's."
         ),
     )
 
@@ -106,8 +108,6 @@ class ResCompany(models.Model):
         return override if override and override >= current_year else current_year
 
     @api.constrains(
-        "member_number_padding",
-        "member_number_prefix",
         "membership_default_period_year",
         "membership_activation_invoice_template_id",
         "membership_welcome_template_id",
@@ -115,22 +115,11 @@ class ResCompany(models.Model):
     )
     def _check_member_number_settings(self):
         for company in self:
-            if company.member_number_padding <= 0:
-                raise ValidationError(_("Member Number Padding must be greater than zero."))
             if company.membership_default_period_year:
                 normalize_year_value(
                     company.membership_default_period_year,
                     company._fields["membership_default_period_year"].string,
                 )
-            try:
-                company._render_member_number_prefix()
-            except Exception as error:
-                raise ValidationError(
-                    _(
-                        "Invalid Member Number Prefix '%(prefix)s'."
-                    )
-                    % {"prefix": company.member_number_prefix}
-                ) from error
             company._check_membership_mail_template_model(
                 company.membership_activation_invoice_template_id,
                 "account.move",
@@ -144,73 +133,89 @@ class ResCompany(models.Model):
                 "membership.membership",
             )
 
-    def _shared_membership_number_sequence(self):
-        """The one counter every company shares unless it opts out.
+    def _default_membership_number_sequence(self):
+        """The default numbering, shared by every company without its own.
 
         Shipped as data; created lazily so the numbering cannot break on a
         database where the record was removed.
         """
         sequence_model = self.env["ir.sequence"].sudo()
-        shared = sequence_model.search(
+        default = sequence_model.search(
             [("code", "=", MEMBERSHIP_NUMBER_SEQUENCE_CODE), ("company_id", "=", False)],
             limit=1,
         )
-        if not shared:
-            shared = sequence_model.create(
+        if not default:
+            default = sequence_model.create(
                 {
-                    "name": "Membership Number Counter (shared)",
+                    "name": "Member Number (default)",
                     "code": MEMBERSHIP_NUMBER_SEQUENCE_CODE,
                     "company_id": False,
-                    "padding": 1,
+                    # Gaps matter here: a rolled-back signup must not use up a number.
+                    "implementation": "no_gap",
+                    **DEFAULT_MEMBER_NUMBER_FORMAT,
                 }
             )
-        return shared
+        return default
+
+    def _own_membership_number_sequence(self, active_test=True):
+        self.ensure_one()
+        return (
+            self.env["ir.sequence"]
+            .sudo()
+            .with_context(active_test=active_test)
+            .search(
+                [
+                    ("code", "=", MEMBERSHIP_NUMBER_SEQUENCE_CODE),
+                    ("company_id", "=", self.id),
+                ],
+                limit=1,
+            )
+        )
 
     def _get_membership_number_sequence(self):
-        """The counter the company's next member number is drawn from.
+        """The sequence the company's next member number comes from."""
+        self.ensure_one()
+        return self._own_membership_number_sequence() or self._default_membership_number_sequence()
 
-        Member numbers are globally unique, so independent per-company counters
-        collide as soon as two associations share a prefix. Sharing one counter
-        makes that impossible by construction; the per-company prefix and padding
-        only decide how the number looks.
+    def _ensure_own_membership_number_sequence(self):
+        """Switch the company to own numbering; returns its sequence.
+
+        An archived one is reactivated. A new one copies the default format.
+        Either way the counter does not stand behind the default one, whose
+        numbers below that are already issued.
         """
         self.ensure_one()
-        shared = self._shared_membership_number_sequence()
-        if not self.member_number_own_sequence:
-            return shared
-        sequence_model = self.env["ir.sequence"].sudo()
-        sequence = sequence_model.search(
-            [
-                ("code", "=", MEMBERSHIP_NUMBER_SEQUENCE_CODE),
-                ("company_id", "=", self.id),
-            ],
-            limit=1,
+        default = self._default_membership_number_sequence()
+        sequence = self._own_membership_number_sequence(active_test=False)
+        if sequence:
+            vals = {"active": True}
+            # The default counter moved on meanwhile; with the same prefix its
+            # numbers would come round again.
+            if sequence.number_next_actual < default.number_next_actual:
+                vals["number_next"] = default.number_next_actual
+            sequence.write(vals)
+            return sequence
+        return default.copy(
+            {
+                "name": "Member Number (%s)" % self.name,
+                "company_id": self.id,
+                "implementation": "no_gap",
+                "number_next": default.number_next_actual,
+            }
         )
-        if not sequence:
-            sequence = sequence_model.create(
-                {
-                    "name": "Membership Number Counter (%s)" % self.name,
-                    "code": MEMBERSHIP_NUMBER_SEQUENCE_CODE,
-                    "company_id": self.id,
-                    "padding": self.member_number_padding,
-                    "number_next": shared.number_next_actual,
-                }
-            )
-        return sequence
 
-    def write(self, vals):
-        result = super().write(vals)
-        if vals.get("member_number_own_sequence"):
-            # A company that shared until now must not restart behind the shared
-            # counter: those numbers are already issued.
-            shared_next = self._shared_membership_number_sequence().number_next_actual
-            for company in self:
-                sequence = company._get_membership_number_sequence()
-                if sequence.number_next_actual < shared_next:
-                    # write() rather than assignment: on a standard sequence the
-                    # ALTER SEQUENCE only runs on flush.
-                    sequence.sudo().write({"number_next": shared_next})
-        return result
+    def _compute_member_number_own_sequence(self):
+        for company in self:
+            company.member_number_own_sequence = bool(
+                company.id and company._own_membership_number_sequence()
+            )
+
+    def _inverse_member_number_own_sequence(self):
+        for company in self:
+            if company.member_number_own_sequence:
+                company._ensure_own_membership_number_sequence()
+            else:
+                company._own_membership_number_sequence().active = False
 
     def _ensure_tax_receipt_sequence(self):
         """Give the company its own receipt numbering.
@@ -233,12 +238,6 @@ class ResCompany(models.Model):
                 "padding": 5,
             }
         )
-
-    def _render_member_number_prefix(self, target_date=False):
-        self.ensure_one()
-        sequence_date = fields.Date.to_date(target_date or fields.Date.today())
-        prefix = self.member_number_prefix or ""
-        return prefix % {"year": sequence_date.year}
 
     def _check_membership_mail_template_model(self, template, expected_model):
         self.ensure_one()

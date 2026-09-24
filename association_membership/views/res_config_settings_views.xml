@@ -57,34 +57,37 @@
                     </block>
                     <block title="Member Numbers">
                         <setting
-                            string="Member Number Prefix"
-                            help="Prefix for generated member numbers. %%(year)s resolves to the creation year."
-                        >
-                            <field name="member_number_prefix" />
-                        </setting>
-                        <setting
-                            string="Member Number Padding"
-                            help="Zero-padding of the counter part of the member number."
-                        >
-                            <field name="member_number_padding" />
-                        </setting>
-                        <setting
-                            string="Own Member Number Counter"
-                            help="Off (recommended): this company draws from the counter shared by all companies, so member numbers cannot collide whatever prefix each association uses. On: this company counts on its own, starting where the shared counter stands — for an association that continues its existing numbering."
+                            string="Own Member Numbering"
+                            help="Off (recommended): the default numbering, one counter shared by all companies, so numbers cannot collide. On: this company numbers on its own, starting where the default counter stands; its prefix must differ from every other company's."
                         >
                             <field name="member_number_own_sequence" />
                         </setting>
                         <setting
-                            string="Next Member Number"
-                            help="Raw counter used for the next generated member number. While the shared counter is in use, this edits that shared counter and therefore affects every company using it."
+                            string="Number Format"
+                            help="Placeholders in prefix and suffix: %%(year)s, %%(y)s, %%(month)s, %%(day)s. The default format is changed by an administrator on its sequence (Technical → Sequences)."
                         >
-                            <field name="member_number_next" />
-                        </setting>
-                        <setting
-                            string="Next Member Number (Preview)"
-                            help="How the next generated member number will look."
-                        >
-                            <field name="member_number_preview" readonly="1" />
+                            <div class="content-group">
+                                <div class="row mt8">
+                                    <label for="member_number_prefix" class="col-lg-4 o_light_label" />
+                                    <field name="member_number_prefix" readonly="not member_number_own_sequence" />
+                                </div>
+                                <div class="row">
+                                    <label for="member_number_suffix" class="col-lg-4 o_light_label" />
+                                    <field name="member_number_suffix" readonly="not member_number_own_sequence" />
+                                </div>
+                                <div class="row">
+                                    <label for="member_number_padding" class="col-lg-4 o_light_label" />
+                                    <field name="member_number_padding" readonly="not member_number_own_sequence" />
+                                </div>
+                                <div class="row">
+                                    <label for="member_number_next" class="col-lg-4 o_light_label" />
+                                    <field name="member_number_next" readonly="not member_number_own_sequence" />
+                                </div>
+                                <div class="row">
+                                    <label for="member_number_preview" class="col-lg-4 o_light_label" />
+                                    <field name="member_number_preview" />
+                                </div>
+                            </div>
                         </setting>
                     </block>
                 </app>

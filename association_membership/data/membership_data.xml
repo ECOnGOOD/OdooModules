@@ -4,11 +4,14 @@
         <field name="name">Membership</field>
     </record>
 
+    <!-- The default member numbering (15.22, D31). A company with own numbering
+         has a sequence with the same code and its own company_id. -->
     <record id="seq_association_membership_number" model="ir.sequence">
-        <field name="name">Association Membership Number Counter</field>
+        <field name="name">Member Number (default)</field>
         <field name="code">association.membership.number.seq</field>
-        <field name="prefix"></field>
-        <field name="padding">1</field>
+        <field name="prefix">MEM/%(year)s/</field>
+        <field name="padding">5</field>
+        <field name="implementation">no_gap</field>
         <field name="company_id" eval="False" />
     </record>
 </odoo>

@@ -72,6 +72,11 @@ class MembershipTestCommon(TransactionCase):
         }).generate_annual_receipts()
         return self.env["donation.tax.receipt"].search(action["domain"])
 
+    def _terminate(self, membership, **kwargs):
+        """Active -> Cancelled -> Terminated: there is no direct step (15.12)."""
+        membership._do_transition("cancelled", **kwargs)
+        membership._do_transition("terminated", **kwargs)
+
     def _make_membership(self, **overrides):
         vals = {
             "partner_id": self.partner.id,
@@ -103,10 +108,24 @@ class TestMembershipLifecycle(MembershipTestCommon):
         membership = self._make_membership()
         membership.action_submit()
         membership._do_transition("active")
-        membership._do_transition("terminated")
+        self._terminate(membership)
         self.assertEqual(membership.state, "terminated")
         with self.assertRaises(UserError):
             membership._do_transition("active")
+
+    def test_removed_transitions_raise(self):
+        """15.12: no Active -> Draft/Terminated, no Waiting -> Cancelled, no Terminated -> Waiting."""
+        membership = self._make_membership()
+        membership.action_submit()
+        with self.assertRaises(UserError):
+            membership._do_transition("cancelled")
+        membership._do_transition("active")
+        for target in ("draft", "terminated", "waiting"):
+            with self.assertRaises(UserError):
+                membership._do_transition(target)
+        self._terminate(membership)
+        with self.assertRaises(UserError):
+            membership._do_transition("waiting")
 
     def test_activate_direct_from_every_state(self):
         for start_state in ("draft", "waiting", "cancelled", "terminated"):
@@ -115,9 +134,12 @@ class TestMembershipLifecycle(MembershipTestCommon):
             )
             if start_state != "draft":
                 membership.action_submit()
-            if start_state in ("cancelled", "terminated"):
+            if start_state == "cancelled":
                 membership._do_transition("active")
-                membership._do_transition(start_state, cancel_reason="left")
+                membership._do_transition("cancelled", cancel_reason="left")
+            if start_state == "terminated":
+                membership._do_transition("active")
+                self._terminate(membership, cancel_reason="left")
             self.assertEqual(membership.state, start_state)
             membership.action_activate_direct()
             self.assertEqual(membership.state, "active")
@@ -131,7 +153,9 @@ class TestMembershipLifecycle(MembershipTestCommon):
             )
             membership.action_submit()
             membership._do_transition("active")
-            membership._do_transition(end_state, cancel_reason="left")
+            membership._do_transition("cancelled", cancel_reason="left")
+            if end_state == "terminated":
+                membership._do_transition("terminated", cancel_reason="left")
             membership.action_reopen_waiting()
             self.assertEqual(membership.state, "waiting")
             self.assertFalse(membership.date_cancelled)
@@ -142,8 +166,8 @@ class TestMembershipLifecycle(MembershipTestCommon):
         membership = self._make_membership()
         membership.action_submit()
         membership._do_transition("active")
-        membership._do_transition(
-            "terminated",
+        self._terminate(
+            membership,
             date_cancelled=date.today(),
             date_end=date.today(),
             cancel_reason="left",
@@ -185,21 +209,30 @@ class TestMembershipUnlink(MembershipTestCommon):
         with self.assertRaises(UserError):
             membership.unlink()
 
-    def test_revert_to_draft_blocked_with_periods(self):
+    def test_revert_to_draft_keeps_the_periods(self):
+        """15.12: Draft may keep its periods; it still cannot be deleted or get new ones."""
         membership = self._make_membership()
         membership.action_submit()
         membership._do_transition("active")
-        self._make_period(membership)
-        membership._do_transition("terminated")
+        period = self._make_period(membership)
+        number = membership.membership_number
+        self._terminate(membership)
+        membership.action_revert_to_draft()
+        self.assertEqual(membership.state, "draft")
+        self.assertEqual(membership.period_ids, period)
+        self.assertEqual(membership.membership_number, number)
         with self.assertRaises(UserError):
-            membership.action_revert_to_draft()
-        self.assertEqual(membership.state, "terminated")
+            membership.unlink()
+        with self.assertRaises(ValidationError):
+            self.env["membership.period"].create(
+                {"membership_id": membership.id, "membership_year": date.today().year + 1}
+            )
 
     def test_unlink_blocked_when_terminated(self):
         membership = self._make_membership()
         membership.action_submit()
         membership._do_transition("active")
-        membership._do_transition("terminated")
+        self._terminate(membership)
         with self.assertRaises(UserError):
             membership.unlink()
 
@@ -514,8 +547,30 @@ class TestMembershipNumberSequence(MembershipTestCommon):
 
     def test_membership_number_assigned_on_create(self):
         membership = self._make_membership()
-        self.assertTrue(membership.membership_number)
+        self.assertRegex(membership.membership_number, r"^MEM/%d/\d{5}$" % date.today().year)
         self.assertFalse(membership.override_membership_number)
+
+    def test_default_numbering_has_no_gaps(self):
+        """15.22: a rolled-back signup must not use up a number."""
+        self.assertEqual(self.company._default_membership_number_sequence().implementation, "no_gap")
+
+    def test_own_numbering_uses_its_own_format(self):
+        self.company.member_number_own_sequence = True
+        own = self.company._get_membership_number_sequence()
+        own.write({"prefix": "BY-", "suffix": "-X", "padding": 3, "number_next": 7})
+        membership = self._make_membership()
+        self.assertEqual(membership.membership_number, "BY-007-X")
+
+    def test_switching_own_numbering_off_archives_it(self):
+        self.company.member_number_own_sequence = True
+        own = self.company._get_membership_number_sequence()
+        self.company.member_number_own_sequence = False
+        self.assertFalse(own.active)
+        self.assertFalse(self.company.member_number_own_sequence)
+        self.assertEqual(
+            self.company._get_membership_number_sequence(),
+            self.company._default_membership_number_sequence(),
+        )
 
     def test_explicit_membership_number_marks_override(self):
         membership = self._make_membership(membership_number="EXPLICIT-001")
@@ -531,10 +586,9 @@ class TestMembershipNumberSequence(MembershipTestCommon):
                 membership_number="DUP-001",
             )
 
-    def _second_company_membership(self, prefix):
-        """A membership in a second company using the same number prefix."""
+    def _second_company_membership(self):
+        """A membership in a second company, also on the default numbering."""
         other_company = self.env["res.company"].create({"name": "Second Association"})
-        other_company.member_number_prefix = prefix
         self.env.user.company_ids |= other_company
         product = self.env["product.product"].create({
             "name": "Membership Second",
@@ -549,14 +603,12 @@ class TestMembershipNumberSequence(MembershipTestCommon):
             product_id=product.id,
         )
 
-    def test_two_companies_with_the_same_prefix_do_not_collide(self):
-        # This is the collision the shared counter exists to prevent: the
-        # bootstrap gives every company the same prefix, and member numbers are
-        # globally unique.
-        prefix = "SHARED/"
-        self.company.member_number_prefix = prefix
+    def test_two_companies_on_the_default_numbering_do_not_collide(self):
+        # Member numbers are globally unique; the default numbering is one
+        # counter, so two companies can never draw the same number.
         first = self._make_membership()
-        _other_company, second = self._second_company_membership(prefix)
+        _other_company, second = self._second_company_membership()
+        prefix = "MEM/%d/" % date.today().year
         self.assertTrue(first.membership_number.startswith(prefix))
         self.assertTrue(second.membership_number.startswith(prefix))
         self.assertNotEqual(first.membership_number, second.membership_number)
@@ -567,7 +619,7 @@ class TestMembershipNumberSequence(MembershipTestCommon):
         self._make_membership(
             partner_id=self.env["res.partner"].create({"name": "Another"}).id,
         )
-        shared = self.company._shared_membership_number_sequence()
+        shared = self.company._default_membership_number_sequence()
         shared_next = shared.number_next_actual
 
         self.company.member_number_own_sequence = True
@@ -582,7 +634,7 @@ class TestMembershipNumberSequence(MembershipTestCommon):
         own.sudo().write({"number_next": 1})
         self.company.member_number_own_sequence = False
 
-        shared = self.company._shared_membership_number_sequence()
+        shared = self.company._default_membership_number_sequence()
         shared.sudo().write({"number_next": 50})
         self.env.invalidate_all()
         self.company.member_number_own_sequence = True
@@ -594,7 +646,7 @@ class TestMembershipNumberSequence(MembershipTestCommon):
     def test_an_own_counter_is_independent_once_enabled(self):
         self.company.member_number_own_sequence = True
         own = self.company._get_membership_number_sequence()
-        shared = self.company._shared_membership_number_sequence()
+        shared = self.company._default_membership_number_sequence()
         before = shared.number_next_actual
         self._make_membership()
         self.assertEqual(shared.number_next_actual, before)
@@ -613,18 +665,28 @@ class TestMembershipCancellationRules(MembershipTestCommon):
         with self.assertRaises(ValidationError):
             membership.write({"cancel_reason": "leaving"})
 
-    def test_cancel_from_waiting(self):
+    def test_waiting_is_reverted_not_cancelled(self):
         membership = self._make_membership()
         membership.action_submit()
+        with self.assertRaises(UserError):
+            membership.action_cancel()
+        membership.action_revert_to_draft()
+        self.assertEqual(membership.state, "draft")
+
+    def test_cancel_from_active(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        membership._do_transition("active")
         year_end = date(date.today().year, 12, 31)
         membership._do_transition("cancelled", date_end=year_end)
         self.assertEqual(membership.state, "cancelled")
         self.assertTrue(membership.date_cancelled)
         self.assertEqual(membership.date_end, year_end)
 
-    def test_cancel_from_waiting_terminates_when_end_date_past(self):
+    def test_cancel_terminates_when_end_date_past(self):
         membership = self._make_membership()
         membership.action_submit()
+        membership._do_transition("active")
         membership._schedule_termination(
             date_cancelled=date.today(),
             date_end=date.today(),
@@ -634,6 +696,7 @@ class TestMembershipCancellationRules(MembershipTestCommon):
     def test_revert_to_draft_from_cancelled_clears_cancel_fields(self):
         membership = self._make_membership()
         membership.action_submit()
+        membership._do_transition("active")
         membership._do_transition("cancelled", date_end=date(date.today().year, 12, 31))
         membership.action_revert_to_draft()
         self.assertEqual(membership.state, "draft")
@@ -669,8 +732,10 @@ class TestMembershipWizardRecipients(MembershipTestCommon):
         self.assertIn(membership.partner_id, cancel.mail_partner_ids)
 
     def test_add_invoice_partner_to_wizard_recipients(self):
-        invoice_partner = self.env["res.partner"].create({"name": "Invoice Contact"})
-        membership = self._make_membership(invoice_partner_id=invoice_partner.id)
+        invoice_partner = self.env["res.partner"].create(
+            {"name": "Invoice Contact", "type": "invoice", "parent_id": self.partner.id}
+        )
+        membership = self._make_membership()
         membership.action_submit()
         activate, cancel = self._make_wizards(membership)
         self.assertFalse(activate.invoice_partner_included)
@@ -681,8 +746,10 @@ class TestMembershipWizardRecipients(MembershipTestCommon):
         self.assertIn(invoice_partner, cancel.mail_partner_ids)
 
     def test_add_invoice_partner_is_idempotent(self):
-        invoice_partner = self.env["res.partner"].create({"name": "Invoice Contact"})
-        membership = self._make_membership(invoice_partner_id=invoice_partner.id)
+        invoice_partner = self.env["res.partner"].create(
+            {"name": "Invoice Contact", "type": "invoice", "parent_id": self.partner.id}
+        )
+        membership = self._make_membership()
         membership.action_submit()
         activate, _cancel = self._make_wizards(membership)
         activate.action_add_invoice_partner()
@@ -797,6 +864,7 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
     def test_cancellation_template_renders_cancellation_details(self):
         membership = self._make_membership()
         membership.action_submit()
+        membership._do_transition("active")
         membership._do_transition("cancelled", cancel_reason="Moving away")
         template = self.env.ref("association_membership.mail_template_membership_cancellation")
         rendered = template._render_field("body_html", membership.ids)[membership.id]
@@ -858,8 +926,6 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
         self.assertIn(self.partner.name, rendered)
 
     def test_settings_member_number_preview(self):
-        self.company.member_number_prefix = "MEM/%(year)s/"
-        self.company.member_number_padding = 5
         sequence = self.company._get_membership_number_sequence()
         settings = self.env["res.config.settings"].create({})
         expected = "MEM/%d/%s" % (
@@ -868,17 +934,27 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
         )
         self.assertEqual(settings.member_number_preview, expected)
 
-    def test_lazy_own_sequence_uses_company_padding(self):
-        self.company.member_number_own_sequence = True
-        sequence = self.company._get_membership_number_sequence()
-        sequence.sudo().unlink()
-        self.company.member_number_padding = 7
-        sequence = self.company._get_membership_number_sequence()
-        self.assertEqual(sequence.padding, 7)
+    def test_settings_edit_the_own_format_only(self):
+        default = self.company._default_membership_number_sequence()
+        settings = self.env["res.config.settings"].create({
+            "member_number_prefix": "IGNORED/",
+        })
+        settings.execute()
+        self.assertEqual(default.prefix, "MEM/%(year)s/")
+        settings = self.env["res.config.settings"].create({
+            "member_number_own_sequence": True,
+            "member_number_prefix": "OWN/",
+            "member_number_padding": 3,
+        })
+        settings.execute()
+        own = self.company._get_membership_number_sequence()
+        self.assertEqual(own.company_id, self.company)
+        self.assertEqual((own.prefix, own.padding), ("OWN/", 3))
+        self.assertEqual(default.prefix, "MEM/%(year)s/")
 
     def test_settings_next_number_follows_the_shared_counter_while_sharing(self):
         settings = self.env["res.config.settings"].create({})
-        shared = self.company._shared_membership_number_sequence()
+        shared = self.company._default_membership_number_sequence()
         self.assertFalse(shared.company_id)
         self.assertEqual(settings.member_number_next, shared.number_next_actual)
 
@@ -1003,11 +1079,24 @@ class TestReactivation(MembershipTestCommon):
         membership._do_transition("cancelled", cancel_reason="left")
         self.assertFalse(self._wizard(membership).send_welcome_message)
 
+    def test_welcome_message_ticked_when_activating_from_draft(self):
+        membership = self._make_membership()
+        self.assertEqual(membership.state, "draft")
+        self.assertTrue(self._wizard(membership).send_welcome_message)
+
+    def test_welcome_message_unticked_after_revert_to_draft(self):
+        membership = self._make_membership()
+        self._make_period(membership)
+        membership._do_transition("active")
+        self._terminate(membership, cancel_reason="left")
+        membership.action_revert_to_draft()
+        self.assertFalse(self._wizard(membership).send_welcome_message)
+
     def test_welcome_message_unticked_after_reopen(self):
         membership = self._make_membership()
         self._make_period(membership)
         membership._do_transition("active")
-        membership._do_transition("terminated", cancel_reason="left")
+        self._terminate(membership, cancel_reason="left")
         membership.action_reopen_waiting()
         self.assertEqual(membership.state, "waiting")
         self.assertFalse(self._wizard(membership).send_welcome_message)
@@ -1042,6 +1131,32 @@ class TestCommunicationPartners(MembershipTestCommon):
             self._recipients("contact_person_and_invoice_contact"),
             self.organisation | self.billing,
         )
+
+    def test_invoice_contact_follows_the_organisation(self):
+        """15.26: a change on the partner reaches existing memberships and unbilled periods."""
+        organisation = self.env["res.partner"].create({"name": "Late Billing", "is_company": True})
+        membership = self._make_membership(partner_id=organisation.id)
+        self.assertEqual(membership.invoice_partner_id, organisation)
+        period = self._make_period(membership, amount=10.0)
+        self.assertEqual(period.invoice_partner_id, organisation)
+        billing = self.env["res.partner"].create(
+            {"name": "Late Billing Accounts", "type": "invoice", "parent_id": organisation.id}
+        )
+        self.assertEqual(membership.invoice_partner_id, billing)
+        period._create_membership_invoices()
+        self.assertEqual(period.invoice_partner_id, billing)
+        self.assertEqual(period.invoice_id.partner_id, billing)
+        # An issued invoice is history: a later change leaves the period alone.
+        billing.type = "contact"
+        self.assertEqual(membership.invoice_partner_id, organisation)
+        self.assertEqual(period.invoice_partner_id, billing)
+
+    def test_contact_person_only_for_organisations(self):
+        """15.6: without a contact person set, address_get returns the organisation itself."""
+        self.assertFalse(self._make_membership().contact_partner_id)
+        membership = self._make_membership(partner_id=self.organisation.id)
+        self.assertFalse(membership.contact_partner_id)
+        self.assertEqual(membership.invoice_partner_id, self.billing)
 
     def test_wizards_use_the_setting(self):
         self.company.membership_company_mail_recipients = "invoice_contact"
@@ -1412,7 +1527,7 @@ class TestCancelDirect(MembershipTestCommon):
         membership = self._make_membership()
         membership.action_submit()
         membership._do_transition("active")
-        membership._do_transition("terminated", cancel_reason="old")
+        self._terminate(membership, cancel_reason="old")
         self._cancel_direct(membership)
         self.assertEqual(membership.state, "cancelled")
         self.assertEqual(membership.date_end, date(date.today().year + 1, 12, 31))
@@ -1438,6 +1553,14 @@ class TestCancelDirect(MembershipTestCommon):
             cancel_reason="rpc",
         )
         self.assertEqual(membership.state, "terminated")
+
+    def test_rerun_on_a_terminated_membership_only_corrects_it(self):
+        membership = self._make_membership(date_start=date(date.today().year - 1, 1, 1))
+        past_end = "%s-12-31" % (date.today().year - 1)
+        membership.action_cancel_direct(date_end=past_end, cancel_reason="first")
+        membership.action_cancel_direct(date_end=past_end, cancel_reason="corrected")
+        self.assertEqual(membership.state, "terminated")
+        self.assertEqual(membership.cancel_reason, "corrected")
 
     def test_rerun_updates_an_existing_cancellation(self):
         membership = self._make_membership()
@@ -1599,7 +1722,7 @@ class TestMigration(MembershipTestCommon):
         migration = self._load_6_0_0_migration()
         self.company.member_number_own_sequence = True
         own = self.company._get_membership_number_sequence()
-        shared = self.company._shared_membership_number_sequence()
+        shared = self.company._default_membership_number_sequence()
         target = max(self._highest_own_counter(), shared.number_next_actual) + 500
         own.sudo().write({"number_next": target})
         self.env.invalidate_all()
@@ -1610,7 +1733,7 @@ class TestMigration(MembershipTestCommon):
 
     def test_6_0_0_migration_never_lowers_the_shared_counter(self):
         migration = self._load_6_0_0_migration()
-        shared = self.company._shared_membership_number_sequence()
+        shared = self.company._default_membership_number_sequence()
         # Above every per-company counter, wherever they happen to stand.
         high = self._highest_own_counter() + 1000
         shared.sudo().write({"number_next": high})
@@ -1620,6 +1743,45 @@ class TestMigration(MembershipTestCommon):
         migration._raise_shared_counter(self.env)
         self.env.invalidate_all()
         self.assertEqual(shared.number_next_actual, high)
+
+
+class TestMigration630(MembershipTestCommon):
+    def _load(self):
+        path = get_module_path("association_membership") + "/migrations/18.0.6.3.0/post-migrate.py"
+        spec = importlib.util.spec_from_file_location("association_membership_6_3_0", path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        return migration
+
+    def test_every_company_switches_to_the_default_numbering(self):
+        """D31: own counters are archived; the default one moves above them."""
+        self.company.member_number_own_sequence = True
+        own = self.company._get_membership_number_sequence()
+        default = self.company._default_membership_number_sequence()
+        target = default.number_next_actual + 500
+        own.write({"number_next": target})
+        default.write({"prefix": "OLD/", "padding": 2})
+        self._load()._switch_to_default_numbering(self.env)
+        self.env.invalidate_all()
+        self.assertFalse(own.active)
+        self.assertEqual((default.prefix, default.padding), ("MEM/%(year)s/", 5))
+        self.assertGreaterEqual(default.number_next_actual, target)
+
+    def test_invoice_contacts_are_recomputed(self):
+        organisation = self.env["res.partner"].create({"name": "Stale", "is_company": True})
+        membership = self._make_membership(partner_id=organisation.id)
+        billing = self.env["res.partner"].create(
+            {"name": "Stale Billing", "type": "invoice", "parent_id": organisation.id}
+        )
+        # A value stored before the field was computed.
+        self.env.cr.execute(
+            "UPDATE membership_membership SET invoice_partner_id = %s WHERE id = %s",
+            [organisation.id, membership.id],
+        )
+        self.env.invalidate_all()
+        self._load()._recompute_contacts(self.env)
+        self.env.invalidate_all()
+        self.assertEqual(membership.invoice_partner_id, billing)
 
 
 class TestAnnualReceiptWizard(MembershipTestCommon):

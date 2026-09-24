@@ -101,7 +101,8 @@
             </xpath>
         </field>
     </record>
-    <!-- Moved from association_membership: delivery addresses are not used. -->
+    <!-- OCA partner_contact_address_default: only the contact person is used
+         (delivery addresses moved here from association_membership). -->
     <record id="view_partner_form_hide_delivery" model="ir.ui.view">
         <field name="name">res.partner.form.hide.delivery</field>
         <field name="model">res.partner</field>
@@ -111,6 +112,20 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//field[@name='child_ids']//form//field[@name='partner_delivery_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <!-- The invoice address is Odoo's standard one: the child contact of type
+                 Invoice. A second, manual "Invoice address" only drifts out of sync. -->
+            <xpath expr="//field[@name='partner_invoice_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <!-- The organisation's contact person, who receives member emails. -->
+            <xpath expr="//field[@name='partner_contact_id']" position="attributes">
+                <attribute name="string">Contact Person</attribute>
+                <attribute name="invisible">not is_company</attribute>
+            </xpath>
+            <!-- Child contacts are people: nothing to force there. -->
+            <xpath expr="//field[@name='child_ids']//form//group[group/field[@name='partner_invoice_id']]" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
         </field>

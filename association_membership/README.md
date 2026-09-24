@@ -26,7 +26,8 @@ The relationship between a partner, a company and a membership product. `mail.th
 | --- | --- | --- |
 | `name` | Char | computed, stored — display name |
 | `partner_id` | M2o `res.partner` | **Member**, required, tracked |
-| `invoice_partner_id` | M2o `res.partner` | optional separate invoice contact |
+| `invoice_partner_id` | M2o `res.partner` | computed, stored: the member's invoice address (`address_get(["invoice"])`, i.e. its invoice-type child, else the member) |
+| `contact_partner_id` | M2o `res.partner` | computed: an organisation's contact person (`address_get(["contact"])`), empty when that is the organisation itself |
 | `company_id` | M2o `res.company` | required, default = current company |
 | `product_id` | M2o `product.product` | **tier** (variant), required, tracked |
 | `product_tmpl_id` | related, stored | **membership type** (template) |
@@ -35,7 +36,7 @@ The relationship between a partner, a company and a membership product. `mail.th
 | `date_end`, `date_cancelled`, `cancel_reason` | Date / Date / Text | only on `cancelled` / `terminated` (constraint) |
 | `date_welcome_sent` | Date | set when the welcome mail goes out |
 | `membership_active` | Boolean | computed, stored — live today (`active` or `cancelled`) |
-| `membership_number` | Char | globally unique (SQL constraint); drawn from the shared counter unless the company opts out |
+| `membership_number` | Char | globally unique (SQL constraint); the next value of the company's member number sequence |
 | `override_membership_number` | Boolean | allows a manual number |
 | `membership_number_preview` | Char | computed preview of the next number |
 | `amount` | Monetary | computed from the product price, editable per membership |
@@ -68,7 +69,7 @@ The per-year billing artifact, one per `(membership, year)` (SQL constraint). Ke
 | `billing_status` | Selection | computed+stored, `readonly=False` — see below |
 | `tax_receipt_id` | M2o `donation.tax.receipt` | readonly |
 | `partner_id`, `company_id`, `currency_id` | related, stored | from the membership |
-| `invoice_partner_id`, `note` | M2o / Text | |
+| `invoice_partner_id`, `note` | M2o / Text | the invoice contact is taken from the membership when the invoice is created; an issued invoice keeps it |
 
 ### Extended standard models
 
@@ -89,32 +90,31 @@ The per-year billing artifact, one per `(membership, year)` (SQL constraint). Ke
 stateDiagram-v2
     [*] --> draft
     draft --> waiting : Submit
+    draft --> active : Activate (through waiting)
     waiting --> active : Activate (wizard / direct)
-    waiting --> draft
-    waiting --> cancelled
-    waiting --> terminated
-    active --> cancelled : Cancel (date_end in future)
-    active --> terminated : Cancel, end date reached
-    active --> draft
-    cancelled --> terminated : cron (date_end passed)
+    waiting --> draft : Revert to Draft
+    active --> cancelled : Cancel
+    cancelled --> terminated : cron (date_end passed), or Cancel with an end date reached
     cancelled --> active : Reactivate
-    cancelled --> waiting
-    cancelled --> draft
-    terminated --> waiting : Reopen
-    terminated --> draft
+    cancelled --> draft : Revert to Draft
+    terminated --> draft : Revert to Draft
 ```
 
 | State | Meaning | Rules |
 | --- | --- | --- |
-| `draft` | editable scratch | Periods tab hidden; **only** state that can be deleted; periods forbidden by constraint |
-| `waiting` | created, not yet active | periods and invoicing allowed |
-| `active` | steady state | |
+| `draft` | not in force: new, or taken back for correction | **only** state that can be deleted (without periods); keeps existing periods and its number, but gets no new periods |
+| `waiting` | submitted, not yet active | periods and invoicing allowed |
+| `active` | steady state | ends only through Cancel |
 | `cancelled` | *scheduled to end at `date_end`* | still business-active |
-| `terminated` | end state | **Reopen** → `waiting`, clears cancellation data |
+| `terminated` | ended | back only through Revert to Draft |
 
-- Reverting to `draft` and deleting are blocked once periods exist.
-- `date_cancelled` / `date_end` / `cancel_reason` are only valid on `cancelled` / `terminated` and are cleared automatically on revert, reopen or reactivation.
+- An active membership is never reverted to draft: it is corrected by editing, or cancelled and then reverted.
+- A membership that was never active is not cancelled: it goes back to draft and is deleted (without periods) or archived.
+- A cancellation whose end date is today or earlier terminates at once, through `cancelled`.
+- `date_cancelled` / `date_end` / `cancel_reason` are only valid on `cancelled` / `terminated` and are cleared automatically on revert or reactivation.
+- Reverting to draft closes the "Member Of" relation (`partner_multi_relation`, when installed) unless another membership keeps it open.
 - Re-running a cancel on an already cancelled membership corrects its dates/reason rather than failing.
+- The importer's `action_reopen_waiting` goes through draft, and `action_cancel_direct` activates first when needed.
 
 ## Period Billing Status
 
@@ -170,7 +170,7 @@ flowchart LR
 ```
 
 The welcome email is pre-ticked only for a first activation — never when reactivating a
-cancelled membership or activating a reopened one. A fee of 0 cannot be invoiced; the
+cancelled membership or activating one that was reverted to draft. A fee of 0 cannot be invoiced; the
 wizard says so instead of silently skipping it.
 
 ### Renewal
@@ -236,8 +236,8 @@ Neither the creator of a membership nor the sender of a welcome or cancellation 
 | Invoicing strategy | `membership_invoicing_strategy` | `manual` — `draft` / `confirm` create an invoice on activation and renewal; overridable per membership |
 | Period year override | `membership_default_period_year` | `0` = current year; a future year pre-creates next year's periods |
 | Email templates | activation invoice / welcome / cancellation | shipped EN + DE, auto-assigned to companies without one |
-| Member numbers | `member_number_prefix` (`%(year)s` supported), `member_number_padding`, next number | prefix and padding decide how the number *looks*; they are per company |
-| Own member number counter | `member_number_own_sequence` | **off by default: all companies draw from one shared counter**, so numbers stay unique whatever prefix each association uses. On = this association counts on its own, starting where the shared counter stands |
+| Own member numbering | `member_number_own_sequence` | **off by default: every company uses the default numbering**, the `ir.sequence` with code `association.membership.number.seq` and no company (`MEM/%(year)s/`, 5 digits, `no_gap`). On = a sequence of that code for this company, starting where the default stands; off again archives it |
+| Number format | prefix, suffix, digits, next number | the fields of the effective sequence; editable here only with own numbering. The default format is changed on its sequence by an administrator |
 
 ## Reporting
 

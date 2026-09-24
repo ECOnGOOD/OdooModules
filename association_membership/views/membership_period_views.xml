@@ -105,7 +105,8 @@
                                 <field name="date_end" readonly="1" nolabel="1" />
                             </div>
                             <field name="partner_id" readonly="1" />
-                            <field name="invoice_partner_id" />
+                            <!-- Taken from the member when the invoice is created. -->
+                            <field name="invoice_partner_id" readonly="1" />
                             <field name="company_id" readonly="1" />
                             <field name="product_id" readonly="1" />
                             <field name="note" />

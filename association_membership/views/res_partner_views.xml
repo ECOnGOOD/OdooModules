@@ -67,7 +67,7 @@
         <field name="res_model">res.partner</field>
         <field name="view_mode">kanban,list,form</field>
         <field name="domain">[('membership_ids', '!=', False)]</field>
-        <field name="context">{'search_default_filter_active_members': 1}</field>
+        <field name="context">{'search_default_filter_current_members': 1}</field>
     </record>
     <record id="view_res_partner_filter_membership" model="ir.ui.view">
         <field name="name">res.partner.search.membership</field>
@@ -76,6 +76,9 @@
         <field name="arch" type="xml">
             <xpath expr="//search" position="inside">
                 <separator/>
+                <!-- Same meaning as in the reports (CURRENT_MEMBER_STATES): waiting,
+                     active, and cancelled but not ended yet. -->
+                <filter string="Current Members" name="filter_current_members" domain="[('membership_ids.state', 'in', ('waiting', 'active', 'cancelled'))]"/>
                 <filter string="Active Members" name="filter_active_members" domain="[('membership_ids.state', '=', 'active')]"/>
             </xpath>
         </field>

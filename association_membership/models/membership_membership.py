@@ -41,12 +41,23 @@ class MembershipMembership(models.Model):
         tracking=True,
         index=True,
     )
+    # Both contacts come from the member, so a change there reaches every
+    # membership (15.26). A different invoice contact is set on the partner.
     invoice_partner_id = fields.Many2one(
         "res.partner",
         string="Invoice Contact",
+        compute="_compute_invoice_partner_id",
+        store=True,
         tracking=True,
         index=True,
     )
+    contact_partner_id = fields.Many2one(
+        "res.partner",
+        string="Contact Person",
+        compute="_compute_contact_partner_id",
+        help="The organisation's contact person, set on the organisation.",
+    )
+    partner_is_company = fields.Boolean(related="partner_id.is_company")
     company_id = fields.Many2one(
         "res.company",
         required=True,
@@ -169,6 +180,37 @@ class MembershipMembership(models.Model):
             ]
             record.name = " - ".join(part for part in parts if part)
 
+    def _contacts_depends(self):
+        depends = [
+            "partner_id",
+            "partner_id.is_company",
+            "partner_id.child_ids",
+            "partner_id.child_ids.type",
+            "partner_id.child_ids.active",
+        ]
+        # partner_contact_address_default is optional; its overrides count too.
+        partner_fields = self.env["res.partner"]._fields
+        depends += [
+            "partner_id.%s" % name
+            for name in ("partner_invoice_id", "partner_contact_id")
+            if name in partner_fields
+        ]
+        return depends
+
+    @api.depends(lambda self: self._contacts_depends())
+    def _compute_invoice_partner_id(self):
+        for record in self:
+            record.invoice_partner_id = record._resolve_default_invoice_partner(record.partner_id)
+
+    @api.depends(lambda self: self._contacts_depends())
+    def _compute_contact_partner_id(self):
+        for record in self:
+            contact = self.env["res.partner"]
+            if record.partner_id.is_company:
+                contact = contact.browse(record.partner_id.address_get(["contact"])["contact"])
+            # address_get falls back to the organisation itself: no contact person then.
+            record.contact_partner_id = contact if contact != record.partner_id else False
+
     @api.depends("membership_number", "company_id")
     def _compute_membership_number_preview(self):
         sequence_by_company = {}
@@ -180,16 +222,8 @@ class MembershipMembership(models.Model):
             if company_id not in sequence_by_company:
                 sequence_by_company[company_id] = record.company_id._get_membership_number_sequence()
             sequence = sequence_by_company[company_id]
-            next_counter = str(sequence.number_next_actual) if sequence else False
-            if not next_counter:
-                record.membership_number_preview = False
-                continue
-            prefix = record.company_id._render_member_number_prefix(
-                target_date=fields.Date.context_today(record)
-            )
-            record.membership_number_preview = "%s%s" % (
-                prefix,
-                next_counter.zfill(record.company_id.member_number_padding),
+            record.membership_number_preview = (
+                sequence.get_next_char(sequence.number_next_actual) if sequence else False
             )
 
     @api.depends("state")
@@ -275,17 +309,8 @@ class MembershipMembership(models.Model):
         return self.env["res.partner"].browse(invoice_partner_id) or partner
 
     @api.model
-    def _prepare_membership_values(
-        self,
-        vals,
-        for_create=False,
-        apply_invoice_partner_default=False,
-    ):
+    def _prepare_membership_values(self, vals, for_create=False):
         vals = vals.copy()
-        if apply_invoice_partner_default and vals.get("partner_id"):
-            partner = self.env["res.partner"].browse(vals["partner_id"])
-            if not vals.get("invoice_partner_id"):
-                vals["invoice_partner_id"] = self._resolve_default_invoice_partner(partner).id
         if for_create:
             vals.setdefault("company_id", self.env.company.id)
             vals.setdefault("date_start", fields.Date.context_today(self))
@@ -309,12 +334,6 @@ class MembershipMembership(models.Model):
             )
             vals.update(cancel_defaults)
         return vals
-
-    @api.onchange("partner_id")
-    def _onchange_partner_id(self):
-        if not self.partner_id:
-            return
-        self.invoice_partner_id = self._resolve_default_invoice_partner(self.partner_id)
 
     def _membership_product_domain(self):
         return self.env["product.product"]._membership_product_domain(
@@ -466,20 +485,13 @@ class MembershipMembership(models.Model):
             if conflict:
                 self._raise_membership_number_conflict(number, conflict)
 
-    def _next_membership_number_counter(self):
-        sequence = self.company_id._get_membership_number_sequence()
-        counter = sequence.sudo().next_by_id()
-        if not counter:
-            raise UserError(_("The membership number counter is not configured."))
-        return str(counter)
-
     def _generate_membership_number(self):
+        """The next number of the company's sequence, formatted by the sequence."""
         self.ensure_one()
-        counter = self._next_membership_number_counter()
-        prefix = self.company_id._render_member_number_prefix(
-            target_date=fields.Date.context_today(self)
-        )
-        return "%s%s" % (prefix, counter.zfill(self.company_id.member_number_padding))
+        number = self.company_id._get_membership_number_sequence().sudo().next_by_id()
+        if not number:
+            raise UserError(_("The member numbering is not configured."))
+        return number
 
     def _assign_membership_number_if_missing(self):
         for record in self.filtered(lambda membership: not membership.membership_number):
@@ -508,11 +520,7 @@ class MembershipMembership(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         prepared_vals_list = [
-            self._prepare_membership_values(
-                vals,
-                for_create=True,
-                apply_invoice_partner_default=True,
-            )
+            self._prepare_membership_values(vals, for_create=True)
             for vals in vals_list
         ]
         self._check_explicit_membership_number_conflicts(prepared_vals_list)
@@ -553,7 +561,6 @@ class MembershipMembership(models.Model):
         result = super().write(vals)
         if {
             "partner_id",
-            "invoice_partner_id",
             "company_id",
             "product_id",
             "state",
@@ -565,12 +572,18 @@ class MembershipMembership(models.Model):
         return result
 
     def _get_allowed_transitions(self):
+        """The state machine (15.12).
+
+        Draft means "not in force": new, or taken back for correction. An
+        active membership ends through Cancelled; one that was never active
+        goes back to Draft. Draft keeps its periods and its number.
+        """
         return {
             "draft": {"waiting"},
-            "waiting": {"draft", "active", "cancelled", "terminated"},
-            "active": {"cancelled", "terminated", "draft"},
-            "cancelled": {"waiting", "active", "terminated", "draft"},
-            "terminated": {"waiting", "draft"},
+            "waiting": {"draft", "active"},
+            "active": {"cancelled"},
+            "cancelled": {"active", "terminated", "draft"},
+            "terminated": {"draft"},
         }
 
     def _check_no_periods(self):
@@ -578,8 +591,8 @@ class MembershipMembership(models.Model):
             if record.period_ids:
                 raise UserError(
                     _(
-                        "Membership %s has periods, so it cannot be deleted or"
-                        " reverted to draft. Cancel or terminate it instead."
+                        "Membership %s has periods, so it cannot be deleted."
+                        " Archive it instead."
                     )
                     % record.display_name
                 )
@@ -615,31 +628,31 @@ class MembershipMembership(models.Model):
             cancel_reason=cancel_reason,
         )
 
+    def _cancellation_values(self, **kwargs):
+        """Cancellation date, end date and reason from ``kwargs`` and the defaults."""
+        self.ensure_one()
+        vals = self._get_default_cancel_values(
+            # Keep the original cancellation date when only the end date is corrected.
+            cancel_date=kwargs.get("date_cancelled") or self.date_cancelled,
+            cancel_reason=kwargs.get("cancel_reason"),
+        )
+        if kwargs.get("date_end"):
+            # Callers over RPC (the importer) send date strings.
+            vals["date_end"] = fields.Date.to_date(kwargs["date_end"])
+        return vals
+
     def _schedule_termination(self, **kwargs):
+        """Cancel an active membership, or correct a cancelled one.
+
+        An end date of today or earlier terminates it straight away, still
+        through Cancelled: Active -> Terminated is not a transition of its own.
+        """
         today = fields.Date.context_today(self)
         for record in self:
-            vals = record._get_default_cancel_values(
-                # Keep the original cancellation date when only the end date is corrected.
-                cancel_date=kwargs.get("date_cancelled") or record.date_cancelled,
-                cancel_reason=kwargs.get("cancel_reason"),
-            )
-            if kwargs.get("date_end"):
-                # Callers over RPC (the importer) send date strings.
-                vals["date_end"] = fields.Date.to_date(kwargs["date_end"])
+            vals = record._cancellation_values(**kwargs)
+            record._do_transition("cancelled", **vals)
             if vals.get("date_end") and vals["date_end"] <= today:
-                record._do_transition(
-                    "terminated",
-                    date_cancelled=vals.get("date_cancelled"),
-                    date_end=vals.get("date_end"),
-                    cancel_reason=vals.get("cancel_reason"),
-                )
-                continue
-            record._do_transition(
-                "cancelled",
-                date_cancelled=vals.get("date_cancelled"),
-                date_end=vals.get("date_end"),
-                cancel_reason=vals.get("cancel_reason"),
-            )
+                record._do_transition("terminated", **vals)
         return True
 
     def _do_transition(self, new_state, **kwargs):
@@ -661,8 +674,6 @@ class MembershipMembership(models.Model):
                         "to_state": new_state,
                     }
                 )
-            if new_state == "draft":
-                record._check_no_periods()
             vals = {"state": new_state}
             if new_state in {"cancelled", "terminated"}:
                 vals.update(
@@ -716,11 +727,13 @@ class MembershipMembership(models.Model):
     def action_activate_direct(self):
         """Activate without the wizard and without sending any email.
 
-        Used by the contact importer for historical memberships. Draft and
-        terminated memberships pass through `waiting` first.
+        Used by the contact importer for historical memberships. A terminated
+        membership goes back to draft first, and a draft one through waiting.
         """
         for record in self:
-            if record.state in ("draft", "terminated"):
+            if record.state == "terminated":
+                record._do_transition("draft")
+            if record.state == "draft":
                 record._do_transition("waiting")
             record._do_transition("active")
         return True
@@ -730,33 +743,50 @@ class MembershipMembership(models.Model):
         return True
 
     def action_reopen_waiting(self):
-        """Reopen a cancelled or terminated membership (used by the contact importer)."""
-        self._do_transition("waiting")
+        """Put a membership back to waiting (used by the contact importer).
+
+        A cancelled or terminated membership goes through draft: there is no
+        direct way back to waiting.
+        """
+        for record in self:
+            if record.state in ("cancelled", "terminated"):
+                record._do_transition("draft")
+            record._do_transition("waiting")
         return True
 
     def action_cancel_direct(self, date_cancelled=False, date_end=False, cancel_reason=False):
         """Cancel without the wizard and without emails.
 
-        Used by the contact importer. A draft membership is submitted first and
-        a terminated one is reopened, so neither draft -> cancelled nor
-        terminated -> cancelled is needed. Re-running it on an already cancelled
-        membership updates its dates and reason.
+        Used by the contact importer for historical memberships, which were
+        active before they ended: anything not active or cancelled is activated
+        first. Re-running it corrects the dates and reason; a terminated
+        membership whose end date is still past only gets that correction.
         """
+        today = fields.Date.context_today(self)
+        kwargs = {
+            "date_cancelled": date_cancelled,
+            "date_end": date_end,
+            "cancel_reason": cancel_reason,
+        }
         for record in self:
-            if record.state in ("draft", "terminated"):
-                record._do_transition("waiting")
-            record._schedule_termination(
-                date_cancelled=date_cancelled,
-                date_end=date_end,
-                cancel_reason=cancel_reason,
-            )
+            if record.state == "terminated":
+                vals = record._cancellation_values(**kwargs)
+                if vals["date_end"] <= today:
+                    record._write_cancellation_values(**vals)
+                    continue
+            if record.state not in ("active", "cancelled"):
+                record.action_activate_direct()
+            record._schedule_termination(**kwargs)
         return True
 
     def action_cancel(self):
         self.ensure_one()
-        if self.state not in ("active", "waiting", "cancelled"):
+        if self.state not in ("active", "cancelled"):
             raise UserError(
-                _("Only active, waiting or cancelled memberships can be cancelled.")
+                _(
+                    "Only active or cancelled memberships can be cancelled. A membership"
+                    " that was never active goes back to draft instead."
+                )
             )
         return {
             "type": "ir.actions.act_window",
@@ -908,7 +938,9 @@ class MembershipMembership(models.Model):
             for rel in existing_relations
         }
 
-        terminated_records = self.filtered(lambda r: r.state == "terminated")
+        # A terminated membership, and one taken back to draft (2.7), no longer
+        # makes the partner a member: close the relation unless another one does.
+        terminated_records = self.filtered(lambda r: r.state in ("terminated", "draft"))
         sibling_map = {}
         if terminated_records:
             sibling_domain = [
@@ -945,7 +977,12 @@ class MembershipMembership(models.Model):
                 elif pair_key not in created_pairs:
                     relations_to_create.append(values)
                     created_pairs.add(pair_key)
-            elif record.state == "terminated" and relation:
+            elif relation and (
+                record.state == "terminated"
+                # Back in draft the end date is gone; an already closed relation
+                # keeps the date it ended on.
+                or (record.state == "draft" and not relation.date_end)
+            ):
                 siblings = sibling_map.get((record.partner_id.id, record.company_id.id), [])
                 active_sibling = False
                 record_end = record.date_end or fields.Date.context_today(record)

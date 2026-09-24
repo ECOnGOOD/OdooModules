@@ -167,19 +167,11 @@
                         invisible="state != 'cancelled'"
                     />
                     <button
-                        name="action_reopen_waiting"
-                        string="Reopen"
-                        type="object"
-                        groups="association_membership.group_membership_manager"
-                        invisible="state != 'terminated'"
-                        confirm="Reopen this membership? It goes back to Waiting and the cancellation data is cleared."
-                    />
-                    <button
                         name="action_cancel"
                         string="Cancel Membership"
                         type="object"
                         groups="association_membership.group_membership_manager"
-                        invisible="not id or state not in ('active', 'waiting')"
+                        invisible="state != 'active'"
                     />
                     <button
                         name="action_cancel"
@@ -193,8 +185,8 @@
                         string="Revert to Draft"
                         type="object"
                         groups="association_membership.group_membership_manager"
-                        invisible="state == 'draft' or period_count"
-                        confirm="Revert this membership to draft? Cancellation data will be cleared."
+                        invisible="state not in ('waiting', 'cancelled', 'terminated')"
+                        confirm="Revert this membership to draft? It stops counting as a membership until it is submitted again, and any cancellation data is cleared."
                     />
                     <field
                         name="state"
@@ -224,7 +216,10 @@
                     <group>
                         <group>
                             <field name="partner_id" />
-                            <field name="invoice_partner_id" />
+                            <field name="partner_is_company" invisible="1" />
+                            <!-- Both come from the organisation; change them there (15.26). -->
+                            <field name="invoice_partner_id" invisible="not partner_is_company" />
+                            <field name="contact_partner_id" invisible="not partner_is_company" />
                             <field name="company_id" />
                             <!-- One row: the preview and the input take turns in the same place,
                                  and the Override box stays on the right. -->
@@ -272,7 +267,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Periods" invisible="state == 'draft'">
+                        <page string="Periods" invisible="state == 'draft' and not period_count">
                             <button
                                 name="action_create_period"
                                 string="Create Period"

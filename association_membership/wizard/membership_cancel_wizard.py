@@ -128,9 +128,12 @@ class MembershipCancelWizard(models.TransientModel):
 
     def action_confirm(self):
         self.ensure_one()
-        if self.membership_id.state not in ("active", "waiting", "cancelled"):
+        if self.membership_id.state not in ("active", "cancelled"):
             raise UserError(
-                _("Only active, waiting or cancelled memberships can be cancelled.")
+                _(
+                    "Only active or cancelled memberships can be cancelled. A membership"
+                    " that was never active goes back to draft instead."
+                )
             )
         values = {
             "date_cancelled": self.date_cancelled,
