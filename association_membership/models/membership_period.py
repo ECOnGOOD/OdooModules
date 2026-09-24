@@ -66,8 +66,9 @@ class MembershipPeriod(models.Model):
     date_paid = fields.Date(
         string="Payment Date",
         copy=False,
-        help="Date the money was received (manual mode). Annual tax receipts"
-        " only include periods with a payment date.",
+        help="Date the money was received: set by \"Mark as Paid\" (manual mode)"
+        " or when the invoice became paid. Tax receipts use it, and only include"
+        " periods with a payment date.",
     )
     billing_status = fields.Selection(
         selection=PERIOD_BILLING_STATUS,
@@ -535,7 +536,8 @@ class MembershipPeriod(models.Model):
         return {
             "company_id": self.company_id.id,
             "currency_id": self.company_id.currency_id.id,
-            "donation_date": invoice.invoice_date or fields.Date.context_today(self),
+            # The day the money came in, not the invoice date (15.5).
+            "donation_date": self.date_paid or fields.Date.context_today(self),
             "amount": self.amount_paid or self.amount_invoiced or self.amount,
             "type": "each",
             "partner_id": self._tax_receipt_partner().id,

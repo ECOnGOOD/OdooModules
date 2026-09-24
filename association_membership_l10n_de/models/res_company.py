@@ -41,3 +41,21 @@ class ResCompany(models.Model):
             "Disable for one-off donation receipts."
         ),
     )
+
+    def _is_german_receipt_issuer(self):
+        return self.partner_id.country_id.code == "DE"
+
+    def _default_membership_tax_receipt_template(self):
+        if self._is_german_receipt_issuer():
+            template = self.env.ref(
+                "association_membership_l10n_de.mail_template_zuwendungsbestaetigung",
+                raise_if_not_found=False,
+            )
+            if template:
+                return template
+        return super()._default_membership_tax_receipt_template()
+
+    def _get_membership_tax_receipt_report(self):
+        if self._is_german_receipt_issuer():
+            return self.env.ref("association_membership_l10n_de.report_zuwendungsbestaetigung")
+        return super()._get_membership_tax_receipt_report()

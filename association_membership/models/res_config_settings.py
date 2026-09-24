@@ -28,6 +28,22 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.membership_cancellation_template_id",
         readonly=False,
     )
+    membership_activation_invoice_org_template_id = fields.Many2one(
+        related="company_id.membership_activation_invoice_org_template_id",
+        readonly=False,
+    )
+    membership_welcome_org_template_id = fields.Many2one(
+        related="company_id.membership_welcome_org_template_id",
+        readonly=False,
+    )
+    membership_cancellation_org_template_id = fields.Many2one(
+        related="company_id.membership_cancellation_org_template_id",
+        readonly=False,
+    )
+    membership_tax_receipt_template_id = fields.Many2one(
+        related="company_id.membership_tax_receipt_template_id",
+        readonly=False,
+    )
     member_number_own_sequence = fields.Boolean(
         related="company_id.member_number_own_sequence",
         readonly=False,

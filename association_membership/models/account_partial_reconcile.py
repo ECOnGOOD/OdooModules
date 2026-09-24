@@ -11,5 +11,8 @@ class AccountPartialReconcile(models.Model):
         )
         result = super().unlink()
         for invoice in invoices.filtered(lambda move: move.payment_state != "paid"):
-            invoice.line_ids.membership_period_id._flag_invalid_tax_receipts(invoice)
+            periods = invoice.line_ids.membership_period_id
+            periods._flag_invalid_tax_receipts(invoice)
+            # Set again with the next payment.
+            periods.filtered(lambda period: period.invoice_id == invoice).date_paid = False
         return result

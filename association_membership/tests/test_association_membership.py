@@ -1171,6 +1171,96 @@ class TestCommunicationPartners(MembershipTestCommon):
             self.assertEqual(wizard.mail_partner_ids, self.billing)
 
 
+class TestOrganisationTemplates(MembershipTestCommon):
+    """15.21 (D30): optional organisation templates, falling back to the general ones."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.organisation = cls.env["res.partner"].create(
+            {"name": "ACME", "is_company": True, "email": "acme@example.com"}
+        )
+
+    def _template(self, name, model):
+        return self.env["mail.template"].create({
+            "name": name,
+            "model_id": self.env["ir.model"]._get_id(model),
+            "subject": name,
+            "body_html": "<p>%s</p>" % name,
+        })
+
+    def test_organisations_get_their_template_when_set(self):
+        person = self._make_membership()
+        organisation = self._make_membership(partner_id=self.organisation.id)
+        for kind, model in (
+            ("welcome", "membership.membership"),
+            ("cancellation", "membership.membership"),
+            ("activation_invoice", "account.move"),
+        ):
+            general = self.company["membership_%s_template_id" % kind]
+            self.assertTrue(general)
+            self.assertEqual(organisation._get_mail_template(kind), general)
+            org_template = self._template("Org %s" % kind, model)
+            self.company["membership_%s_org_template_id" % kind] = org_template
+            self.assertEqual(organisation._get_mail_template(kind), org_template)
+            self.assertEqual(person._get_mail_template(kind), general)
+
+    def test_wizards_load_the_organisation_template(self):
+        welcome = self._template("Org Welcome", "membership.membership")
+        cancellation = self._template("Org Cancellation", "membership.membership")
+        self.company.membership_welcome_org_template_id = welcome
+        self.company.membership_cancellation_org_template_id = cancellation
+        membership = self._make_membership(partner_id=self.organisation.id)
+        membership.action_submit()
+        activate = self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({})
+        self.assertEqual(activate.welcome_template_id, welcome)
+        self.assertEqual(activate.mail_subject, "Org Welcome")
+        activate.action_confirm()
+        cancel = self.env["membership.cancel.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({"cancel_reason": "Closed"})
+        self.assertEqual(cancel.cancellation_template_id, cancellation)
+        self.assertEqual(cancel.mail_subject, "Org Cancellation")
+
+    def test_organisation_template_must_fit_its_use(self):
+        with self.assertRaises(ValidationError):
+            self.company.membership_welcome_org_template_id = self._template("Wrong", "account.move")
+
+
+class TestStrategySource(MembershipTestCommon):
+    """15.10: the membership and the wizard say which strategy applies."""
+
+    def test_company_strategy_shown_and_source_named(self):
+        self.company.membership_invoicing_strategy = "draft"
+        membership = self._make_membership()
+        membership.action_submit()
+        self.assertEqual(membership.company_invoicing_strategy, "draft")
+        wizard = self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({})
+        self.assertEqual(wizard.invoicing_strategy, "draft")
+        self.assertIn("From the settings of", wizard.invoicing_strategy_source)
+        membership.invoicing_strategy = "manual"
+        wizard = self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({})
+        self.assertEqual(wizard.invoicing_strategy, "manual")
+        self.assertIn("Set on this membership", wizard.invoicing_strategy_source)
+
+    def test_unchanged_wizard_strategy_does_not_override_the_company(self):
+        self.company.membership_invoicing_strategy = "manual"
+        membership = self._make_membership()
+        membership.action_submit()
+        self.env["membership.activate.wizard"].with_context(
+            default_membership_id=membership.id
+        ).create({}).action_confirm()
+        self.assertFalse(membership.invoicing_strategy)
+        self.company.membership_invoicing_strategy = "draft"
+        self.assertEqual(membership._get_invoicing_strategy(), "draft")
+
+
 class TestActivationPeriod(MembershipTestCommon):
     def setUp(self):
         super().setUp()
@@ -1809,6 +1899,215 @@ class TestAnnualReceiptWizard(MembershipTestCommon):
         self.assertEqual(receipt.membership_period_count, 1)
         action = receipt.action_view_membership_periods()
         self.assertEqual(self.env["membership.period"].search(action["domain"]), period)
+
+
+class TestPaymentDate(MembershipTestCommon):
+    """15.5: a fee belongs to the year the money came in."""
+
+    def _pay(self, invoice, payment_date):
+        self.env["account.payment.register"].with_context(
+            active_model="account.move",
+            active_ids=invoice.ids,
+        ).create({"payment_date": payment_date}).action_create_payments()
+
+    def _invoiced_period(self, invoice_date, option="annual"):
+        self.partner.tax_receipt_option = option
+        membership = self._make_membership()
+        membership.invoicing_strategy = "confirm"
+        period = self._make_period(membership, amount=50.0)
+        period._apply_invoicing_strategy(invoice_date=invoice_date)
+        return period
+
+    def _annual_dict(self, year):
+        receipt_dict = {}
+        self.env["donation.tax.receipt"].update_tax_receipt_annual_dict(
+            receipt_dict, date(year, 1, 1), date(year, 12, 31), self.company
+        )
+        return receipt_dict
+
+    def test_invoice_paid_in_january_counts_for_that_year(self):
+        year = date.today().year
+        period = self._invoiced_period(date(year - 1, 12, 15))
+        self._pay(period.invoice_id, date(year, 1, 10))
+        self.assertEqual(period.invoice_id.payment_state, "paid")
+        self.assertEqual(period.date_paid, date(year, 1, 10))
+        self.assertIn(self.partner, self._annual_dict(year))
+        self.assertNotIn(self.partner, self._annual_dict(year - 1))
+
+    def test_per_payment_receipt_carries_the_payment_date(self):
+        year = date.today().year
+        period = self._invoiced_period(date(year - 1, 12, 15), option="each")
+        self._pay(period.invoice_id, date(year, 1, 10))
+        self.assertEqual(period.tax_receipt_id.donation_date, date(year, 1, 10))
+
+    def test_unreconciling_clears_the_payment_date(self):
+        period = self._invoiced_period(date.today())
+        self._pay(period.invoice_id, date.today())
+        self.assertTrue(period.date_paid)
+        period.invoice_id.line_ids.remove_move_reconcile()
+        self.assertFalse(period.date_paid)
+
+    def test_migration_fills_payment_dates(self):
+        period = self._invoiced_period(date.today())
+        self._pay(period.invoice_id, date.today())
+        period.date_paid = False
+        path = get_module_path("association_membership") + "/migrations/18.0.6.4.0/post-migrate.py"
+        spec = importlib.util.spec_from_file_location("association_membership_6_4_0", path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        migration._fill_payment_dates(self.env)
+        self.assertEqual(period.date_paid, date.today())
+
+
+class TestAnnualReceiptDryRun(MembershipTestCommon):
+    """15.3, D24, 15.34."""
+
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+        self.year = date.today().year
+
+    def _paid_member(self, name):
+        partner = self.env["res.partner"].create({"name": name, "tax_receipt_option": "annual"})
+        period = self._make_period(self._make_membership(partner_id=partner.id), amount=50.0)
+        period.action_mark_as_paid()
+        return partner, period
+
+    def _wizard(self, **vals):
+        return self.env["tax.receipt.annual.create"].create({
+            "start_date": date(self.year, 1, 1),
+            "end_date": date(self.year, 12, 31),
+            "company_id": self.company.id,
+            **vals,
+        })
+
+    def test_receipt_is_dated_today_and_covers_the_range(self):
+        self._paid_member("Anna")
+        receipt = self._run_annual_wizard()
+        self.assertEqual(receipt.date, date.today())
+        self.assertEqual(receipt.donation_date, date(self.year, 12, 31))
+
+    def test_preview_shows_what_would_be_created(self):
+        _anna, anna_period = self._paid_member("Anna")
+        _ben, ben_period = self._paid_member("Ben")
+        wizard = self._wizard()
+        self.assertEqual(wizard.preview_donor_count, 2)
+        self.assertEqual(wizard.preview_period_count, 2)
+        self.assertEqual(wizard.preview_amount, 100.0)
+        action = wizard.action_preview()
+        self.assertEqual(
+            self.env["membership.period"].search(action["domain"]), anna_period | ben_period
+        )
+        self.assertFalse(self.env["donation.tax.receipt"].search([("partner_id.name", "in", ["Anna", "Ben"])]))
+
+    def test_only_the_chosen_donors(self):
+        anna, _anna_period = self._paid_member("Anna")
+        _ben, ben_period = self._paid_member("Ben")
+        wizard = self._wizard(partner_ids=[(6, 0, anna.ids)])
+        self.assertEqual(wizard.preview_donor_count, 1)
+        receipts = self.env["donation.tax.receipt"].search(wizard.generate_annual_receipts()["domain"])
+        self.assertEqual(receipts.partner_id, anna)
+        self.assertFalse(ben_period.tax_receipt_id)
+
+    def test_donor_with_a_receipt_is_skipped_not_aborting(self):
+        anna, anna_period = self._paid_member("Anna")
+        ben, ben_period = self._paid_member("Ben")
+        existing = self.env["donation.tax.receipt"].create({
+            "partner_id": anna.id,
+            "amount": 10.0,
+            "type": "annual",
+            "donation_date": date(self.year, 12, 31),
+        })
+        wizard = self._wizard()
+        self.assertEqual(wizard.skipped_receipt_ids, existing)
+        self.assertEqual(wizard.preview_donor_count, 1)
+        action = wizard.generate_annual_receipts()
+        self.assertEqual(action["tag"], "display_notification")
+        self.assertIn(existing.number, action["params"]["message"])
+        created = self.env["donation.tax.receipt"].search(action["params"]["next"]["domain"])
+        self.assertEqual(created.partner_id, ben)
+        self.assertEqual(ben_period.tax_receipt_id, created)
+        self.assertFalse(anna_period.tax_receipt_id)
+
+    def test_only_skipped_donors_explains_the_empty_run(self):
+        anna, _period = self._paid_member("Anna")
+        self.env["donation.tax.receipt"].create({
+            "partner_id": anna.id,
+            "amount": 10.0,
+            "type": "annual",
+            "donation_date": date(self.year, 12, 31),
+        })
+        action = self._wizard().generate_annual_receipts()
+        self.assertEqual(action["tag"], "display_notification")
+        self.assertIn("Anna", action["params"]["message"])
+        self.assertNotIn("next", action["params"])
+
+
+class TestSendAndPrintReceipts(MembershipTestCommon):
+    """15.2: bulk send with the company's template; print from the menu."""
+
+    def _receipt(self, partner=None, company=None):
+        return self.env["donation.tax.receipt"].create({
+            "partner_id": (partner or self.partner).id,
+            "company_id": (company or self.company).id,
+            "amount": 50.0,
+            "type": "each",
+            "donation_date": date.today(),
+        })
+
+    def test_several_receipts_are_sent_one_email_each(self):
+        other = self.env["res.partner"].create({"name": "Other", "email": "other@example.com"})
+        receipts = self._receipt() | self._receipt(partner=other)
+        action = receipts.action_send_tax_receipt()
+        self.assertEqual(action["context"]["default_res_ids"], receipts.ids)
+        self.assertEqual(action["context"]["default_composition_mode"], "comment")
+        self.assertEqual(
+            action["context"]["default_template_id"],
+            self.env.ref("donation_base.tax_receipt_email_template").id,
+        )
+        composer = self.env["mail.compose.message"].with_context(**action["context"]).create({})
+        composer._action_send_mail()
+        for receipt in receipts:
+            message = receipt.message_ids.filtered(lambda m: m.message_type == "comment")
+            self.assertEqual(len(message), 1)
+            self.assertEqual(message.partner_ids, receipt.partner_id)
+            self.assertEqual(len(message.attachment_ids), 1)
+
+    def test_company_template_is_used(self):
+        template = self.env.ref("donation_base.tax_receipt_email_template").copy({"name": "Ours"})
+        self.company.membership_tax_receipt_template_id = template
+        action = self._receipt().action_send_tax_receipt()
+        self.assertEqual(action["context"]["default_template_id"], template.id)
+
+    def test_template_must_be_for_receipts(self):
+        with self.assertRaises(ValidationError):
+            self.company.membership_tax_receipt_template_id = self.env.ref(
+                "association_membership.mail_template_membership_welcome"
+            )
+
+    def test_missing_email_and_mixed_companies_are_refused(self):
+        silent = self.env["res.partner"].create({"name": "Silent"})
+        with self.assertRaises(UserError):
+            (self._receipt() | self._receipt(partner=silent)).action_send_tax_receipt()
+        branch = self.env["res.company"].create({"name": "Branch", "parent_id": self.company.id})
+        with self.assertRaises(UserError):
+            (self._receipt() | self._receipt(company=branch)).action_send_tax_receipt()
+
+    def test_send_is_offered_in_the_list(self):
+        action = self.env.ref("association_membership.action_send_tax_receipts")
+        self.assertEqual(action.binding_model_id.model, "donation.tax.receipt")
+        self.assertEqual(action.binding_view_types, "list")
+
+    def test_print_wizard_prints_the_company_report_and_is_in_the_menu(self):
+        # Without a document layout Odoo opens the layout configurator instead.
+        self.company.external_report_layout_id = self.env.ref("web.external_layout_standard")
+        receipt = self._receipt()
+        wizard = self.env["donation.tax.receipt.print"].create({"receipt_ids": [(6, 0, receipt.ids)]})
+        action = wizard.print_receipts()
+        self.assertEqual(action["report_name"], self.company._get_membership_tax_receipt_report().report_name)
+        self.assertEqual(receipt.print_date, date.today())
+        menu = self.env.ref("association_membership.menu_membership_tax_receipts_print")
+        self.assertEqual(menu.action, self.env.ref("donation_base.donation_tax_receipt_print_action"))
 
 
 class TestRenewalCron(MembershipTestCommon):

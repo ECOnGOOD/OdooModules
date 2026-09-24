@@ -2,11 +2,13 @@ import hmac
 import json
 import logging
 
-from odoo import http
+from markupsafe import Markup
+
+from odoo import _, http
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
 
-from ..models.webform_intake import WebformError
+from ..models.webform_intake import WebformDuplicate, WebformError
 
 _logger = logging.getLogger(__name__)
 
@@ -81,6 +83,26 @@ class MembershipWebformController(http.Controller):
             # must not leave a partner behind without its membership.
             with request.env.cr.savepoint():
                 result = request.env["membership.webform.intake"].sudo().process(payload)
+        except WebformDuplicate as error:
+            # Deliberately handled out here, after the savepoint has rolled back.
+            # A note posted inside it would be discarded with everything else,
+            # and the whole point of this branch is that the note survives while
+            # the submission does not.
+            _logger.info(
+                "Webform entry %r refused as a duplicate of membership %s",
+                reference,
+                error.membership_id,
+            )
+            self._note_duplicate(error, reference)
+            return self._respond(
+                422,
+                {
+                    "error": error.code,
+                    "message": str(error),
+                    "membership_id": error.membership_id,
+                    "partner_id": error.partner_id,
+                },
+            )
         except WebformError as error:
             _logger.info(
                 "Webform entry %r rejected (%s): %s", reference, error.code, error
@@ -112,20 +134,55 @@ class MembershipWebformController(http.Controller):
         )
         return self._respond(200, result)
 
+    def _note_duplicate(self, error, reference):
+        """Record on the existing membership that someone submitted again.
+
+        Only the entry reference and the fact of the submission: this branch
+        exists because we refused to store the submitted data, so repeating that
+        data in the chatter would defeat it.
+        """
+        if not error.membership_id:
+            return
+        try:
+            membership = (
+                request.env["membership.membership"]
+                .sudo()
+                .browse(error.membership_id)
+                .exists()
+            )
+            if not membership:
+                return
+            body = _("Website signup refused as a duplicate")
+            if reference:
+                body = _(
+                    "Website signup (Formidable entry %s) refused as a duplicate"
+                ) % reference
+            membership.message_post(
+                body=Markup("<p>%s</p><p>%s</p>")
+                % (
+                    body,
+                    _("An open membership already exists, so nothing was changed."),
+                )
+            )
+        except Exception:  # noqa: BLE001 - a failed note must not mask the 422
+            _logger.exception(
+                "Could not note the duplicate submission on membership %s",
+                error.membership_id,
+            )
+
     def _become_intake_user(self):
         """Rebind the request to a real internal user before doing any work.
 
-        ``sudo()`` only flips the superuser flag; it keeps the uid, which on an
-        ``auth="public"`` route is the Public user. That is not enough, because
-        Odoo deliberately runs computed fields declared without ``compute_sudo``
-        as the *real* user (``Field.compute_value`` calls ``records.sudo(False)``).
-        With OCA ``base_multi_company`` installed, ``res.partner.company_id`` is
-        exactly such a field, so writing a partner as Public raises an AccessError
-        from inside the compute no matter how much we sudo around it.
+        ``sudo()`` flips the superuser flag but keeps the uid, and the uid is what
+        lands in ``create_uid`` / ``write_uid`` and authors every chatter message.
+        Left alone, an ``auth="public"`` route files every member the form creates
+        under "Public user", which is worthless in an audit.
 
-        The user is configurable through ``association_membership_webform.user_id``
-        so an operator can give the endpoint a dedicated, auditable account rather
-        than the administrator.
+        This is **not** an access control: the mapping runs under ``sudo()``, so
+        rights and record rules are bypassed whatever the uid happens to be. The
+        point is attribution, and having one place to tighten later — the user is
+        configurable through ``association_membership_webform.user_id``, and must
+        be an active internal user.
         """
         Users = request.env["res.users"].sudo()
         configured = (

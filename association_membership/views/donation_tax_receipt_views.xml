@@ -20,4 +20,54 @@
             </xpath>
         </field>
     </record>
+
+    <!-- 15.2: several receipts at once, one email each, logged on each receipt. -->
+    <record id="action_send_tax_receipts" model="ir.actions.server">
+        <field name="name">Send</field>
+        <field name="model_id" ref="donation_base.model_donation_tax_receipt" />
+        <field name="binding_model_id" ref="donation_base.model_donation_tax_receipt" />
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_send_tax_receipt()</field>
+    </record>
+
+    <!-- 15.3: a dry run and a donor selection. -->
+    <record id="tax_receipt_annual_create_form_membership" model="ir.ui.view">
+        <field name="name">tax.receipt.annual.create.form.membership</field>
+        <field name="model">tax.receipt.annual.create</field>
+        <field name="inherit_id" ref="donation_base.tax_receipt_annual_create_form" />
+        <field name="arch" type="xml">
+            <group name="main" position="inside">
+                <field name="partner_ids" widget="many2many_tags" options="{'no_create': True}" />
+            </group>
+            <group name="main" position="after">
+                <group name="preview" string="Would be created">
+                    <field name="currency_id" invisible="1" />
+                    <field name="preview_donor_count" />
+                    <field name="preview_period_count" />
+                    <field name="preview_amount" />
+                </group>
+                <div invisible="not skipped_receipt_ids">
+                    <strong>Skipped: these donors already have an annual receipt in the range.</strong>
+                    <field name="skipped_receipt_ids" nolabel="1">
+                        <list>
+                            <field name="partner_id" />
+                            <field name="number" />
+                            <field name="date" />
+                            <field name="amount" />
+                            <field name="currency_id" column_invisible="1" />
+                        </list>
+                    </field>
+                </div>
+            </group>
+            <button name="generate_annual_receipts" position="after">
+                <button
+                    type="object"
+                    name="action_preview"
+                    string="Preview"
+                    invisible="not preview_period_count"
+                />
+            </button>
+        </field>
+    </record>
 </odoo>

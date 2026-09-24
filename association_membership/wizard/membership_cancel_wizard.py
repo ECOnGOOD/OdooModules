@@ -72,7 +72,7 @@ class MembershipCancelWizard(models.TransientModel):
             (6, 0, membership._open_periods_from(cancel_date.year).ids)
         ]
         defaults["mail_partner_ids"] = [(6, 0, membership._get_communication_partners().ids)]
-        template = membership.company_id.membership_cancellation_template_id
+        template = membership._get_mail_template("cancellation")
         if template:
             defaults["cancellation_template_id"] = template.id
             defaults["mail_subject"] = membership._render_mail_template_field(template, "subject")

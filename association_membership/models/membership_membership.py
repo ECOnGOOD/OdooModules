@@ -138,6 +138,11 @@ class MembershipMembership(models.Model):
         help="Leave empty to follow the company setting. Each period keeps"
              " the strategy that applied when it was created.",
     )
+    # Shown next to the override, so it is clear which one applies (15.10).
+    company_invoicing_strategy = fields.Selection(
+        related="company_id.membership_invoicing_strategy",
+        string="Company Invoicing Strategy",
+    )
     period_ids = fields.One2many(
         "membership.period",
         "membership_id",
@@ -822,6 +827,20 @@ class MembershipMembership(models.Model):
             "domain": [("id", "in", invoice_ids)],
             "context": {"create": False},
         }
+
+    def _get_mail_template(self, kind):
+        """The company's template of `kind` for this member (15.21, D30).
+
+        `kind` is activation_invoice, welcome or cancellation. Organisations
+        get the organisation template when one is set, else the general one.
+        """
+        self.ensure_one()
+        company = self.company_id
+        if self.partner_id.is_company:
+            template = company["membership_%s_org_template_id" % kind]
+            if template:
+                return template
+        return company["membership_%s_template_id" % kind]
 
     def _render_mail_template_field(self, template, field_name):
         self.ensure_one()

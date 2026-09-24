@@ -67,6 +67,19 @@ class ResPartner(models.Model):
         string="ECOnGOOD Email Address",
     )
 
+    # What the member said they wanted, in their own words. Distinct from
+    # customer_payment_mode_id, which is the configured account.payment.mode and
+    # only exists once the association has been set up for it: a stated
+    # preference must survive until then, and stay queryable afterwards.
+    membership_payment_method = fields.Char(
+        string="Stated Payment Method",
+        help=(
+            "The payment method the member chose on the signup form. Kept as "
+            "text because it is recorded before -- and independently of -- any "
+            "payment mode being configured for the association."
+        ),
+    )
+
     legacy_id_smartwe = fields.Char(string="Legacy ID SmartWe")
     legacy_id_formidable = fields.Char(string="Legacy ID Formidable")
     letter_salutation = fields.Char(string="Letter Salutation")

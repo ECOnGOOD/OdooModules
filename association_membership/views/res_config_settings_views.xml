@@ -8,6 +8,14 @@
             <xpath expr="//form" position="inside">
                 <app string="Membership" name="association_membership" groups="association_membership.group_membership_manager">
                     <block title="Membership">
+                        <!-- Settings apply to the company selected in the switcher, not to all (15.10). -->
+                        <setting
+                            string="Company"
+                            help="These settings apply to this company only: the one selected in the company switcher. A membership follows the settings of its own company."
+                            groups="base.group_multi_company"
+                        >
+                            <field name="company_id" readonly="1" />
+                        </setting>
                         <setting
                             string="Email Recipients for Organisation Members"
                             help="Who receives welcome and cancellation emails of organisation members. Individuals always receive their own emails. The contact person is the one set on the organisation, or the organisation itself."
@@ -52,6 +60,46 @@
                             <field
                                 name="membership_cancellation_template_id"
                                 domain="[('model', '=', 'membership.membership')]"
+                            />
+                        </setting>
+                        <setting
+                            string="Organisation Templates"
+                            help="Optional. When set, organisation members get these instead of the templates above; empty means the template above. A single template can also differ by member type with sections like t-if=&quot;object.partner_id.is_company&quot;."
+                        >
+                            <div class="content-group">
+                                <div class="row mt8" invisible="membership_invoicing_strategy == 'manual'">
+                                    <label for="membership_activation_invoice_org_template_id" string="Activation Invoice" class="col-lg-4 o_light_label" />
+                                    <field
+                                        name="membership_activation_invoice_org_template_id"
+                                        domain="[('model', '=', 'account.move')]"
+                                        class="col-lg-8"
+                                    />
+                                </div>
+                                <div class="row mt8">
+                                    <label for="membership_welcome_org_template_id" string="Welcome" class="col-lg-4 o_light_label" />
+                                    <field
+                                        name="membership_welcome_org_template_id"
+                                        domain="[('model', '=', 'membership.membership')]"
+                                        class="col-lg-8"
+                                    />
+                                </div>
+                                <div class="row mt8">
+                                    <label for="membership_cancellation_org_template_id" string="Cancellation" class="col-lg-4 o_light_label" />
+                                    <field
+                                        name="membership_cancellation_org_template_id"
+                                        domain="[('model', '=', 'membership.membership')]"
+                                        class="col-lg-8"
+                                    />
+                                </div>
+                            </div>
+                        </setting>
+                        <setting
+                            string="Tax Receipt Email Template"
+                            help="Used when tax receipts are sent, one at a time or several from the list. Empty: the default template (the Zuwendungsbestätigung for German companies, when installed)."
+                        >
+                            <field
+                                name="membership_tax_receipt_template_id"
+                                domain="[('model', '=', 'donation.tax.receipt')]"
                             />
                         </setting>
                     </block>
