@@ -1663,9 +1663,23 @@ class TestMembershipProductDefaults(MembershipTestCommon):
     def test_new_membership_product_is_a_sellable_service(self):
         """15.18: the Membership Products menu creates services for sale only."""
         action = self.env.ref("association_membership.action_membership_products")
+        self.assertEqual(action.res_model, "product.template")
         context = safe_eval(action.context)
-        product = self.env["product.product"].with_context(**context).create({"name": "New Type"})
+        product = self.env["product.template"].with_context(**context).create({"name": "New Type"})
         self.assertEqual(product.type, "service")
         self.assertTrue(product.sale_ok)
         self.assertFalse(product.purchase_ok)
         self.assertTrue(product.membership_ok)
+
+    def test_tiers_are_managed_on_the_template(self):
+        """15.19: tiers are variants; every internal user may edit them."""
+        self.assertIn(
+            self.env.ref("product.group_product_variant"),
+            self.env.ref("base.group_user").implied_ids,
+        )
+        action = self.env.ref("association_membership.action_membership_product_tiers")
+        self.assertEqual(action.res_model, "product.product")
+        self.assertEqual(
+            action.view_ids.filtered(lambda v: v.view_mode == "list").view_id,
+            self.env.ref("association_membership.view_product_membership_list"),
+        )

@@ -13,6 +13,55 @@
         </field>
     </record>
 
+    <record id="view_product_template_membership_search" model="ir.ui.view">
+        <field name="name">product.template.membership.search</field>
+        <field name="model">product.template</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="default_code" />
+                <field name="company_id" />
+                <filter
+                    name="membership_products"
+                    string="Membership Products"
+                    domain="[('membership_ok', '=', True)]"
+                />
+                <filter
+                    name="tax_receipt_eligible"
+                    string="Tax Receipt Eligible"
+                    domain="[('tax_receipt_ok', '=', True)]"
+                />
+                <filter
+                    name="inactive_products"
+                    string="Archived"
+                    domain="[('active', '=', False)]"
+                />
+                <group expand="0" string="Group By">
+                    <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />
+                    <filter string="Membership For" name="group_by_partner_type" context="{'group_by': 'membership_partner_type'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- One row per membership type (decision 8); the tiers are its variants. -->
+    <record id="view_product_template_membership_list" model="ir.ui.view">
+        <field name="name">product.template.membership.list</field>
+        <field name="model">product.template</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list default_order="company_id, name">
+                <field name="name" />
+                <field name="default_code" string="Reference" />
+                <field name="company_id" />
+                <field name="membership_partner_type" />
+                <field name="product_variant_count" string="Tiers" />
+                <field name="list_price" string="Sales Price" />
+                <field name="tax_receipt_ok" />
+            </list>
+        </field>
+    </record>
+
     <record id="view_product_membership_search" model="ir.ui.view">
         <field name="name">product.product.membership.search</field>
         <field name="model">product.product</field>
@@ -20,6 +69,7 @@
             <search>
                 <field name="name" />
                 <field name="default_code" />
+                <field name="product_tmpl_id" />
                 <field name="categ_id" />
                 <field name="company_id" />
                 <filter
@@ -45,8 +95,9 @@
         </field>
     </record>
 
-    <!-- Fixed columns: the standard variant list hides Company and lets the
-         browser drop the others. Sorted by reference, which carries type and tier. -->
+    <!-- The tiers of a membership type. Fixed columns: the standard variant list
+         hides Company and lets the browser drop the others. Sorted by reference,
+         which carries type and tier. -->
     <record id="view_product_membership_list" model="ir.ui.view">
         <field name="name">product.product.membership.list</field>
         <field name="model">product.product</field>
@@ -65,14 +116,29 @@
         </field>
     </record>
 
-    <!-- New membership products are services that can be sold, not bought. -->
-    <record id="action_membership_products" model="ir.actions.act_window">
-        <field name="name">Membership Products</field>
+    <!-- Opened from a membership type's Tiers button. -->
+    <record id="action_membership_product_tiers" model="ir.actions.act_window">
+        <field name="name">Tiers</field>
         <field name="res_model">product.product</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('membership_ok', '=', True)]</field>
         <field name="search_view_id" ref="association_membership.view_product_membership_search" />
-        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_product_membership_list')})]" />
+        <field
+            name="view_ids"
+            eval="[(5, 0, 0),
+                   (0, 0, {'view_mode': 'list', 'view_id': ref('view_product_membership_list')}),
+                   (0, 0, {'view_mode': 'form', 'view_id': ref('product.product_variant_easy_edit_view')})]"
+        />
+        <field name="context">{'search_default_product_tmpl_id': [active_id], 'default_product_tmpl_id': active_id, 'create': False}</field>
+    </record>
+
+    <!-- Membership types (templates). New ones are services that can be sold, not bought. -->
+    <record id="action_membership_products" model="ir.actions.act_window">
+        <field name="name">Membership Products</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('membership_ok', '=', True)]</field>
+        <field name="search_view_id" ref="association_membership.view_product_template_membership_search" />
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_product_template_membership_list')})]" />
         <field name="context">{
             'search_default_membership_products': 1,
             'default_membership_ok': True,
@@ -80,5 +146,35 @@
             'default_sale_ok': True,
             'default_purchase_ok': False,
         }</field>
+    </record>
+
+    <!-- Tier prices are edited per value in "Attributes &amp; Variants", which
+         needs the variants group: every internal user gets it (Settings → Variants). -->
+    <record id="base.group_user" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('product.group_product_variant'))]" />
+    </record>
+
+    <!-- A membership type opens its tiers in the list above, not in Odoo's
+         variant list. -->
+    <record id="view_product_template_membership_form_tiers" model="ir.ui.view">
+        <field name="name">product.template.membership.form.tiers</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view" />
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='%(product.product_variant_action)d']" position="attributes">
+                <attribute name="invisible">product_variant_count &lt;= 1 or membership_ok</attribute>
+            </xpath>
+            <xpath expr="//button[@name='%(product.product_variant_action)d']" position="before">
+                <button
+                    name="%(association_membership.action_membership_product_tiers)d"
+                    type="action"
+                    icon="fa-sitemap"
+                    class="oe_stat_button"
+                    invisible="not membership_ok or product_variant_count &lt;= 1"
+                >
+                    <field string="Tiers" name="product_variant_count" widget="statinfo" />
+                </button>
+            </xpath>
+        </field>
     </record>
 </odoo>

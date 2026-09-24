@@ -1,8 +1,8 @@
 {
     "name": "Association Membership",
-    "version": "18.0.6.1.0",
+    "version": "18.0.6.2.0",
     "category": "Association",
-    "summary": "Lean multi-company membership management for associations",
+    "summary": "Multi-company membership management for associations",
     "author": "ECOnGOOD",
     "license": "AGPL-3",
     "post_init_hook": "post_init_hook",

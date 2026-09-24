@@ -1,5 +1,14 @@
 # Changelog
 
+## 18.0.6.2.0 — membership types and tiers (WP11)
+
+- **Membership Products lists membership types** (product templates), one row per type
+  with company, "Membership For", number of tiers and tax receipt flag. A type's **Tiers**
+  button opens its tiers in the membership tier list (reference, tier, company, price),
+  in place of Odoo's standard Variants button.
+- **Every internal user gets "Manage Product Variants"** (Settings → Variants), so tier
+  prices can be edited per value under "Attributes & Variants".
+
 ## 18.0.6.1.0 — fixes from the browser test (WP10)
 
 - **Annual tax receipts:** a run with nothing to receipt now shows a notice that names the
