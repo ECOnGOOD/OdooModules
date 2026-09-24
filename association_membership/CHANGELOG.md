@@ -1,5 +1,36 @@
 # Changelog
 
+## 18.0.6.5.0 — communication and settings (WP14)
+
+- **Organisation templates (15.21, D30).** Three optional company settings: activation
+  invoice, welcome and cancellation template for organisation members. When one is set,
+  organisations get it; otherwise everybody gets the general template. The wizards pick
+  the template through `membership._get_mail_template(kind)`.
+- **Which settings apply (15.10).** Not reproduced: with one company selected, saved
+  settings reach a new membership and its activation. To make the likely causes visible:
+  the Settings page shows the company being edited (multi-company), the membership form
+  shows the company's strategy next to its own override, and the activation wizard says
+  whether the strategy comes from the membership or from the company.
+
+## 18.0.6.4.0 — tax receipts (WP13)
+
+- **A fee belongs to the year it was paid (15.5).** When an invoice becomes paid, its
+  periods get the day of its latest payment as Payment Date (cleared when the payment is
+  unreconciled). Per-payment receipts carry that date, and the annual run selects by it
+  in both modes; the invoice date no longer counts.
+- **Annual receipts are dated the day they are created (15.34).** The donation date stays
+  the end of the range.
+- **Dry run in the annual wizard (15.3).** The dialog shows donors, periods and total
+  before anything is created; *Preview* opens the periods grouped by member. *Only These
+  Donors* limits the run. Donors that already have an annual receipt in the range are
+  skipped and listed (D24), instead of aborting the whole run.
+- **Send several receipts at once (15.2).** Action → Send on the receipt list: one email
+  per receipt, each with its PDF, logged on the receipt. New company setting *Tax Receipt
+  Email Template*, used by the single and the bulk send; empty means the default.
+- **Print Receipts** is in the Tax Receipts menu and prints with the company's receipt PDF.
+- **Migration:** periods with a paid invoice get their payment date. Receipts already
+  issued are not changed.
+
 ## 18.0.6.3.0 — lifecycle, contacts and numbering (WP12)
 
 - **Simpler state machine.** Draft → Waiting / Active · Waiting → Draft / Active · Active →

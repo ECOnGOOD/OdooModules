@@ -249,11 +249,17 @@
                         <group>
                             <field name="date_start" />
                             <field name="amount" groups="association_membership.group_membership_manager" />
-                            <field
-                                name="invoicing_strategy"
-                                placeholder="Company default"
-                                groups="association_membership.group_membership_manager"
-                            />
+                            <label for="invoicing_strategy" groups="association_membership.group_membership_manager" />
+                            <!-- Which one applies: the company's or this override (15.10). -->
+                            <div class="o_row" groups="association_membership.group_membership_manager">
+                                <field name="invoicing_strategy" placeholder="Company default" />
+                                <span class="text-muted" invisible="invoicing_strategy">
+                                    company: <field name="company_invoicing_strategy" readonly="1" class="oe_inline" />
+                                </span>
+                                <span class="text-muted" invisible="not invoicing_strategy">
+                                    overrides the company's <field name="company_invoicing_strategy" readonly="1" class="oe_inline" />
+                                </span>
+                            </div>
                         </group>
                     </group>
                     <group

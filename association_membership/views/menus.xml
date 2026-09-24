@@ -142,6 +142,14 @@
     />
 
     <menuitem
+        id="menu_membership_tax_receipts_print"
+        name="Print Receipts"
+        parent="association_membership.menu_membership_tax_receipts_root"
+        action="donation_base.donation_tax_receipt_print_action"
+        sequence="30"
+    />
+
+    <menuitem
         id="menu_membership_configuration"
         name="Configuration"
         parent="association_membership.menu_membership_root"

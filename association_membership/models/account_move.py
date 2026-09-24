@@ -1,4 +1,4 @@
-from odoo import models
+from odoo import fields, models
 
 
 class AccountMove(models.Model):
@@ -19,6 +19,27 @@ class AccountMove(models.Model):
         # and again on in_payment -> paid; the side effect is idempotent.
         result = super()._invoice_paid_hook()
         for invoice in self.filtered(lambda move: move.move_type == "out_invoice"):
-            for period in invoice.line_ids.membership_period_id:
+            periods = invoice.line_ids.membership_period_id
+            if invoice.payment_state == "paid":
+                unset = periods.filtered(lambda period: not period.date_paid)
+                if unset:
+                    unset.date_paid = invoice._membership_payment_date()
+            for period in periods:
                 period._maybe_issue_tax_receipt(invoice)
         return result
+
+    def _membership_payment_date(self):
+        """The day the invoice was paid: its latest payment (15.5).
+
+        A fee belongs to the year the money came in, whatever the invoice
+        date. Credit notes are not payments.
+        """
+        self.ensure_one()
+        receivable = self.line_ids.filtered(
+            lambda line: line.account_id.account_type == "asset_receivable"
+        )
+        counterparts = (
+            receivable.matched_credit_ids.credit_move_id | receivable.matched_debit_ids.debit_move_id
+        ) - receivable
+        dates = counterparts.filtered(lambda line: line.move_id.move_type != "out_refund").mapped("date")
+        return max(dates) if dates else fields.Date.context_today(self)

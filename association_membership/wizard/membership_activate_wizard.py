@@ -41,6 +41,7 @@ class MembershipActivateWizard(models.TransientModel):
     invoice_partner_included = fields.Boolean(
         compute="_compute_invoice_partner_included",
     )
+    invoicing_strategy_source = fields.Char(compute="_compute_invoicing_strategy_source")
 
     @api.model
     def default_get(self, fields_list):
@@ -65,7 +66,7 @@ class MembershipActivateWizard(models.TransientModel):
 
         defaults["mail_partner_ids"] = [(6, 0, membership._get_communication_partners().ids)]
 
-        template = membership.company_id.membership_welcome_template_id
+        template = membership._get_mail_template("welcome")
         # Only a first activation welcomes anybody: reactivating a cancelled
         # membership, or activating one reverted to draft, must not send it
         # again. Such a membership has periods or a welcome date.
@@ -102,6 +103,22 @@ class MembershipActivateWizard(models.TransientModel):
         self.mail_body = self.membership_id._render_mail_template_field(
             self.welcome_template_id, "body_html"
         ) or ""
+
+    @api.depends("membership_id")
+    def _compute_invoicing_strategy_source(self):
+        """Say where the strategy comes from (15.10)."""
+        for wizard in self:
+            membership = wizard.membership_id
+            if not membership:
+                wizard.invoicing_strategy_source = False
+            elif membership.invoicing_strategy:
+                wizard.invoicing_strategy_source = _(
+                    "Set on this membership; the setting of %(company)s does not apply."
+                ) % {"company": membership.company_id.display_name}
+            else:
+                wizard.invoicing_strategy_source = _("From the settings of %(company)s.") % {
+                    "company": membership.company_id.display_name
+                }
 
     @api.depends("mail_partner_ids", "membership_id.invoice_partner_id")
     def _compute_invoice_partner_included(self):
@@ -142,7 +159,7 @@ class MembershipActivateWizard(models.TransientModel):
         self.ensure_one()
         if not (self.send_invoice_email and self.invoice_id and self.invoice_id.state == "posted"):
             return False
-        template = self.membership_id.company_id.membership_activation_invoice_template_id
+        template = self.membership_id._get_mail_template("activation_invoice")
         if template:
             self.invoice_id.with_context(force_send=True).message_post_with_source(
                 template,

@@ -80,3 +80,27 @@ class TestZuwendungsbestaetigung(TransactionCase):
         self.assertIn("Einhundertzwanzig", html)
         self.assertIn("120,00", html)  # rendered in German
         self.assertRegex(receipt.number, r"^%s-\d{5}$" % self.year)
+
+    def test_german_company_sends_and_prints_the_zuwendungsbestaetigung(self):
+        """15.2: the German template and PDF are the default in Germany."""
+        german = self.env.ref("association_membership_l10n_de.mail_template_zuwendungsbestaetigung")
+        report = self.env.ref("association_membership_l10n_de.report_zuwendungsbestaetigung")
+        self.assertEqual(german.report_template_ids, report)
+        self.company.partner_id.country_id = self.env.ref("base.de")
+        self.assertEqual(self.company._get_membership_tax_receipt_template(), german)
+        self.assertEqual(self.company._get_membership_tax_receipt_report(), report)
+        # An explicit setting wins.
+        own = german.copy({"name": "Eigene"})
+        self.company.membership_tax_receipt_template_id = own
+        self.assertEqual(self.company._get_membership_tax_receipt_template(), own)
+
+    def test_other_countries_keep_donation_base(self):
+        self.company.partner_id.country_id = self.env.ref("base.at")
+        self.assertEqual(
+            self.company._get_membership_tax_receipt_template(),
+            self.env.ref("donation_base.tax_receipt_email_template"),
+        )
+        self.assertEqual(
+            self.company._get_membership_tax_receipt_report(),
+            self.env.ref("donation_base.report_donation_tax_receipt"),
+        )

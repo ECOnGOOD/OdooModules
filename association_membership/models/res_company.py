@@ -86,6 +86,26 @@ class ResCompany(models.Model):
             raise_if_not_found=False,
         ),
     )
+    # Optional (15.21, D30): organisation members get these when set, else the
+    # general ones above. One template with t-if sections works as well.
+    membership_activation_invoice_org_template_id = fields.Many2one(
+        "mail.template",
+        string="Activation Invoice Email Template (Organisations)",
+    )
+    membership_welcome_org_template_id = fields.Many2one(
+        "mail.template",
+        string="Welcome Email Template (Organisations)",
+    )
+    membership_cancellation_org_template_id = fields.Many2one(
+        "mail.template",
+        string="Cancellation Email Template (Organisations)",
+    )
+    membership_tax_receipt_template_id = fields.Many2one(
+        "mail.template",
+        string="Tax Receipt Email Template",
+        help="Used when tax receipts are sent. Empty: the default template"
+        " (the Zuwendungsbestätigung for German companies, when installed).",
+    )
     # The whole member number is an ir.sequence (15.22): the default one without
     # company, or the company's own with the same code.
     member_number_own_sequence = fields.Boolean(
@@ -112,6 +132,10 @@ class ResCompany(models.Model):
         "membership_activation_invoice_template_id",
         "membership_welcome_template_id",
         "membership_cancellation_template_id",
+        "membership_tax_receipt_template_id",
+        "membership_activation_invoice_org_template_id",
+        "membership_welcome_org_template_id",
+        "membership_cancellation_org_template_id",
     )
     def _check_member_number_settings(self):
         for company in self:
@@ -132,6 +156,19 @@ class ResCompany(models.Model):
                 company.membership_cancellation_template_id,
                 "membership.membership",
             )
+            company._check_membership_mail_template_model(
+                company.membership_tax_receipt_template_id,
+                "donation.tax.receipt",
+            )
+            company._check_membership_mail_template_model(
+                company.membership_activation_invoice_org_template_id,
+                "account.move",
+            )
+            for template in (
+                company.membership_welcome_org_template_id,
+                company.membership_cancellation_org_template_id,
+            ):
+                company._check_membership_mail_template_model(template, "membership.membership")
 
     def _default_membership_number_sequence(self):
         """The default numbering, shared by every company without its own.
@@ -216,6 +253,23 @@ class ResCompany(models.Model):
                 company._ensure_own_membership_number_sequence()
             else:
                 company._own_membership_number_sequence().active = False
+
+    def _get_membership_tax_receipt_template(self):
+        """The template receipts are sent with (15.2)."""
+        self.ensure_one()
+        return self.membership_tax_receipt_template_id or self._default_membership_tax_receipt_template()
+
+    def _default_membership_tax_receipt_template(self):
+        """donation_base's template; country modules offer their own."""
+        self.ensure_one()
+        return self.env.ref("donation_base.tax_receipt_email_template", raise_if_not_found=False) or self.env[
+            "mail.template"
+        ]
+
+    def _get_membership_tax_receipt_report(self):
+        """The receipt PDF; country modules offer their own."""
+        self.ensure_one()
+        return self.env.ref("donation_base.report_donation_tax_receipt")
 
     def _ensure_tax_receipt_sequence(self):
         """Give the company its own receipt numbering.

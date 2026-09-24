@@ -64,7 +64,7 @@ The per-year billing artifact, one per `(membership, year)` (SQL constraint). Ke
 | `membership_invoicing_strategy` | Selection | the strategy that actually applied — refreshed while unbilled, then frozen |
 | `invoice_id`, `invoice_line_id`, `refund_move_id` | M2o `account.move` / line | |
 | `amount_invoiced`, `amount_paid` | Monetary | computed+stored, `readonly=False` (manual mode writes) |
-| `date_paid` | Date | manual mode; required for annual tax receipts |
+| `date_paid` | Date | the day the money came in: "Mark as Paid" (manual) or the invoice's latest payment; tax receipts use it |
 | `date_invoice` | related, stored | from the invoice |
 | `billing_status` | Selection | computed+stored, `readonly=False` — see below |
 | `tax_receipt_id` | M2o `donation.tax.receipt` | readonly |
@@ -202,14 +202,18 @@ flowchart LR
 
 ### Tax receipts
 
-Built on `donation_base`: its receipt model, annual wizard and partner option (`tax_receipt_option`: None / Each / Annual). Eligibility per product via `tax_receipt_ok`. Receipts live under **Memberships → Tax Receipts** (accounting users only).
+Built on `donation_base`: its receipt model, annual wizard and partner option (`tax_receipt_option`: None / Each / Annual). Eligibility per product via `tax_receipt_ok`. Receipts live under **Members → Tax Receipts** (accounting users only), with *Create Annual Receipts* and *Print Receipts*.
 
 | Mode | Option *Each* | Option *Annual* |
 | --- | --- | --- |
-| **Invoice** (`draft` / `confirm`) | receipt issued automatically once the invoice is fully `paid` (not `in_payment`) | paid invoices land on the annual receipt |
+| **Invoice** (`draft` / `confirm`) | receipt issued automatically once the invoice is fully `paid` (not `in_payment`) | paid invoices land on the annual receipt of the year they were paid |
 | **Manual** (no invoice) | no per-payment receipt — collected annually | *Create Annual Receipts* collects paid, eligible periods with a `date_paid` |
 
-Periods without a payment date (e.g. imported history) are never receipted. The annual receipt links the periods it covers (`membership_period_ids`), which are skipped on later runs. A refund or an unreconciled payment does **not** delete a receipt — it adds a to-do activity to reclaim or correct it.
+A fee belongs to the year it was **paid**. `date_paid` is the donation date of a per-payment receipt, selects the periods of an annual run, and is listed in the German Anlage. It is set by "Mark as Paid", or from the invoice's latest payment when the invoice becomes `paid` (cleared again when the payment is unreconciled). Periods without a payment date (e.g. imported history) are never receipted. The annual receipt links the periods it covers (`membership_period_ids`), which are skipped on later runs. A refund or an unreconciled payment does **not** delete a receipt — it adds a to-do activity to reclaim or correct it.
+
+- **Annual run:** the dialog shows what would be created (donors, periods, total) before anything is written; *Preview* opens those periods grouped by member. *Only These Donors* limits the run. Donors that already have an annual receipt in the range are skipped and listed, instead of aborting the run. An annual receipt is dated the day it is created; its donation date is the end of the range.
+- **Sending:** *Send* on a receipt, or on several selected in the list (Action → Send): one email per receipt with its own PDF, logged on the receipt. The template is set per company (Settings → Communications → Tax Receipt Email Template); empty means the default, which `association_membership_l10n_de` makes the Zuwendungsbestätigung for German companies. Emails go to the donor.
+- **Printing:** *Print Receipts* prints every receipt not yet printed, with the company's receipt PDF (the Zuwendungsbestätigung for German companies with `association_membership_l10n_de`), and records the print date.
 
 ### Scheduled actions
 
@@ -228,14 +232,16 @@ Neither the creator of a membership nor the sender of a welcome or cancellation 
 
 ## Configuration (per company)
 
-`Settings > Membership`:
+`Settings > Membership`. The settings apply to the company selected in the company switcher (shown at the top of the page in multi-company); a membership follows the settings of its own company.
 
 | Setting | Field | Default |
 | --- | --- | --- |
 | Email recipients for organisation members | `membership_company_mail_recipients` | contact person — also: the organisation, invoice contact, or both. Individuals always get their own emails |
-| Invoicing strategy | `membership_invoicing_strategy` | `manual` — `draft` / `confirm` create an invoice on activation and renewal; overridable per membership |
+| Invoicing strategy | `membership_invoicing_strategy` | `manual` — `draft` / `confirm` create an invoice on activation and renewal; overridable per membership (the form shows the company's value next to it, the activation wizard says which one applies) |
 | Period year override | `membership_default_period_year` | `0` = current year; a future year pre-creates next year's periods |
 | Email templates | activation invoice / welcome / cancellation | shipped EN + DE, auto-assigned to companies without one |
+| Organisation templates | `membership_*_org_template_id` | empty — optional; organisation members get these when set, else the templates above (`membership._get_mail_template(kind)`). A single template can also differ with `t-if="object.partner_id.is_company"` sections |
+| Tax receipt email template | `membership_tax_receipt_template_id` | empty = `donation_base`'s template, or the Zuwendungsbestätigung for German companies with `association_membership_l10n_de` |
 | Own member numbering | `member_number_own_sequence` | **off by default: every company uses the default numbering**, the `ir.sequence` with code `association.membership.number.seq` and no company (`MEM/%(year)s/`, 5 digits, `no_gap`). On = a sequence of that code for this company, starting where the default stands; off again archives it |
 | Number format | prefix, suffix, digits, next number | the fields of the effective sequence; editable here only with own numbering. The default format is changed on its sequence by an administrator |
 

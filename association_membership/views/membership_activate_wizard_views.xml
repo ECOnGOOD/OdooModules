@@ -8,6 +8,7 @@
                 <group>
                     <field name="membership_id" />
                     <field name="invoicing_strategy" />
+                    <field name="invoicing_strategy_source" nolabel="1" colspan="2" readonly="1" class="text-muted" />
                 </group>
                 <group string="Period" invisible="has_period">
                     <field name="has_period" invisible="1" />

@@ -1,15 +1,21 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# 	* association_membership
+# * association_membership
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 18.0\n"
+"Project-Id-Version: Odoo Server 18.0-20260324\n"
 "Language: de\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-24 20:33+0000\n"
+"PO-Revision-Date: 2026-09-24 20:33+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: \n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.10.3\n"
 
 #. module: association_membership
 #. odoo-python
@@ -32,17 +38,13 @@ msgstr "%(field)s muss größer als null sein."
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_period.py:0
-msgid ""
-"%(move)s reverses a payment this receipt was issued for. Reclaim the receipt"
-" from the donor or issue a corrected one."
+msgid "%(move)s reverses a payment this receipt was issued for. Reclaim the receipt from the donor or issue a corrected one."
 msgstr "%(move)s macht eine Zahlung rückgängig, für die diese Zuwendungsbestätigung ausgestellt wurde. Fordern Sie die Bestätigung vom Zuwendenden zurück oder stellen Sie eine korrigierte aus."
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-msgid ""
-"%(product)s cannot be used for this membership. Use a membership product of "
-"%(company)s (or without company) that is meant for %(partner_type)s."
+msgid "%(product)s cannot be used for this membership. Use a membership product of %(company)s (or without company) that is meant for %(partner_type)s."
 msgstr "%(product)s kann für diese Mitgliedschaft nicht verwendet werden. Verwenden Sie ein Mitgliedschaftsprodukt von %(company)s (oder ohne Unternehmen), das für %(partner_type)s gedacht ist."
 
 #. module: association_membership
@@ -52,7 +54,6 @@ msgid "%(template)s must use model %(model)s."
 msgstr "%(template)s muss das Modell %(model)s verwenden."
 
 #. module: association_membership
-#: model:mail.template,body_html:association_membership.mail_template_membership_activation_invoice
 msgid ""
 "<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
 "    <p>Dear <t t-out=\"object.partner_id.name\"/>,</p>\n"
@@ -81,7 +82,6 @@ msgstr ""
 "        "
 
 #. module: association_membership
-#: model:mail.template,body_html:association_membership.mail_template_membership_welcome
 msgid ""
 "<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
 "    <p>Dear <t t-out=\"object.partner_id.name\"/>,</p>\n"
@@ -90,7 +90,7 @@ msgid ""
 "        <li>Membership number: <strong><t t-out=\"object.membership_number\"/></strong></li>\n"
 "        <li>Membership: <t t-out=\"object.product_id.name\"/></li>\n"
 "        <li>Member since: <t t-out=\"object.date_start\" t-options=\"{'widget': 'date'}\"/></li>\n"
-"        <li>Annual fee: <t t-out=\"object.amount\" t-options=\"{'widget': 'monetary', 'display_currency': object.currency_id}\"/></li>\n"
+"        <li>Annual contribution: <t t-out=\"object.amount\" t-options=\"{'widget': 'monetary', 'display_currency': object.currency_id}\"/></li>\n"
 "    </ul>\n"
 "    <p>If you have any questions about your membership, simply reply to this email.</p>\n"
 "    <p>Best regards,<br/><t t-out=\"object.company_id.name\"/></p>\n"
@@ -99,7 +99,7 @@ msgid ""
 msgstr ""
 "<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
 "    <p>Guten Tag <t t-out=\"object.partner_id.name\"/>,</p>\n"
-"    <p>wir freuen uns sehr, Sie als Mitglied begrüßen zu dürfen. Ihre Mitgliedschaftsdaten:</p>\n"
+"    <p>Wir freuen uns sehr, Sie als Mitglied begrüßen zu dürfen. Hier sind Ihre Mitgliedschaftsdaten:</p>\n"
 "    <ul>\n"
 "        <li>Mitgliedsnummer: <strong><t t-out=\"object.membership_number\"/></strong></li>\n"
 "        <li>Mitgliedschaft: <t t-out=\"object.product_id.name\"/></li>\n"
@@ -112,7 +112,6 @@ msgstr ""
 "        "
 
 #. module: association_membership
-#: model:mail.template,body_html:association_membership.mail_template_membership_cancellation
 msgid ""
 "<div style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
 "    <p>Dear <t t-out=\"object.partner_id.name\"/>,</p>\n"
@@ -147,466 +146,348 @@ msgstr ""
 "        "
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_kanban
+msgid "<span class=\"mx-1\">–</span>"
+msgstr "<span class=\"mx-1\">–</span>"
+
+#. module: association_membership
 msgid "<span>End </span>"
 msgstr "<span>Ende </span>"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_kanban
 msgid "<span>Start </span>"
 msgstr "<span>Beginn </span>"
+
+#. module: association_membership
+msgid "<strong>Skipped: these donors already have an annual receipt in the range.</strong>"
+msgstr "<strong>Übersprungen: Für diese Zuwendenden wurde im Zeitraum bereits eine Sammelbestätigung ausgestellt.</strong>"
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_period.py:0
 msgid "A refund was posted for period %(year)s via %(refund)s."
-msgstr "Für den Beitrag %(year)s wurde eine Gutschrift gebucht: %(refund)s."
+msgstr "Für den Beitragszeitraum %(year)s wurde eine Gutschrift gebucht: %(refund)s."
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_needaction
 msgid "Action Needed"
-msgstr "Aktion notwendig"
+msgstr "Aktion erforderlich"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Activate"
 msgstr "Aktivieren"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__activate
-msgid "Activate Immediately"
-msgstr "Sofort aktivieren"
-
-#. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
 msgid "Activate Membership"
 msgstr "Mitgliedschaft aktivieren"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__membership_activation_invoice_template_id
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_activation_invoice_template_id
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
+msgid "Activation Invoice"
+msgstr "Aktivierungsrechnung"
+
+#. module: association_membership
 msgid "Activation Invoice Email Template"
 msgstr "E-Mail-Vorlage Rechnung bei Aktivierung"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__active
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__state__active
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
+msgid "Activation Invoice Email Template (Organisations)"
+msgstr "E-Mail-Vorlage für Aktivierungsrechnung (Organisationen)"
+
+#. module: association_membership
 msgid "Active"
 msgstr "Aktiv"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_partner_filter_membership
 msgid "Active Members"
 msgstr "Aktive Mitglieder"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_ids
 msgid "Activities"
 msgstr "Aktivitäten"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_exception_decoration
 msgid "Activity Exception Decoration"
-msgstr "Aktivitätsausnahme-Dekoration"
+msgstr "Dekoration für Ausnahmeaktivitäten"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_state
 msgid "Activity State"
 msgstr "Aktivitätsstatus"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_type_icon
 msgid "Activity Type Icon"
-msgstr "Symbol des Aktivitätstyps"
+msgstr "Symbol für Aktivitätstyp"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_cancel_wizard_form
 msgid "Add Invoice Contact"
 msgstr "Rechnungskontakt hinzufügen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_partner__all_membership_numbers_display
-#: model:ir.model.fields,field_description:association_membership.field_res_users__all_membership_numbers_display
 msgid "All Memberships"
 msgstr "Alle Mitgliedschaften"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__amount
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__amount
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__amount
 msgid "Amount"
 msgstr "Betrag"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__amount_invoiced
 msgid "Amount Invoiced"
-msgstr "Abgerechneter Betrag"
+msgstr "Rechnungsbetrag"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__amount_paid
 msgid "Amount Paid"
 msgstr "Bezahlter Betrag"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__amount
-msgid "Annual Fee"
-msgstr "Jahresbeitrag"
+#. odoo-python
+#: code:addons/association_membership/wizard/tax_receipt_annual_create.py:0
+msgid "Annual Receipts Preview: %(start)s - %(end)s"
+msgstr "Vorschau der Sammelbestätigungen: %(start)s – %(end)s"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_kanban
-#: model_terms:ir.ui.view,arch_db:association_membership.view_product_membership_search
+msgid "Applied Invoicing Strategy"
+msgstr "Angewendete Abrechnungsart"
+
+#. module: association_membership
+msgid "Applies from now on. Changing it here also sets it on the membership."
+msgstr "Gilt ab sofort. Eine Änderung hier wird auch auf die Mitgliedschaft übernommen."
+
+#. module: association_membership
 msgid "Archived"
 msgstr "Archiviert"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_attachment_count
 msgid "Attachment Count"
 msgstr "Anzahl Anhänge"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__membership_auto_activate_on_payment
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_auto_activate_on_payment
-msgid "Auto-activate membership on payment"
-msgstr "Mitgliedschaft bei Zahlung automatisch aktivieren"
-
-#. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Auto-activate on Payment"
-msgstr "Bei Zahlung automatisch aktivieren"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__partner_avatar_128
 msgid "Avatar 128"
 msgstr "Avatar 128"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__billing_status
 msgid "Billing Status"
 msgstr "Abrechnungsstatus"
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_cancel_wizard_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Cancel Membership"
 msgstr "Mitgliedschaft kündigen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__cancel_reason
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__cancel_reason
 msgid "Cancel Reason"
 msgstr "Kündigungsgrund"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
+msgid "Cancel draft invoices and delete the periods"
+msgstr "Rechnungsentwürfe stornieren und Beitragszeiträume löschen"
+
+#. module: association_membership
 msgid "Cancellation"
 msgstr "Kündigung"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__membership_cancellation_template_id
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_cancellation_template_id
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
 msgid "Cancellation Email Template"
 msgstr "E-Mail-Vorlage Kündigung"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__cancellation_template_id
+msgid "Cancellation Email Template (Organisations)"
+msgstr "E-Mail-Vorlage für Kündigung (Organisationen)"
+
+#. module: association_membership
 msgid "Cancellation Template"
 msgstr "Vorlage Kündigung"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_report_cancellations
-#: model:ir.ui.menu,name:association_membership.menu_membership_report_cancellations
-msgid "Cancellations"
-msgstr "Kündigungen"
-
-#. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__cancelled
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__state__cancelled
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
 msgid "Cancelled"
 msgstr "Gekündigt"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_product_membership_search
 msgid "Category"
 msgstr "Kategorie"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_renewal_wizard_form
+msgid "Check if the contact is a company, otherwise it is a person"
+msgstr "Prüfen, ob der Kontakt ein Unternehmen ist; andernfalls handelt es sich um eine Einzelperson"
+
+#. module: association_membership
 msgid "Close"
 msgstr "Schließen"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
 msgid "Communications"
 msgstr "Kommunikation"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_res_company
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__company_ids
 msgid "Companies"
 msgstr "Unternehmen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__company_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__company_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__company_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__company_id
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
-#: model_terms:ir.ui.view,arch_db:association_membership.view_product_membership_search
 msgid "Company"
 msgstr "Unternehmen"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_res_config_settings
+msgid "Company Invoicing Strategy"
+msgstr "Abrechnungsart des Unternehmens"
+
+#. module: association_membership
+msgid "Company default"
+msgstr "Unternehmensstandard"
+
+#. module: association_membership
 msgid "Config Settings"
 msgstr "Konfigurationseinstellungen"
 
 #. module: association_membership
-#: model:ir.ui.menu,name:association_membership.menu_membership_configuration
 msgid "Configuration"
 msgstr "Konfiguration"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__membership_invoicing_strategy__confirm
-#: model:ir.model.fields.selection,name:association_membership.selection__res_company__membership_invoicing_strategy__confirm
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_cancel_wizard_form
 msgid "Confirm"
 msgstr "Bestätigen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__confirm_invoice
-msgid "Confirm Invoice"
-msgstr "Rechnung bestätigen"
-
-#. module: association_membership
-#: model:mail.template,subject:association_membership.mail_template_membership_cancellation
 msgid "Confirmation of your membership cancellation - {{ object.company_id.name }}"
 msgstr "Bestätigung der Kündigung Ihrer Mitgliedschaft - {{ object.company_id.name }}"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_res_partner
 msgid "Contact"
 msgstr "Kontakt"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__res_company__membership_company_mail_recipients__contact_person
+msgid "Contact Person"
+msgstr "Ansprechperson"
+
+#. module: association_membership
 msgid "Contact person"
 msgstr "Ansprechperson"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__res_company__membership_company_mail_recipients__contact_person_and_invoice_contact
 msgid "Contact person and invoice contact"
 msgstr "Ansprechperson und Rechnungskontakt"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__mail_body
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__mail_body
 msgid "Contents"
 msgstr "Inhalt"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_new_wizard_form
-msgid "Period"
-msgstr "Zeitraum"
-
-#. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_pivot
-msgid "Period Analysis"
-msgstr "Beitragsanalyse"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__period_count
-msgid "Period Count"
-msgstr "Anzahl Zeiträume"
-
-#. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_report_period_history
-#: model:ir.ui.menu,name:association_membership.menu_membership_report_history
-msgid "Period History"
-msgstr "Beitragsverlauf"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__period_year
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__period_year
-msgid "Period Year"
-msgstr "Beitragsjahr"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__membership_default_period_year
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_default_period_year
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Period Year Override"
-msgstr "Abweichendes Beitragsjahr"
-
-#. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_membership_period
-#: model:ir.actions.server,name:association_membership.action_membership_period_default_year
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__period_ids
-#: model:ir.ui.menu,name:association_membership.menu_membership_periods
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_partner_form_membership
-msgid "Periods"
-msgstr "Beitragszeiträume"
-
-#. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_new_wizard_form
-msgid "Create"
-msgstr "Erstellen"
-
-#. module: association_membership
-#: model:ir.ui.menu,name:association_membership.menu_membership_tax_receipts_annual
 msgid "Create Annual Receipts"
 msgstr "Sammelbestätigungen erstellen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__create_period
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__create_period
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
-msgid "Create Period"
-msgstr "Zeitraum erstellen"
+msgid "Create Invoice"
+msgstr "Rechnung erstellen"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_partner_form_membership
 msgid "Create Membership"
 msgstr "Mitgliedschaft anlegen"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_renewal_wizard_line__status__created
+msgid "Create Period"
+msgstr "Beitragszeitraum erstellen"
+
+#. module: association_membership
 msgid "Created"
 msgstr "Erstellt"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__create_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__create_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__create_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__create_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__create_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__create_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__create_uid
 msgid "Created by"
 msgstr "Erstellt von"
+
+#. module: association_membership
+msgid "Created on"
+msgstr "Erstellt am"
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/wizard/membership_renewal_wizard.py:0
 msgid "Created period and confirmed invoice."
-msgstr "Beitrag und bestätigte Rechnung erstellt."
+msgstr "Beitragszeitraum und bestätigte Rechnung erstellt."
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/wizard/membership_renewal_wizard.py:0
 msgid "Created period and draft invoice."
-msgstr "Beitrag und Rechnungsentwurf erstellt."
+msgstr "Beitragszeitraum und Rechnungsentwurf erstellt."
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/wizard/membership_renewal_wizard.py:0
 msgid "Created period."
-msgstr "Beitrag erstellt."
+msgstr "Beitragszeitraum erstellt."
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__create_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__create_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__create_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__create_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__create_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__create_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__create_date
-msgid "Created on"
-msgstr "Erstellt am"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__currency_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__currency_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__currency_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__currency_id
 msgid "Currency"
 msgstr "Währung"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_report_current_memberships
-#: model:ir.ui.menu,name:association_membership.menu_membership_report_current
+msgid "Current Members"
+msgstr "Aktuelle Mitglieder"
+
+#. module: association_membership
 msgid "Current Memberships"
 msgstr "Laufende Mitgliedschaften"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
 msgid "Current Year"
 msgstr "Aktuelles Jahr"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__date_cancelled
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__date_cancelled
 msgid "Date Cancelled"
 msgstr "Kündigungsdatum"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__date_end
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__date_end
 msgid "Date End"
 msgstr "Enddatum"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__date_start
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__date_start
 msgid "Date Start"
 msgstr "Startdatum"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__date_welcome_sent
 msgid "Date Welcome Sent"
-msgstr "Willkommens-E-Mail gesendet am"
+msgstr "Datum des Willkommens-E-Mail-Versands"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_period__date_paid
+msgid "Date the money was received: set by \"Mark as Paid\" (manual mode) or when the invoice became paid. Tax receipts use it, and only include periods with a payment date."
+msgstr "Datum des Geldeingangs: Wird durch „Als bezahlt markieren“ (manueller Modus) oder bei vollständiger Bezahlung der Rechnung gesetzt. Zuwendungsbestätigungen verwenden dieses Datum und enthalten nur Beitragszeiträume mit Zahlungsdatum."
+
+#. module: association_membership
 msgid ""
-"Date the money was received (manual mode). Annual tax receipts only include "
-"periods with a payment date."
-msgstr "Datum des Geldeingangs (manueller Modus). Sammelbestätigungen enthalten nur Beiträge mit Zahlungsdatum."
+"Default for new memberships of this company; a membership may override it.\n"
+"Manual: no invoice is created automatically. Record payments with \"Mark as Paid\", or create an invoice by hand when one is needed.\n"
+"Draft: activation and renewal create a draft invoice.\n"
+"Confirm: activation and renewal create and post the invoice."
+msgstr ""
+"Standard für neue Mitgliedschaften dieses Unternehmens; eine Mitgliedschaft kann ihn überschreiben.\n"
+"Manuell: Es wird keine Rechnung automatisch erstellt. Erfassen Sie Zahlungen mit „Als bezahlt markieren“ oder erstellen Sie bei Bedarf manuell eine Rechnung.\n"
+"Entwurf: Bei Aktivierung und Verlängerung wird ein Rechnungsentwurf erstellt.\n"
+"Bestätigen: Bei Aktivierung und Verlängerung wird die Rechnung erstellt und gebucht."
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_default_period_year_text
-msgid "Default Period Year Input"
-msgstr "Eingabe Standard-Beitragsjahr"
+msgid "Default for new memberships; a membership may override it. Manual: no invoice is created automatically - record payments with \"Mark as Paid\", or create an invoice by hand when one is needed. Draft: activation and renewal create a draft invoice. Confirm: activation and renewal create and post the invoice."
+msgstr "Standard für neue Mitgliedschaften; eine Mitgliedschaft kann ihn überschreiben. Manuell: Es wird keine Rechnung automatisch erstellt – erfassen Sie Zahlungen mit „Als bezahlt markieren“ oder erstellen Sie bei Bedarf manuell eine Rechnung. Entwurf: Bei Aktivierung und Verlängerung wird ein Rechnungsentwurf erstellt. Bestätigen: Bei Aktivierung und Verlängerung wird die Rechnung erstellt und gebucht."
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_cancel_wizard_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_new_wizard_form
+msgid "Digits"
+msgstr "Ziffern"
+
+#. module: association_membership
 msgid "Discard"
 msgstr "Verwerfen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__display_name
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__display_name
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__display_name
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__display_name
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__display_name
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__display_name
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__display_name
 msgid "Display Name"
 msgstr "Anzeigename"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__membership_invoicing_strategy__draft
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__state__draft
-#: model:ir.model.fields.selection,name:association_membership.selection__res_company__membership_invoicing_strategy__draft
+msgid "Donors"
+msgstr "Zuwendende"
+
+#. module: association_membership
 msgid "Draft"
 msgstr "Entwurf"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__dry_run
 msgid "Dry Run"
 msgstr "Testlauf"
 
@@ -617,156 +498,140 @@ msgid "Duplicate Period Year"
 msgstr "Doppeltes Beitragsjahr"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__duplicate_period_year_warning
 msgid "Duplicate Period Year Warning"
 msgstr "Warnung doppeltes Beitragsjahr"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
+msgid "Edit Cancellation"
+msgstr "Kündigung bearbeiten"
+
+#. module: association_membership
 msgid "Email Recipients for Organisation Members"
 msgstr "E-Mail-Empfänger bei Organisationsmitgliedern"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__membership_company_mail_recipients
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_company_mail_recipients
 msgid "Email recipients for organisation members"
 msgstr "E-Mail-Empfänger bei Organisationsmitgliedern"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_renewal_wizard_line__status__error
+msgid "Empty: every donor with receipt-eligible payments in the range."
+msgstr "Leer: alle Zuwendenden mit zuwendungsbestätigungsfähigen Zahlungen im Zeitraum."
+
+#. module: association_membership
 msgid "Error"
 msgstr "Fehler"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_follower_ids
+msgid "First day of the period: 1 January, or the membership start date in the year the member joined."
+msgstr "Erster Tag des Beitragszeitraums: 1. Januar oder das Startdatum der Mitgliedschaft im Jahr des Beitritts."
+
+#. module: association_membership
 msgid "Followers"
 msgstr "Follower"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_partner_ids
 msgid "Followers (Partners)"
 msgstr "Follower (Partner)"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__activity_type_icon
 msgid "Font awesome icon e.g. fa-tasks"
 msgstr "Font-Awesome-Symbol, z. B. fa-tasks"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
-#: model_terms:ir.ui.view,arch_db:association_membership.view_product_membership_search
+msgid "Former Members"
+msgstr "Ehemalige Mitglieder"
+
+#. module: association_membership
+msgid "Free Period Warning"
+msgstr "Warnung zu kostenlosem Beitrag"
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_activate_wizard.py:0
+msgid "From the settings of %(company)s."
+msgstr "Aus den Einstellungen von %(company)s."
+
+#. module: association_membership
+msgid "Generate Annual Tax Receipts"
+msgstr "Jährliche Zuwendungsbestätigungen erstellen"
+
+#. module: association_membership
 msgid "Group By"
 msgstr "Gruppieren nach"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__has_period
-msgid "Has Period"
-msgstr "Zeitraum vorhanden"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__has_draft_invoice
-msgid "Has Draft Invoice"
-msgstr "Rechnungsentwurf vorhanden"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__has_message
 msgid "Has Message"
 msgstr "Hat eine Nachricht"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "How the next generated member number will look."
-msgstr "So sieht die nächste erzeugte Mitgliedsnummer aus."
+msgid "Has Period"
+msgstr "Beitragszeitraum vorhanden"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__id
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__id
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__id
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__id
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__id
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__id
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__id
 msgid "ID"
 msgstr "ID"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_exception_icon
 msgid "Icon"
 msgstr "Symbol"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__activity_exception_icon
 msgid "Icon to indicate an exception activity."
 msgstr "Symbol, um eine Ausnahmeaktivität anzuzeigen."
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__message_needaction
 msgid "If checked, new messages require your attention."
-msgstr "Falls markiert, erfordern neue Nachrichten Ihre Aufmerksamkeit."
+msgstr "Wenn diese Option ausgewählt ist, erfordern neue Nachrichten Ihre Aufmerksamkeit."
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__message_has_error
-#: model:ir.model.fields,help:association_membership.field_membership_membership__message_has_sms_error
 msgid "If checked, some messages have a delivery error."
-msgstr "Falls markiert, weisen einige Nachrichten einen Zustellungsfehler auf."
+msgstr "Wenn diese Option ausgewählt ist, weisen einige Nachrichten einen Zustellungsfehler auf."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__product_template__membership_partner_type__person
 msgid "Individuals"
 msgstr "Einzelpersonen"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_res_company__membership_company_mail_recipients
-#: model:ir.model.fields,help:association_membership.field_res_config_settings__membership_company_mail_recipients
 msgid "Individuals always receive their own emails."
 msgstr "Einzelpersonen erhalten ihre E-Mails immer selbst."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__product_template__membership_partner_type__any
 msgid "Individuals and Organisations"
 msgstr "Einzelpersonen und Organisationen"
 
 #. module: association_membership
 #. odoo-python
-#: code:addons/association_membership/models/res_company.py:0
-msgid "Invalid Member Number Prefix '%(prefix)s'."
-msgstr "Ungültiges Präfix der Mitgliedsnummer '%(prefix)s'."
+#: code:addons/association_membership/models/res_config_settings.py:0
+msgid "Invalid format"
+msgstr "Ungültiges Format"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__invoice_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__invoice_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__invoice_id
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
 msgid "Invoice"
 msgstr "Rechnung"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__invoice_partner_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__invoice_partner_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__invoice_partner_id
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_activate_wizard.py:0
+msgid "Invoice %(invoice)s sent to %(recipient)s."
+msgstr "Rechnung %(invoice)s an %(recipient)s gesendet."
+
+#. module: association_membership
 msgid "Invoice Contact"
 msgstr "Rechnungskontakt"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__date_invoice
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__invoice_date
 msgid "Invoice Date"
 msgstr "Rechnungsdatum"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__invoice_line_id
 msgid "Invoice Line"
 msgstr "Rechnungszeile"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__invoice_partner_included
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__invoice_partner_included
 msgid "Invoice Partner Included"
-msgstr "Rechnungskontakt enthalten"
+msgstr "Rechnungskontakt einbezogen"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__res_company__membership_company_mail_recipients__invoice_contact
 msgid "Invoice contact"
 msgstr "Rechnungskontakt"
 
@@ -777,218 +642,141 @@ msgid "Invoice sent."
 msgstr "Rechnung versendet."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__invoiced
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
 msgid "Invoiced"
 msgstr "Abgerechnet"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Invoices"
 msgstr "Rechnungen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__membership_invoicing_strategy
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_invoicing_strategy
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
 msgid "Invoicing Strategy"
 msgstr "Abrechnungsart"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_is_follower
+msgid "Invoicing Strategy Source"
+msgstr "Quelle der Abrechnungsart"
+
+#. module: association_membership
 msgid "Is Follower"
 msgstr "Ist Follower"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__is_free
 msgid "Is Free"
 msgstr "Kostenlos"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_account_move
+msgid "Is a Company"
+msgstr "Ist ein Unternehmen"
+
+#. module: association_membership
 msgid "Journal Entry"
 msgstr "Buchungssatz"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_account_move_line
 msgid "Journal Item"
 msgstr "Buchungszeile"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__last_billing_status
+msgid "Keep them"
+msgstr "Beibehalten"
+
+#. module: association_membership
 msgid "Last Billing Status"
 msgstr "Letzter Abrechnungsstatus"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__last_period_year
 msgid "Last Period Year"
 msgstr "Letztes Beitragsjahr"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__write_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__write_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__write_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__write_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__write_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__write_uid
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__write_uid
 msgid "Last Updated by"
 msgstr "Zuletzt aktualisiert von"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__write_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__write_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__write_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__write_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__write_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__write_date
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__write_date
 msgid "Last Updated on"
 msgstr "Zuletzt aktualisiert am"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_res_company__membership_default_period_year
-#: model:ir.model.fields,help:association_membership.field_res_config_settings__membership_default_period_year
-msgid ""
-"Leave 0 to always default new periods to the current year. Set a "
-"future year to default new periods to that year, e.g. for early "
-"renewals. Past years always fall back to the current year."
-msgstr "0 belassen, damit neue Beiträge immer das aktuelle Jahr erhalten. Ein zukünftiges Jahr setzen, damit neue Beiträge dieses Jahr erhalten, z. B. bei vorgezogener Verlängerung."
+msgid "Last day of the period: 31 December, or the membership end date in the year the membership ends."
+msgstr "Letzter Tag des Beitragszeitraums: 31. Dezember oder das Enddatum der Mitgliedschaft im Jahr, in dem sie endet."
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid ""
-"Leave empty to always use the current year. Set a future year to default new"
-" periods to that year, e.g. for early renewals."
-msgstr "Leer lassen, damit immer das aktuelle Jahr verwendet wird. Ein zukünftiges Jahr setzen, damit neue Beiträge dieses Jahr erhalten, z. B. bei vorgezogener Verlängerung."
+msgid "Leave 0 to always default new periods to the current year. Set a future year to default new periods to that year, e.g. for early renewals. Past years always fall back to the current year."
+msgstr "Belassen Sie 0, damit neue Beitragszeiträume immer dem aktuellen Jahr zugeordnet werden. Legen Sie ein zukünftiges Jahr fest, um neue Beitragszeiträume diesem Jahr zuzuordnen, z. B. bei einer vorzeitigen Verlängerung. Jahre in der Vergangenheit werden immer dem aktuellen Jahr zugeordnet."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__membership_invoicing_strategy__manual
-#: model:ir.model.fields.selection,name:association_membership.selection__res_company__membership_invoicing_strategy__manual
+msgid "Leave at 0 to always use the current year. Set a future year to default new periods to that year, e.g. for early renewals."
+msgstr "Belassen Sie den Wert 0, um immer das aktuelle Jahr zu verwenden. Legen Sie ein zukünftiges Jahr fest, damit neue Beitragszeiträume diesem Jahr zugeordnet werden, z. B. bei einer vorzeitigen Verlängerung."
+
+#. module: association_membership
+msgid "Leave empty to follow the company setting. Each period keeps the strategy that applied when it was created."
+msgstr "Lassen Sie das Feld leer, um der Einstellung des Unternehmens zu folgen. Jeder Beitragszeitraum behält die bei seiner Erstellung geltende Abrechnungsart."
+
+#. module: association_membership
 msgid "Manual"
 msgstr "Manuell"
 
 #. module: association_membership
-#: model:ir.actions.server,name:association_membership.action_mark_period_as_paid
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_form
 msgid "Mark as Paid"
 msgstr "Als bezahlt markieren"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__partner_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__partner_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__partner_id
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_kanban
 msgid "Member"
 msgstr "Mitglied"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__member_number_padding
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__member_number_padding
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Member Number Padding"
-msgstr "Stellen der Mitgliedsnummer"
-
-#. module: association_membership
-#. odoo-python
-#: code:addons/association_membership/models/res_company.py:0
-msgid "Member Number Padding must be greater than zero."
-msgstr "Die Stellen der Mitgliedsnummer müssen größer als null sein."
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__member_number_prefix
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__member_number_prefix
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Member Number Prefix"
-msgstr "Präfix der Mitgliedsnummer"
-
-#. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
 msgid "Member Numbers"
 msgstr "Mitgliedsnummern"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_membership_members
-#: model:ir.ui.menu,name:association_membership.menu_membership_members
 msgid "Members"
 msgstr "Mitglieder"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_membership_membership
-#: model:ir.model.fields,field_description:association_membership.field_account_move_line__membership_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__membership_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__membership_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__membership_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__membership_id
-#: model:ir.model.fields,field_description:association_membership.field_res_partner__current_membership_number_display
-#: model:ir.model.fields,field_description:association_membership.field_res_users__current_membership_number_display
-#: model:ir.module.category,name:association_membership.module_category_membership_management
-#: model_terms:ir.ui.view,arch_db:association_membership.view_partner_form_membership_numbers
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
 msgid "Membership"
 msgstr "Mitgliedschaft"
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-msgid ""
-"Membership %s has periods, so it cannot be deleted or reverted to "
-"draft. Cancel or terminate it instead."
-msgstr "Die Mitgliedschaft %s hat Beiträge und kann daher weder gelöscht noch auf Entwurf zurückgesetzt werden. Kündigen oder beenden Sie sie stattdessen."
+msgid "Membership %s has periods, so it cannot be deleted. Archive it instead."
+msgstr "Die Mitgliedschaft %s hat Beitragszeiträume und kann daher nicht gelöscht werden. Archivieren Sie sie stattdessen."
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_membership_activate_wizard
+#. odoo-python
+#: code:addons/association_membership/models/membership_period.py:0
+msgid "Membership %s is still a draft. Submit it before adding periods."
+msgstr "Die Mitgliedschaft %s ist noch ein Entwurf. Reichen Sie sie ein, bevor Sie Beitragszeiträume hinzufügen."
+
+#. module: association_membership
 msgid "Membership Activate Wizard"
 msgstr "Assistent Mitgliedschaft aktivieren"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__membership_active
 msgid "Membership Active"
 msgstr "Mitgliedschaft aktiv"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_membership_cancel_wizard
 msgid "Membership Cancel Wizard"
 msgstr "Assistent Mitgliedschaft kündigen"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_membership_period
-#: model:ir.model.fields,field_description:association_membership.field_account_move_line__membership_period_id
-msgid "Membership Period"
-msgstr "Beitragszeitraum"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_donation_tax_receipt__membership_period_ids
-#: model:ir.model.fields,field_description:association_membership.field_res_partner__membership_period_ids
-#: model:ir.model.fields,field_description:association_membership.field_res_users__membership_period_ids
-msgid "Membership Periods"
-msgstr "Beitragszeiträume"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_product_product__membership_partner_type
-#: model:ir.model.fields,field_description:association_membership.field_product_template__membership_partner_type
 msgid "Membership For"
 msgstr "Mitgliedschaft für"
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
+#: code:addons/association_membership/models/membership_period.py:0
 msgid "Membership Invoices"
 msgstr "Mitgliedschaftsrechnungen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__membership_invoicing_strategy
-msgid "Membership Invoicing Strategy"
-msgstr "Abrechnungsart der Mitgliedschaft"
-
-#. module: association_membership
-#: model:res.groups,name:association_membership.group_membership_manager
 msgid "Membership Manager"
 msgstr "Mitgliedschaftsverwaltung"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__membership_number
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__membership_number_preview
 msgid "Membership Number"
 msgstr "Mitgliedsnummer"
 
@@ -999,186 +787,170 @@ msgid "Membership Number '%(number)s' is already assigned to %(membership)s."
 msgstr "Die Mitgliedsnummer '%(number)s' ist bereits %(membership)s zugeordnet."
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__membership_number_preview
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Membership Number (Preview)"
 msgstr "Mitgliedsnummer (Vorschau)"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__product_id
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__product_id
-#: model:ir.model.fields,field_description:association_membership.field_product_product__membership_ok
-#: model:ir.model.fields,field_description:association_membership.field_product_template__membership_ok
+msgid "Membership Period"
+msgstr "Beitragszeitraum"
+
+#. module: association_membership
+msgid "Membership Period Count"
+msgstr "Anzahl der Beitragszeiträume"
+
+#. module: association_membership
+msgid "Membership Periods"
+msgstr "Beitragszeiträume"
+
+#. module: association_membership
 msgid "Membership Product"
 msgstr "Mitgliedschaftsprodukt"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_membership_products
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__product_ids
-#: model:ir.ui.menu,name:association_membership.menu_membership_products
-#: model_terms:ir.ui.view,arch_db:association_membership.view_product_membership_search
 msgid "Membership Products"
 msgstr "Mitgliedschaftsprodukte"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_membership_membership
-#: model:ir.ui.menu,name:association_membership.menu_membership_memberships
-msgid "Membership Records"
-msgstr "Mitgliedschaftsdatensätze"
-
-#. module: association_membership
-#: model:ir.actions.server,name:association_membership.ir_cron_membership_renewal_ir_actions_server
 msgid "Membership Renewal"
-msgstr "Verlängerung der Mitgliedschaften"
+msgstr "Mitgliedschaftsverlängerung"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_membership_renewal_wizard
 msgid "Membership Renewal Wizard"
-msgstr "Assistent Verlängerung"
+msgstr "Assistent für die Mitgliedschaftsverlängerung"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_membership_renewal_wizard_line
 msgid "Membership Renewal Wizard Result"
-msgstr "Ergebnis Verlängerung"
+msgstr "Ergebnis der Mitgliedschaftsverlängerung"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_membership_settings
 msgid "Membership Settings"
 msgstr "Mitgliedschaftseinstellungen"
 
 #. module: association_membership
-#: model:ir.actions.server,name:association_membership.ir_cron_membership_termination_ir_actions_server
 msgid "Membership Termination"
-msgstr "Beendigung der Mitgliedschaften"
+msgstr "Beendigung der Mitgliedschaft"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__product_tmpl_id
 msgid "Membership Type"
 msgstr "Mitgliedschaftsart"
 
 #. module: association_membership
-#: model:res.groups,name:association_membership.group_membership_viewer
 msgid "Membership Viewer"
-msgstr "Mitgliedschaft lesen"
+msgstr "Lesezugriff auf Mitgliedschaften"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_account_move_line__membership_year
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__membership_year
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_form
 msgid "Membership Year"
 msgstr "Mitgliedsjahr"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__membership_year_text
-msgid "Membership Year Input"
-msgstr "Eingabe Mitgliedsjahr"
-
-#. module: association_membership
-#. odoo-python
-#: code:addons/association_membership/models/membership_membership.py:0
-msgid "Membership activated automatically after payment of invoice %s."
-msgstr "Mitgliedschaft nach Zahlung der Rechnung %s automatisch aktiviert."
-
-#. module: association_membership
-#: model:mail.template,name:association_membership.mail_template_membership_activation_invoice
 msgid "Membership: Activation Invoice"
 msgstr "Mitgliedschaft: Rechnung zur Aktivierung"
 
 #. module: association_membership
-#: model:mail.template,name:association_membership.mail_template_membership_cancellation
 msgid "Membership: Cancellation"
 msgstr "Mitgliedschaft: Kündigung"
 
 #. module: association_membership
-#: model:mail.template,name:association_membership.mail_template_membership_welcome
 msgid "Membership: Welcome"
 msgstr "Mitgliedschaft: Willkommen"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_members_overview
-#: model:ir.model.fields,field_description:association_membership.field_res_partner__membership_ids
-#: model:ir.model.fields,field_description:association_membership.field_res_users__membership_ids
-#: model:ir.ui.menu,name:association_membership.menu_membership_root
-#: model_terms:ir.ui.view,arch_db:association_membership.view_partner_form_membership
 msgid "Memberships"
 msgstr "Mitgliedschaften"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__message
+msgid "Memberships that are cancelled but still run until their end date."
+msgstr "Mitgliedschaften, die gekündigt wurden, aber bis zu ihrem Enddatum weiterlaufen."
+
+#. module: association_membership
+msgid "Memberships that have ended. Use \"Reopen\" on a membership if a member returns."
+msgstr "Mitgliedschaften, die beendet wurden. Verwenden Sie „Wieder öffnen“ bei einer Mitgliedschaft, wenn ein Mitglied zurückkehrt."
+
+#. module: association_membership
 msgid "Message"
 msgstr "Nachricht"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_has_error
 msgid "Message Delivery error"
 msgstr "Nachricht mit Zustellungsfehler"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_ids
 msgid "Messages"
 msgstr "Nachrichten"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__account_peppol_migration_key
 msgid "Migration Key (Bypass)"
 msgstr "Migrationsschlüssel (Umgehung)"
 
 #. module: association_membership
 #. odoo-python
-#: code:addons/association_membership/models/membership_membership.py:0
-msgid "More than one period exists for year(s): %s."
-msgstr "Für folgende Jahre gibt es mehr als einen Beitrag: %s."
+#: code:addons/association_membership/models/donation_tax_receipt.py:0
+msgid "Missing email on: %s."
+msgstr "Fehlende E-Mail-Adresse bei: %s."
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__my_activity_date_deadline
+#. odoo-python
+#: code:addons/association_membership/models/membership_membership.py:0
+msgid "More than one period exists for year(s): %s."
+msgstr "Für folgende Jahre gibt es mehr als einen Beitragszeitraum: %s."
+
+#. module: association_membership
 msgid "My Activity Deadline"
 msgstr "Frist für meine Aktivitäten"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__name
 msgid "Name"
 msgstr "Name"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_report_new_members
-#: model:ir.ui.menu,name:association_membership.menu_membership_report_new_members
 msgid "New Members"
 msgstr "Neue Mitglieder"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_membership_new_wizard
-#: model:ir.model,name:association_membership.model_membership_new_wizard
-#: model:ir.ui.menu,name:association_membership.menu_membership_new
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_new_wizard_form
+#. odoo-python
+#: code:addons/association_membership/models/res_partner.py:0
 msgid "New Membership"
 msgstr "Neue Mitgliedschaft"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_date_deadline
 msgid "Next Activity Deadline"
-msgstr "Frist für nächste Aktivität"
+msgstr "Frist für die nächste Aktivität"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_summary
 msgid "Next Activity Summary"
 msgstr "Zusammenfassung der nächsten Aktivität"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_type_id
 msgid "Next Activity Type"
 msgstr "Typ der nächsten Aktivität"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__member_number_next
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
 msgid "Next Member Number"
 msgstr "Nächste Mitgliedsnummer"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__member_number_preview
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Next Member Number (Preview)"
-msgstr "Nächste Mitgliedsnummer (Vorschau)"
+msgid "Next Number"
+msgstr "Nächste Nummer"
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/tax_receipt_annual_create.py:0
+msgid "No annual tax receipts to create"
+msgstr "Keine jährlichen Zuwendungsbestätigungen zu erstellen"
+
+#. module: association_membership
+msgid "No cancellations pending"
+msgstr "Keine ausstehenden Kündigungen"
+
+#. module: association_membership
+msgid "No former members"
+msgstr "Keine ehemaligen Mitglieder"
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/tax_receipt_annual_create.py:0
+msgid "No paid, receipt-eligible membership periods for %(company)s between %(start)s and %(end)s. A period counts when its product has Tax Receipt set, the donor's receipt option is Annual (or For Each Donation in manual mode) and it was paid in this range."
+msgstr "Für %(company)s gibt es zwischen %(start)s und %(end)s keine bezahlten, zuwendungsbestätigungsfähigen Beitragszeiträume. Ein Beitragszeitraum wird berücksichtigt, wenn für sein Produkt Zuwendungsbestätigung aktiviert ist, die Bescheinigungsoption der zuwendenden Person auf Jährlich (oder im manuellen Modus auf Für jede Spende) steht und er im Zeitraum bezahlt wurde."
 
 #. module: association_membership
 #. odoo-python
@@ -1187,136 +959,195 @@ msgid "No sales journal was found for company %s."
 msgstr "Für das Unternehmen %s wurde kein Verkaufsjournal gefunden."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__none
-msgid "None"
-msgstr "Keine"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__note
 msgid "Note"
 msgstr "Notiz"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_needaction_counter
+msgid "Number Format"
+msgstr "Nummernformat"
+
+#. module: association_membership
 msgid "Number of Actions"
 msgstr "Anzahl der Aktionen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_has_error_counter
 msgid "Number of errors"
 msgstr "Anzahl der Fehler"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__message_needaction_counter
 msgid "Number of messages requiring action"
 msgstr "Anzahl der Nachrichten, die eine Aktion erfordern"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__message_has_error_counter
 msgid "Number of messages with delivery error"
 msgstr "Anzahl der Nachrichten mit Zustellungsfehler"
+
+#. module: association_membership
+msgid "Off (recommended): the company uses the default numbering, one counter shared by all companies, so member numbers cannot collide. On: the company numbers on its own, with its own format and counter, starting where the default counter stands. Its prefix must then differ from every other company's."
+msgstr "Aus (empfohlen): Das Unternehmen verwendet die Standardnummerierung mit einem für alle Unternehmen gemeinsamen Zähler, sodass Mitgliedsnummern nicht kollidieren. Ein: Das Unternehmen nummeriert selbst mit eigenem Format und Zähler und beginnt beim Stand des Standardzählers. Das Präfix muss dann vom Präfix jedes anderen Unternehmens abweichen."
+
+#. module: association_membership
+msgid "Off (recommended): the default numbering, one counter shared by all companies, so numbers cannot collide. On: this company numbers on its own, starting where the default counter stands; its prefix must differ from every other company's."
+msgstr "Aus (empfohlen): Die Standardnummerierung mit einem für alle Unternehmen gemeinsamen Zähler verhindert doppelte Nummern. Ein: Dieses Unternehmen nummeriert selbst und beginnt beim Stand des Standardzählers; das Präfix muss vom Präfix jedes anderen Unternehmens abweichen."
+
+#. module: association_membership
+msgid "Only These Donors"
+msgstr "Nur diese Zuwendenden"
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
 #: code:addons/association_membership/wizard/membership_cancel_wizard.py:0
-msgid "Only active or waiting memberships can be cancelled."
-msgstr "Nur aktive oder wartende Mitgliedschaften können gekündigt werden."
+msgid "Only active or cancelled memberships can be cancelled. A membership that was never active goes back to draft instead."
+msgstr "Nur aktive oder bereits gekündigte Mitgliedschaften können gekündigt werden. Eine noch nie aktive Mitgliedschaft wird stattdessen auf Entwurf zurückgesetzt."
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-msgid ""
-"Only memberships in Draft state can be deleted. Cancel or terminate the "
-"membership instead."
+msgid "Only memberships in Draft state can be deleted. Cancel or terminate the membership instead."
 msgstr "Nur Mitgliedschaften im Status Entwurf können gelöscht werden. Kündigen oder beenden Sie die Mitgliedschaft stattdessen."
 
 #. module: association_membership
-#: model:ir.model.constraint,message:association_membership.constraint_membership_period_membership_year_uniq
 msgid "Only one period per membership and year is allowed."
-msgstr "Pro Mitgliedschaft und Jahr ist nur ein Beitrag zulässig."
+msgstr "Pro Mitgliedschaft und Jahr ist nur ein Beitragszeitraum zulässig."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__product_template__membership_partner_type__company
+msgid "Optional. When set, organisation members get these instead of the templates above; empty means the template above. A single template can also differ by member type with sections like t-if=\"object.partner_id.is_company\"."
+msgstr "Optional. Wenn diese Vorlagen gesetzt sind, erhalten Organisationsmitglieder sie anstelle der oben genannten Vorlagen. Ist das Feld leer, gilt die jeweilige Vorlage oben. Eine einzelne Vorlage kann mit Abschnitten wie t-if=\"object.partner_id.is_company\" auch je nach Mitgliedstyp unterschiedlich sein."
+
+#. module: association_membership
+msgid "Organisation Templates"
+msgstr "Vorlagen für Organisationen"
+
+#. module: association_membership
 msgid "Organisations"
 msgstr "Organisationen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__override_membership_number
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Override"
 msgstr "Überschreiben"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__paid
+msgid "Own Member Numbering"
+msgstr "Eigene Mitgliedsnummernvergabe"
+
+#. module: association_membership
 msgid "Paid"
 msgstr "Bezahlt"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_account_partial_reconcile
 msgid "Partial Reconcile"
 msgstr "Teilausgleich"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__partial
 msgid "Partially Paid"
 msgstr "Teilweise bezahlt"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__partner_id
 msgid "Partner"
 msgstr "Partner"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__date_paid
 msgid "Payment Date"
 msgstr "Zahlungsdatum"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_report_company_member_list
-#: model:ir.ui.menu,name:association_membership.menu_membership_report_company_member_list
 msgid "Per-company Member List"
 msgstr "Mitgliederliste je Unternehmen"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid ""
-"Prefix for generated member numbers. %(year)s resolves to the creation year."
-msgstr "Präfix für erzeugte Mitgliedsnummern. %(year)s wird durch das Jahr der Anlage ersetzt."
+msgid "Period"
+msgstr "Beitragszeitraum"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_product_template
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__product_id
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
+#. odoo-python
+#: code:addons/association_membership/models/membership_period.py:0
+msgid "Period %(name)s %(year)s has invoice %(invoice)s. Register the payment on the invoice; the period follows it automatically."
+msgstr "Für den Beitragszeitraum %(name)s %(year)s gibt es die Rechnung %(invoice)s. Erfassen Sie die Zahlung auf der Rechnung; der Beitragszeitraum wird automatisch entsprechend aktualisiert."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/models/membership_period.py:0
+msgid "Period %(name)s %(year)s was created with the %(strategy)s strategy. Only periods created in manual mode can be paid by hand."
+msgstr "Der Beitragszeitraum %(name)s %(year)s wurde mit der Abrechnungsart %(strategy)s erstellt. Nur im manuellen Modus erstellte Beitragszeiträume können von Hand als bezahlt markiert werden."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/models/membership_period.py:0
+msgid "Period %(year)s was kept: invoice %(invoice)s is posted and needs a credit note."
+msgstr "Der Beitragszeitraum %(year)s wurde beibehalten: Die Rechnung %(invoice)s ist gebucht und muss per Stornorechnung korrigiert werden."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/models/membership_period.py:0
+msgid "Period %s was removed when the membership was cancelled."
+msgstr "Der Beitragszeitraum %s wurde bei der Kündigung der Mitgliedschaft entfernt."
+
+#. module: association_membership
+msgid "Period Analysis"
+msgstr "Beitragsanalyse"
+
+#. module: association_membership
+msgid "Period Count"
+msgstr "Anzahl der Beitragszeiträume"
+
+#. module: association_membership
+msgid "Period History"
+msgstr "Beitragsverlauf"
+
+#. module: association_membership
+msgid "Period Year"
+msgstr "Beitragsjahr"
+
+#. module: association_membership
+msgid "Period Year Override"
+msgstr "Abweichendes Beitragsjahr"
+
+#. module: association_membership
+msgid "Periods"
+msgstr "Beitragszeiträume"
+
+#. module: association_membership
+msgid "Periods of the cancellation year and later that are not paid. Posted invoices are never touched: reverse them with a credit note."
+msgstr "Beitragszeiträume ab dem Kündigungsjahr, die nicht bezahlt sind. Gebuchte Rechnungen werden nie verändert: Stornieren Sie sie mit einer Stornorechnung."
+
+#. module: association_membership
+msgid "Placeholders in prefix and suffix: %(year)s, %(y)s, %(month)s, %(day)s. The default format is changed by an administrator on its sequence (Technical → Sequences)."
+msgstr "Platzhalter in Präfix und Suffix: %(year)s, %(y)s, %(month)s, %(day)s. Das Standardformat wird von einer Administratorin oder einem Administrator in der zugehörigen Sequenz geändert (Technisch → Sequenzen)."
+
+#. module: association_membership
+msgid "Prefix"
+msgstr "Präfix"
+
+#. module: association_membership
+msgid "Preview"
+msgstr "Vorschau"
+
+#. module: association_membership
+msgid "Print Donation Tax Receipts"
+msgstr "Zuwendungsbestätigungen drucken"
+
+#. module: association_membership
+msgid "Print Receipts"
+msgstr "Bestätigungen drucken"
+
+#. module: association_membership
 msgid "Product"
 msgstr "Produkt"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__product_domain
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__product_domain
 msgid "Product Domain"
 msgstr "Produkt-Domain"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_product_product
 msgid "Product Variant"
 msgstr "Produktvariante"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Raw counter used for the next generated member number."
-msgstr "Zählerstand für die nächste erzeugte Mitgliedsnummer."
-
-#. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Reactivate"
 msgstr "Reaktivieren"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__mail_partner_ids
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__mail_partner_ids
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__mail_partner_ids
 msgid "Recipients"
 msgstr "Empfänger"
 
@@ -1327,103 +1158,110 @@ msgid "Reclaim or correct this tax receipt"
 msgstr "Zuwendungsbestätigung zurückfordern oder korrigieren"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__date_refund
-msgid "Refund Date"
-msgstr "Gutschriftsdatum"
+msgid "Reference"
+msgstr "Referenz"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__refund_move_id
 msgid "Refund Move"
 msgstr "Gutschrift"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__refunded
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
 msgid "Refunded"
 msgstr "Erstattet"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_membership_renewal_wizard
-#: model:ir.ui.menu,name:association_membership.menu_membership_renewal
 msgid "Renewal"
 msgstr "Verlängerung"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_report_renewal_candidates
-#: model:ir.ui.menu,name:association_membership.menu_membership_report_candidates
 msgid "Renewal Candidates"
 msgstr "Verlängerungskandidaten"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__membership_cron_year_offset
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_cron_year_offset
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Renewal Year Offset"
-msgstr "Jahresversatz für Verlängerung"
-
-#. module: association_membership
-#: model:ir.ui.menu,name:association_membership.menu_membership_reporting
 msgid "Reporting"
 msgstr "Berichte"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__activity_user_id
 msgid "Responsible User"
-msgstr "Verantwortlicher Benutzer"
+msgstr "Zuständiger Benutzer"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__result_line_ids
 msgid "Results"
 msgstr "Ergebnisse"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
-msgid "Revert this membership to draft? Cancellation data will be cleared."
-msgstr "Diese Mitgliedschaft auf Entwurf zurücksetzen? Die Kündigungsdaten werden gelöscht."
+msgid "Revert this membership to draft? It stops counting as a membership until it is submitted again, and any cancellation data is cleared."
+msgstr "Diese Mitgliedschaft auf Entwurf zurücksetzen? Sie wird nicht mehr als Mitgliedschaft berücksichtigt, bis sie erneut eingereicht wird, und sämtliche Kündigungsdaten werden gelöscht."
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Revert to Draft"
 msgstr "Auf Entwurf zurücksetzen"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_renewal_wizard_form
 msgid "Run"
 msgstr "Ausführen"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_renewal_wizard_form
 msgid "Run Renewal"
 msgstr "Verlängerung ausführen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__message_has_sms_error
 msgid "SMS Delivery error"
 msgstr "SMS-Zustellungsfehler"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__send_cancellation_message
+msgid "Sales Price"
+msgstr "Verkaufspreis"
+
+#. module: association_membership
+msgid "Scheduled to End"
+msgstr "Zum Beenden vorgemerkt"
+
+#. module: association_membership
+msgid "Send"
+msgstr "Senden"
+
+#. module: association_membership
 msgid "Send Cancellation Message"
 msgstr "Kündigungsnachricht senden"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__send_invoice_email
 msgid "Send Invoice Email"
 msgstr "Rechnung per E-Mail senden"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__send_welcome_message
-#: model:ir.model.fields,field_description:association_membership.field_membership_new_wizard__send_welcome_message
+#. odoo-python
+#: code:addons/association_membership/models/donation_tax_receipt.py:0
+msgid "Send Tax Receipt"
+msgstr "Zuwendungsbestätigung senden"
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/models/donation_tax_receipt.py:0
+msgid "Send Tax Receipts"
+msgstr "Zuwendungsbestätigungen senden"
+
+#. module: association_membership
 msgid "Send Welcome Message"
 msgstr "Willkommensnachricht senden"
 
 #. module: association_membership
-#: model:ir.ui.menu,name:association_membership.menu_membership_settings
+#. odoo-python
+#: code:addons/association_membership/models/donation_tax_receipt.py:0
+msgid "Send the receipts of one company at a time."
+msgstr "Senden Sie jeweils nur die Zuwendungsbestätigungen eines Unternehmens."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_activate_wizard.py:0
+msgid "Set on this membership; the setting of %(company)s does not apply."
+msgstr "An dieser Mitgliedschaft festgelegt; die Einstellung von %(company)s gilt nicht."
+
+#. module: association_membership
 msgid "Settings"
 msgstr "Einstellungen"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_renewal_wizard_line__status__skipped
 msgid "Skipped"
 msgstr "Übersprungen"
 
@@ -1431,81 +1269,83 @@ msgstr "Übersprungen"
 #. odoo-python
 #: code:addons/association_membership/wizard/membership_renewal_wizard.py:0
 msgid "Skipped because a period already exists for %s."
-msgstr "Übersprungen, weil für %s bereits ein Beitrag existiert."
+msgstr "Übersprungen, weil für %s bereits ein Beitragszeitraum existiert."
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/wizard/membership_renewal_wizard.py:0
-msgid ""
-"Skipped because the membership product %s is archived. Choose a current tier"
-" on the membership first."
+msgid "Skipped because the membership product %s is archived. Choose a current tier on the membership first."
 msgstr "Übersprungen, weil das Mitgliedschaftsprodukt %s archiviert ist. Wählen Sie zuerst eine aktuelle Stufe an der Mitgliedschaft."
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
+#. odoo-python
+#: code:addons/association_membership/wizard/tax_receipt_annual_create.py:0
+msgid "Skipped, because they already have an annual receipt in this range: %s."
+msgstr "Übersprungen, da in diesem Zeitraum bereits eine Sammelbestätigung vorliegt: %s."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/tax_receipt_annual_create.py:0
+msgid "Some donors were skipped"
+msgstr "Einige Zuwendende wurden übersprungen"
+
+#. module: association_membership
 msgid "Started in last 90 days"
 msgstr "In den letzten 90 Tagen begonnen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__state
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
 msgid "State"
 msgstr "Status"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__status
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
 msgid "Status"
 msgstr "Status"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__activity_state
 msgid ""
 "Status based on activities\n"
 "Overdue: Due date is already passed\n"
 "Today: Activity date is today\n"
 "Planned: Future activities."
-msgstr "Status basierend auf Aktivitäten\nÜberfällig: Fälligkeitsdatum bereits überschritten\nHeute: Aktivitätsdatum ist heute\nGeplant: anstehende Aktivitäten."
+msgstr ""
+"Status basierend auf Aktivitäten\n"
+"Überfällig: Fälligkeitsdatum bereits überschritten\n"
+"Heute: Aktivitätsdatum ist heute\n"
+"Geplant: anstehende Aktivitäten."
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__mail_subject
-#: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__mail_subject
 msgid "Subject"
 msgstr "Betreff"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Submit"
 msgstr "Einreichen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__target_year
+msgid "Suffix"
+msgstr "Suffix"
+
+#. module: association_membership
 msgid "Target Year"
 msgstr "Zieljahr"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Target year used by the renewal cron: current year + offset."
-msgstr "Zieljahr des automatischen Verlängerungslaufs: aktuelles Jahr + Versatz."
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__tax_receipt_id
 msgid "Tax Receipt"
 msgstr "Zuwendungsbestätigung"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_product_membership_search
 msgid "Tax Receipt Eligible"
-msgstr "Zuwendungsbestätigung möglich"
+msgstr "Für Zuwendungsbestätigungen geeignet"
 
 #. module: association_membership
-#: model:ir.model,name:association_membership.model_donation_tax_receipt
+msgid "Tax Receipt Email Template"
+msgstr "E-Mail-Vorlage für Zuwendungsbestätigung"
+
+#. module: association_membership
 msgid "Tax Receipt for Donations"
 msgstr "Zuwendungsbestätigung"
 
 #. module: association_membership
-#: model:ir.ui.menu,name:association_membership.menu_membership_tax_receipts
-#: model:ir.ui.menu,name:association_membership.menu_membership_tax_receipts_root
 msgid "Tax Receipts"
 msgstr "Zuwendungsbestätigungen"
 
@@ -1513,27 +1353,23 @@ msgstr "Zuwendungsbestätigungen"
 #. odoo-python
 #: code:addons/association_membership/models/membership_period.py:0
 msgid "Tax receipt %(receipt)s issued for period %(year)s."
-msgstr "Zuwendungsbestätigung %(receipt)s für den Beitrag %(year)s ausgestellt."
+msgstr "Zuwendungsbestätigung %(receipt)s für den Beitragszeitraum %(year)s ausgestellt."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__state__terminated
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
+#. odoo-python
+#: code:addons/association_membership/models/membership_period.py:0
+msgid "Tax receipt %(receipt)s was issued for period %(year)s. Reclaim or correct the receipt first."
+msgstr "Die Zuwendungsbestätigung %(receipt)s wurde für den Beitragszeitraum %(year)s ausgestellt. Fordern Sie sie zuerst zurück oder korrigieren Sie sie."
+
+#. module: association_membership
 msgid "Terminated"
 msgstr "Beendet"
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-msgid ""
-"The cancellation date, end date, and cancellation reason can only be set on "
-"cancelled or terminated memberships."
+msgid "The cancellation date, end date, and cancellation reason can only be set on cancelled or terminated memberships."
 msgstr "Kündigungsdatum, Enddatum und Kündigungsgrund können nur bei gekündigten oder beendeten Mitgliedschaften gesetzt werden."
-
-#. module: association_membership
-#. odoo-python
-#: code:addons/association_membership/models/membership_period.py:0
-msgid "The period company must match the membership company."
-msgstr "Das Unternehmen des Beitrags muss dem der Mitgliedschaft entsprechen."
 
 #. module: association_membership
 #. odoo-python
@@ -1543,59 +1379,103 @@ msgstr "Das Enddatum darf nicht vor dem Startdatum liegen."
 
 #. module: association_membership
 #. odoo-python
+#: code:addons/association_membership/models/membership_membership.py:0
+msgid "The member numbering is not configured."
+msgstr "Die Mitgliedsnummernvergabe ist nicht eingerichtet."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_activate_wizard.py:0
+msgid "The membership fee is 0, so no invoice will be created. Set an amount on the membership first if one is owed."
+msgstr "Der Mitgliedsbeitrag beträgt 0, daher wird keine Rechnung erstellt. Hinterlegen Sie zuerst einen Betrag auf der Mitgliedschaft, sofern ein Betrag offen ist."
+
+#. module: association_membership
+#. odoo-python
 #: code:addons/association_membership/models/account_move_line.py:0
-msgid ""
-"The membership line and period must point to the same membership."
-msgstr "Rechnungszeile und Beitrag müssen zur selben Mitgliedschaft gehören."
+msgid "The membership line and period must point to the same membership."
+msgstr "Die Mitgliedschaftszeile und der Beitragszeitraum müssen zur selben Mitgliedschaft gehören."
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-msgid "The membership number counter is not configured."
-msgstr "Der Zähler für Mitgliedsnummern ist nicht eingerichtet."
-
-#. module: association_membership
-#. odoo-python
-#: code:addons/association_membership/models/membership_membership.py:0
-#: model:ir.model.constraint,message:association_membership.constraint_membership_membership_membership_member_number_uniq
 msgid "The membership number must be globally unique."
 msgstr "Die Mitgliedsnummer muss eindeutig sein."
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-msgid ""
-"The membership type cannot be changed once periods exist. Only a tier "
-"of the same type can be selected. To change the type, end this membership "
-"and start a new one."
-msgstr "Die Mitgliedschaftsart kann nicht mehr geändert werden, sobald Beiträge existieren. Es kann nur eine Stufe derselben Art gewählt werden. Um die Art zu ändern, beenden Sie diese Mitgliedschaft und beginnen Sie eine neue."
+msgid "The membership type cannot be changed once periods exist. Only a tier of the same type can be selected. To change the type, end this membership and start a new one."
+msgstr "Die Mitgliedschaftsart kann nicht mehr geändert werden, sobald Beitragszeiträume existieren. Es kann nur eine Stufe derselben Art gewählt werden. Um die Art zu ändern, beenden Sie diese Mitgliedschaft und beginnen Sie eine neue."
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/account_move_line.py:0
 msgid "The membership year must match the linked period year."
-msgstr "Das Mitgliedsjahr muss dem Jahr des verknüpften Beitrags entsprechen."
+msgstr "Das Mitgliedsjahr muss dem Jahr des verknüpften Beitragszeitraums entsprechen."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__res_company__membership_company_mail_recipients__member
 msgid "The organisation"
 msgstr "Die Organisation"
 
 #. module: association_membership
+msgid "The organisation's contact person, set on the organisation."
+msgstr "Die in der Organisation hinterlegte Ansprechperson."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/models/membership_period.py:0
+msgid "The period company must match the membership company."
+msgstr "Das Unternehmen des Beitragszeitraums muss dem Unternehmen der Mitgliedschaft entsprechen."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/tax_receipt_print.py:0
+msgid "There are no tax receipts to print."
+msgstr "Es sind keine Zuwendungsbestätigungen zum Drucken vorhanden."
+
+#. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
-msgid ""
-"There is already a membership of this type for this member and company with "
-"overlapping dates."
-msgstr "Für dieses Mitglied und Unternehmen gibt es bereits eine Mitgliedschaft dieser Art mit überschneidendem Zeitraum."
+msgid "There is already a membership of this type for this member and company with overlapping dates."
+msgstr "Für dieses Mitglied und Unternehmen gibt es bereits eine Mitgliedschaft dieser Art mit überschneidenden Zeiträumen."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__to_invoice
+msgid "These donors already have an annual receipt in the range. They are skipped; correct or delete that receipt first to include them."
+msgstr "Für diese Zuwendenden wurde im Zeitraum bereits eine Sammelbestätigung ausgestellt. Sie werden übersprungen; korrigieren oder löschen Sie die Bestätigung zuerst, um sie einzubeziehen."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/models/membership_period.py:0
+msgid "These periods cannot be invoiced: %s. Free periods, and periods that already have an invoice or a refund, are skipped."
+msgstr "Diese Beitragszeiträume können nicht abgerechnet werden: %s. Kostenlose Beitragszeiträume sowie Zeiträume, für die bereits eine Rechnung oder Gutschrift vorhanden ist, werden übersprungen."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/tax_receipt_print.py:0
+msgid "These receipts use different layouts. Print the receipts of one company at a time."
+msgstr "Diese Zuwendungsbestätigungen verwenden unterschiedliche Layouts. Drucken Sie die Zuwendungsbestätigungen jeweils nur für ein Unternehmen."
+
+#. module: association_membership
+msgid "These settings apply to this company only: the one selected in the company switcher. A membership follows the settings of its own company."
+msgstr "Diese Einstellungen gelten nur für das aktuell im Unternehmenswechsler ausgewählte Unternehmen. Eine Mitgliedschaft folgt den Einstellungen ihres eigenen Unternehmens."
+
+#. module: association_membership
+msgid "Tier"
+msgstr "Stufe"
+
+#. module: association_membership
+msgid "Tiers"
+msgstr "Stufen"
+
+#. module: association_membership
 msgid "To Invoice"
-msgstr "Abzurechnen"
+msgstr "Zu berechnen"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__activity_exception_decoration
+msgid "Total"
+msgstr "Gesamt"
+
+#. module: association_membership
 msgid "Type of the exception activity on record."
 msgstr "Typ der Ausnahmeaktivität im Datensatz."
 
@@ -1603,106 +1483,115 @@ msgstr "Typ der Ausnahmeaktivität im Datensatz."
 #. odoo-python
 #: code:addons/association_membership/models/membership_period.py:0
 msgid "Unable to match the generated invoice line for period %(year)s."
-msgstr "Die erzeugte Rechnungszeile für den Beitrag %(year)s konnte nicht zugeordnet werden."
+msgstr "Die erzeugte Rechnungszeile für den Beitragszeitraum %(year)s konnte nicht zugeordnet werden."
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
+msgid "Undo the recorded payment for this period?"
+msgstr "Die erfasste Zahlung für diesen Beitragszeitraum rückgängig machen?"
+
+#. module: association_membership
+msgid "Unmark as Paid"
+msgstr "Als nicht bezahlt markieren"
+
+#. module: association_membership
 msgid "Unpaid"
 msgstr "Unbezahlt"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_report_unpaid_memberships
-#: model:ir.ui.menu,name:association_membership.menu_membership_report_unpaid
 msgid "Unpaid Memberships"
 msgstr "Unbezahlte Mitgliedschaften"
+
+#. module: association_membership
+msgid "Unpaid Periods"
+msgstr "Unbezahlte Beitragszeiträume"
+
+#. module: association_membership
+msgid "Unpaid periods"
+msgstr "Unbezahlte Beitragszeiträume"
 
 #. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
 msgid "Use the membership actions instead of writing the state directly."
-msgstr "Verwenden Sie die Aktionen der Mitgliedschaft, statt den Status direkt zu schreiben."
+msgstr "Verwenden Sie die Mitgliedschaftsaktionen, anstatt den Status direkt zu ändern."
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__state__waiting
+msgid "Used when an activation sends the membership invoice. Not used while the invoicing strategy is Manual."
+msgstr "Wird verwendet, wenn bei der Aktivierung die Mitgliedsrechnung gesendet wird. Wird nicht verwendet, solange die Abrechnungsart „Manuell“ ist."
+
+#. module: association_membership
+msgid "Used when tax receipts are sent, one at a time or several from the list. Empty: the default template (the Zuwendungsbestätigung for German companies, when installed)."
+msgstr "Wird beim Versenden einzelner Zuwendungsbestätigungen oder mehrerer Bestätigungen aus der Liste verwendet. Ist das Feld leer, gilt die Standardvorlage (bei installiertem Modul die Zuwendungsbestätigung für deutsche Unternehmen)."
+
+#. module: association_membership
+msgid "Used when tax receipts are sent. Empty: the default template (the Zuwendungsbestätigung for German companies, when installed)."
+msgstr "Wird beim Versenden von Zuwendungsbestätigungen verwendet. Ist das Feld leer, gilt die Standardvorlage (bei installiertem Modul die Zuwendungsbestätigung für deutsche Unternehmen)."
+
+#. module: association_membership
 msgid "Waiting"
 msgstr "Wartend"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
 msgid "Waiting + Current"
 msgstr "Wartend + laufend"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__waived
 msgid "Waived"
-msgstr "Erlassen"
+msgstr "Nicht zu berechnen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_membership__website_message_ids
 msgid "Website Messages"
 msgstr "Website-Nachrichten"
 
 #. module: association_membership
-#: model:ir.model.fields,help:association_membership.field_membership_membership__website_message_ids
 msgid "Website communication history"
 msgstr "Website-Kommunikationsverlauf"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_res_company__membership_welcome_template_id
-#: model:ir.model.fields,field_description:association_membership.field_res_config_settings__membership_welcome_template_id
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
+msgid "Welcome"
+msgstr "Willkommen"
+
+#. module: association_membership
 msgid "Welcome Email Template"
 msgstr "E-Mail-Vorlage Willkommen"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_new_wizard_form
+msgid "Welcome Email Template (Organisations)"
+msgstr "E-Mail-Vorlage Willkommen (Organisationen)"
+
+#. module: association_membership
 msgid "Welcome Message"
 msgstr "Willkommensnachricht"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__welcome_template_id
 msgid "Welcome Template"
 msgstr "Vorlage Willkommen"
 
 #. module: association_membership
-#: model:mail.template,subject:association_membership.mail_template_membership_welcome
 msgid "Welcome, {{ object.partner_id.name }}!"
 msgstr "Willkommen, {{ object.partner_id.name }}!"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid ""
-"Who receives welcome and cancellation emails of organisation members. "
-"Individuals always receive their own emails. The contact person is the one "
-"set on the organisation, or the organisation itself."
-msgstr "Wer bei Organisationsmitgliedern Willkommens- und Kündigungs-E-Mails erhält. Einzelpersonen erhalten ihre E-Mails immer selbst. Die Ansprechperson ist die an der Organisation hinterlegte, sonst die Organisation selbst."
+msgid "Who receives welcome and cancellation emails of organisation members. Individuals always receive their own emails. The contact person is the one set on the organisation, or the organisation itself."
+msgstr "Empfänger der Willkommens- und Kündigungs-E-Mails von Organisationsmitgliedern. Einzelpersonen erhalten ihre E-Mails immer selbst. Empfänger ist die an der Organisation hinterlegte Ansprechperson oder die Organisation selbst."
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__wizard_id
 msgid "Wizard"
 msgstr "Assistent"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_list
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
-#: model_terms:ir.ui.view,arch_db:association_membership.view_partner_form_membership
-msgid "Year"
-msgstr "Jahr"
-
-#. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_period__membership_year_display
-msgid "Year Display"
-msgstr "Jahr (Anzeige)"
+msgid "Would be created"
+msgstr "Würde erstellt"
 
 #. module: association_membership
 #. odoo-python
-#: code:addons/association_membership/models/membership_period.py:0
-msgid ""
-"You can only manually mark periods as paid when the company invoicing "
-"strategy is set to 'manual'."
-msgstr "Beiträge können nur manuell als bezahlt markiert werden, wenn die Abrechnungsart des Unternehmens 'Manuell' ist."
+#: code:addons/association_membership/wizard/membership_renewal_wizard.py:0
+msgid "Would create a period."
+msgstr "Würde einen Beitragszeitraum erstellen."
+
+#. module: association_membership
+msgid "Year"
+msgstr "Jahr"
 
 #. module: association_membership
 #. odoo-python
@@ -1711,19 +1600,16 @@ msgid "You cannot move a membership from %(from_state)s to %(to_state)s."
 msgstr "Eine Mitgliedschaft kann nicht von %(from_state)s nach %(to_state)s wechseln."
 
 #. module: association_membership
-#: model:mail.template,subject:association_membership.mail_template_membership_activation_invoice
 msgid "Your membership invoice {{ object.name }} - {{ object.company_id.name }}"
 msgstr "Ihre Mitgliedsrechnung {{ object.name }} - {{ object.company_id.name }}"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "Zero-padding of the counter part of the member number."
-msgstr "Stellenzahl des Zählers in der Mitgliedsnummer (mit führenden Nullen)."
+msgid "company:"
+msgstr "Unternehmen:"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_res_config_settings_membership
-msgid "e.g. 2027 (empty = current year)"
-msgstr "z. B. 2027 (leer = aktuelles Jahr)"
+msgid "e.g. 2027 (0 = current year)"
+msgstr "z. B. 2027 (0 = aktuelles Jahr)"
 
 #. module: association_membership
 #. odoo-python
@@ -1736,3 +1622,7 @@ msgstr "Einzelpersonen"
 #: code:addons/association_membership/models/membership_membership.py:0
 msgid "organisations"
 msgstr "Organisationen"
+
+#. module: association_membership
+msgid "overrides the company's"
+msgstr "überschreibt die Einstellung des Unternehmens"
