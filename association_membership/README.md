@@ -65,7 +65,6 @@ The per-year billing artifact, one per `(membership, year)` (SQL constraint). Ke
 | `invoice_id`, `invoice_line_id`, `refund_move_id` | M2o `account.move` / line | |
 | `amount_invoiced`, `amount_paid` | Monetary | computed+stored, `readonly=False` (manual mode writes) |
 | `date_paid` | Date | the day the money came in: "Mark as Paid" (manual) or the invoice's latest payment; tax receipts use it |
-| `date_invoice` | related, stored | from the invoice |
 | `billing_status` | Selection | computed+stored, `readonly=False` — see below |
 | `tax_receipt_id` | M2o `donation.tax.receipt` | readonly |
 | `partner_id`, `company_id`, `currency_id` | related, stored | from the membership |

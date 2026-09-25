@@ -1153,19 +1153,13 @@ class MembershipWebformIntake(models.AbstractModel):
     def _apply_payment(self, payload, partner, company, membership, warnings):
         bank = self._upsert_partner_bank(payload, partner, company)
 
-        # Always keep what the member actually said, whether or not this
-        # association has payment modes configured yet. Without this the answer
-        # was lost on every company except the one that has been set up.
+        # The stated method itself is kept in the partner's intake note.
         stated = (payload.get("payment_method") or "").strip()
-        if stated and "membership_payment_method" in self.env["res.partner"]._fields:
-            partner.membership_payment_method = stated
-
         mode = self._resolve_payment_mode(payload, company)
         if mode and "customer_payment_mode_id" in self.env["res.partner"]._fields:
             partner.customer_payment_mode_id = mode.id
         elif stated:
-            # The stated method is recorded above; the warning stays because an
-            # association without payment modes is a configuration gap the
+            # An association without payment modes is a configuration gap the
             # operator should see, not something to quietly normalise.
             warnings.append("payment_mode_unavailable")
         if self._is_direct_debit(payload):

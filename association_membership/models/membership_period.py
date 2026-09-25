@@ -112,12 +112,6 @@ class MembershipPeriod(models.Model):
         readonly=True,
     )
     invoice_partner_id = fields.Many2one("res.partner", string="Invoice Contact")
-    date_invoice = fields.Date(
-        string="Invoice Date",
-        related="invoice_id.invoice_date",
-        store=True,
-        readonly=True,
-    )
 
     _sql_constraints = [
         (

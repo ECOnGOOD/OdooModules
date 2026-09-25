@@ -1,7 +1,7 @@
 # __manifest__.py
 {
     'name': 'ECOnGOOD Extra Fields',
-    'version': '18.0.2.9.1',
+    'version': '18.0.2.10.0',
     'category': 'ECOnGOOD',
     'summary': 'Adds extra required fields (incl. dependencies) to contacts.',
     'author': 'ECOnGOOD',

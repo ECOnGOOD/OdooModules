@@ -1,5 +1,11 @@
 # Changelog
 
+## 18.0.6.6.0 — field cleanup
+
+- **Removed `membership.period.date_invoice`.** A stored copy of the invoice date that
+  nothing reads since tax receipts use the payment date (18.0.6.4.0). The invoice itself
+  still shows it; the upgrade drops the column.
+
 ## 18.0.6.5.0 — communication and settings (WP14)
 
 - **Organisation templates (15.21, D30).** Three optional company settings: activation

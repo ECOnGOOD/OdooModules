@@ -791,9 +791,7 @@ class TestBankAndPayment(WebformTestCommon):
             self._individual_payload(payment_method="Lastschrift")
         )
         partner = self.env["res.partner"].browse(result["partner_id"])
-        if "membership_payment_method" not in partner._fields:
-            self.skipTest("econgood_extra_fields is not up to date")
-        self.assertEqual(partner.membership_payment_method, "Lastschrift")
+        self.assertIn("Payment method: Lastschrift", partner.message_ids.mapped("body")[0])
         # The gap is still reported: it is a configuration problem, not noise.
         self.assertIn("payment_mode_unavailable", result["warnings"])
 

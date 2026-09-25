@@ -114,7 +114,6 @@
                         <group>
                             <field name="invoice_id" />
                             <field name="invoice_line_id" readonly="1" />
-                            <field name="date_invoice" readonly="1" />
                             <field name="refund_move_id" />
                             <field name="amount" />
                             <field name="amount_invoiced" readonly="invoice_id or membership_invoicing_strategy != 'manual'" />
