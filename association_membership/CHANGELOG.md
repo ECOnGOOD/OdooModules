@@ -1,5 +1,14 @@
 # Changelog
 
+## 18.0.6.6.1 — membership products with `product_multi_company`
+
+- **Membership products no longer sort or group by company.** With OCA
+  `product_multi_company` installed, a product's `company_id` is computed from
+  `company_ids` and not stored, so the list's `default_order="company_id, name"` and
+  the "Group by Company" filters raised "Cannot convert product.template.company_id to
+  SQL because it is not stored". The list now sorts by name; the Company column and the
+  search by company stay.
+
 ## 18.0.6.6.0 — field cleanup
 
 - **Removed `membership.period.date_invoice`.** A stored copy of the invoice date that
