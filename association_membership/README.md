@@ -244,6 +244,11 @@ Neither the creator of a membership nor the sender of a welcome or cancellation 
 | Own member numbering | `member_number_own_sequence` | **off by default: every company uses the default numbering**, the `ir.sequence` with code `association.membership.number.seq` and no company (`MEM/%(year)s/`, 5 digits, `no_gap`). On = a sequence of that code for this company, starting where the default stands; off again archives it |
 | Number format | prefix, suffix, digits, next number | the fields of the effective sequence; editable here only with own numbering. The default format is changed on its sequence by an administrator |
 
+Implementation notes:
+- **Company settings are columns on `res.company`**, shown in Settings through related fields. That is Odoo's pattern for per-company settings (`ir.config_parameter` is global).
+- **Mail templates are `noupdate`**, as is standard for templates: they can be edited in the interface, and an upgrade does not overwrite those edits. A change shipped in the code therefore reaches existing databases only through a migration script or by hand (decision 14). An association that wants its own texts copies a template and selects the copy in its settings.
+- **Member numbers use `implementation = "no_gap"`.** The counter is the database row itself, so a failed signup does not use up a number, and previews and tests read the real value. (Standard sequences keep the counter in a PostgreSQL sequence; their `number_next` column is only updated on write.)
+
 ## Reporting
 
 Pre-built list views: Current / Unpaid / New members, Scheduled to End, Former Members, Period History, Renewal Candidates, Per-company Member List.
