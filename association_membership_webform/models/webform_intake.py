@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime
 
 from markupsafe import Markup
 
@@ -50,6 +51,18 @@ CHAPTER_OU_TYPE_CODE = "local_chapter"
 
 # Relation type naming varies by how the database was seeded.
 CHAPTER_RELATION_NAMES = ("Local Chapter", "Regional-Gruppe", "Regionalgruppe")
+
+# OCA partner_contact_gender's selection, and the words a form may use for it.
+GENDER_BY_VALUE = {
+    "male": "male", "m": "male", "männlich": "male", "maennlich": "male",
+    "female": "female", "f": "female", "w": "female", "weiblich": "female",
+    "other": "other", "d": "other", "divers": "other", "diverse": "other",
+}
+# The salutation only says something about the gender for these two (D36).
+GENDER_BY_SALUTATION = {
+    "frau": "female", "ms": "female", "mrs": "female", "ms.": "female", "mrs.": "female",
+    "herr": "male", "mr": "male", "mr.": "male",
+}
 
 # Warnings that mean "the membership was not inferred cleanly" — worth saying so
 # in the chatter, not just in the response.
@@ -269,7 +282,9 @@ class MembershipWebformIntake(models.AbstractModel):
             regional_membership = self._upsert_regional_membership(
                 partner, regional, type_code, warnings, notes,
             )
-        chapter_linked = self._ensure_chapter_relation(partner, chapter, warnings)
+        chapter_linked = self._ensure_chapter_relation(
+            partner, chapter, warnings, date_start=membership.date_start,
+        )
 
         self._apply_payment(payload, partner, national, membership, warnings)
         self._log_membership_notes(payload, membership, warnings, notes)
@@ -477,6 +492,7 @@ class MembershipWebformIntake(models.AbstractModel):
                     "title": self._title_id(payload.get("title") or payload.get("salutation")),
                 }
             )
+            vals.update(self._person_values(payload, ""))
         else:
             # The pricing type code and the form block are not the same thing: a
             # charitable *company* is priced as an organisation (ORG) while its
@@ -540,6 +556,8 @@ class MembershipWebformIntake(models.AbstractModel):
             partner.write(vals)
         else:
             partner = Partner.create(vals)
+        if not partner.is_company:
+            self._fill_gender_from_salutation(partner, payload, "")
         # Written once the partner is a company, which the kind requires. Only
         # fills a blank: staff may have chosen a different kind (15.35).
         xmlid = ORGANIZATION_KIND_XMLID_BY_TYPE_CODE.get(type_code)
@@ -606,13 +624,7 @@ class MembershipWebformIntake(models.AbstractModel):
                 partner.company_id = next(iter(wanted))
             return
 
-        # company_ids is declared with depends_context=("uid",), so the sudo and
-        # non-sudo caches diverge; read and write it at one su level.
-        scoped = partner.sudo()
-        current = set(scoped.company_ids.ids)
-        if wanted <= current:
-            return
-        scoped.write({"company_ids": [(6, 0, sorted(current | wanted))]})
+        partner._add_membership_companies(self.env["res.company"].browse(sorted(wanted)))
 
     @api.model
     def _check_duplicate_signup(self, payload, company, type_code):
@@ -681,6 +693,7 @@ class MembershipWebformIntake(models.AbstractModel):
             "title": self._title_id(
                 payload.get("contact_title") or payload.get("contact_salutation")
             ),
+            **self._person_values(payload, "contact_"),
             # No company here either: with partner_multi_company installed
             # company_ids is a commercial field, so a child inherits the parent's
             # scope on its own, and writing company_id would fight that.
@@ -692,11 +705,55 @@ class MembershipWebformIntake(models.AbstractModel):
             domain.append(("email", "=ilike", vals["email"]))
         else:
             domain.append(("name", "=", name))
-        existing = Partner.search(domain, limit=1)
-        if existing:
-            existing.write(vals)
-            return existing
-        return Partner.create(vals)
+        contact = Partner.search(domain, limit=1)
+        if contact:
+            contact.write(vals)
+        else:
+            contact = Partner.create(vals)
+        self._fill_gender_from_salutation(contact, payload, "contact_")
+        return contact
+
+    @api.model
+    def _person_values(self, payload, prefix):
+        """Birth date and an explicitly stated gender of a person (16.9, D36).
+
+        ``prefix`` is ``""`` for the individual member and ``"contact_"`` for an
+        organisation's contact person. The fields come from OCA
+        ``partner_contact_birthdate`` and ``partner_contact_gender``; without them
+        nothing is written. A gender derived from the salutation is not included
+        here: it only fills a blank (``_fill_gender_from_salutation``).
+        """
+        vals = {}
+        birthday = self._parse_date(payload.get(f"{prefix}birthday"))
+        if birthday:
+            vals["birthdate_date"] = birthday
+        gender = GENDER_BY_VALUE.get(str(payload.get(f"{prefix}gender") or "").strip().lower())
+        if gender:
+            vals["gender"] = gender
+        return self._filter_fields("res.partner", vals)
+
+    @api.model
+    def _fill_gender_from_salutation(self, partner, payload, prefix):
+        """Frau or Herr gives the gender when the form states none and none is set (D36)."""
+        if not partner or "gender" not in partner._fields or partner.gender:
+            return
+        salutation = str(payload.get(f"{prefix}salutation") or "").strip().lower()
+        gender = GENDER_BY_SALUTATION.get(salutation)
+        if gender:
+            partner.gender = gender
+
+    @api.model
+    def _parse_date(self, value):
+        """A form date (``Y-m-d``, or ``d.m.Y`` / ``d/m/Y``) as a date, else ``None``."""
+        value = str(value or "").strip()
+        if not value:
+            return None
+        for pattern in ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(value, pattern).date()
+            except ValueError:
+                continue
+        return None
 
     @api.model
     def _upsert_invoice_contact(self, payload, partner):
@@ -1085,8 +1142,8 @@ class MembershipWebformIntake(models.AbstractModel):
         return RelationType
 
     @api.model
-    def _ensure_chapter_relation(self, partner, chapter, warnings):
-        """Link the member to their local chapter.
+    def _ensure_chapter_relation(self, partner, chapter, warnings, date_start=False):
+        """Link the member to their local chapter, from the membership's start (16.5).
 
         Only the chapter link is created here. The "Member Of" relation to the
         association is owned by ``association_membership`` itself, which writes it
@@ -1126,12 +1183,16 @@ class MembershipWebformIntake(models.AbstractModel):
             limit=1,
         )
         if existing:
+            # A start date is only filled in; one set by staff stays.
+            if date_start and not existing.date_start:
+                existing.date_start = date_start
             return True
         Relation.create(
             {
                 "left_partner_id": partner.id,
                 "right_partner_id": chapter.id,
                 "type_id": relation_type.id,
+                "date_start": date_start,
             }
         )
         return True
@@ -1290,7 +1351,6 @@ class MembershipWebformIntake(models.AbstractModel):
             ("service_newsletter", _("Newsletter subscription")),
             ("service_website_listing", _("Listing on the website")),
             ("birth_city", _("City of birth")),
-            ("birthday", _("Birthday")),
             ("company_sector", _("Sector")),
             ("assoc_sector", _("Sector")),
             ("payment_method", _("Payment method")),
@@ -1299,6 +1359,13 @@ class MembershipWebformIntake(models.AbstractModel):
             value = payload.get(key)
             if value not in (None, "", False):
                 lines.append(f"{label}: {value}")
+
+        # Only worth recording when it did not become the birth date (16.9).
+        birthday = payload.get("birthday")
+        if birthday and not (
+            "birthdate_date" in partner._fields and self._parse_date(birthday)
+        ):
+            lines.append(f"{_('Birthday')}: {birthday}")
 
         # Field 1604 is the privacy *notice*, which has no field of its own --
         # only 2458, the agreement, maps to privacy_agreement_signed_date. This

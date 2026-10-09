@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from lxml import etree
 from psycopg2 import IntegrityError
 
 from odoo import fields
@@ -158,3 +159,10 @@ class TestEcongoodExtraFields(TransactionCase):
                 }
             )
             self.env.cr.flush()
+
+    def test_contacts_page_is_for_organisations_only(self):
+        """16.3a: individuals have no Contacts & Addresses page."""
+        arch = self.env["res.partner"].get_view(view_type="form")["arch"]
+        page = etree.fromstring(arch).xpath("//page[@name='contact_addresses']")
+        self.assertTrue(page)
+        self.assertEqual(page[0].get("invisible"), "not is_company")

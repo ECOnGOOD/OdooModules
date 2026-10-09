@@ -103,3 +103,24 @@ class ResPartner(models.Model):
             "target": "current",
             "context": {"default_partner_id": self.id},
         }
+
+    def _add_membership_companies(self, companies):
+        """Make these partners visible to `companies`, keeping the companies they have (16.7).
+
+        Only with OCA ``partner_multi_company``, whose ``company_ids`` is optional
+        here. A partner without companies is visible to every company; once it
+        has a membership it is scoped to its associations, as a signup does.
+        Without ``company_ids`` nothing is written: setting the single
+        ``company_id`` would hide the partner from every other company.
+
+        ``company_ids`` is a commercial field, so it is written on the
+        commercial partner. It is declared with ``depends_context=("uid",)``, so
+        it is read and written at one su level.
+        """
+        if "company_ids" not in self._fields or not companies:
+            return
+        for partner in self.commercial_partner_id.sudo():
+            current = set(partner.company_ids.ids)
+            wanted = current | set(companies.ids)
+            if wanted != current:
+                partner.write({"company_ids": [(6, 0, sorted(wanted))]})

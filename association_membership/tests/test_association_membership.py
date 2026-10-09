@@ -2144,3 +2144,95 @@ class TestMembershipProductDefaults(MembershipTestCommon):
             action.view_ids.filtered(lambda v: v.view_mode == "list").view_id,
             self.env.ref("association_membership.view_product_membership_list"),
         )
+
+
+class TestMembershipName(MembershipTestCommon):
+    def test_name_has_no_product_reference(self):
+        """16.4 (D38): member - product - company, without the internal reference."""
+        self.product.default_code = "MEM_TEST_IND"
+        membership = self._make_membership()
+        self.assertNotIn("MEM_TEST_IND", membership.name)
+        self.assertIn("Annual Membership", membership.name)
+        self.assertIn(self.partner.name, membership.name)
+
+    def test_tier_name_keeps_the_tier(self):
+        self.tier_small.default_code = "MEM_TEST_COMP_0001-0010"
+        membership = self._make_membership(product_id=self.tier_small.id)
+        self.assertNotIn("MEM_TEST_COMP", membership.name)
+        self.assertIn("1-10", membership.name)
+
+
+class TestMemberOfRelation(MembershipTestCommon):
+    """16.8 (D37): the "Member Of" relation follows the membership's dates."""
+
+    def setUp(self):
+        super().setUp()
+        if "res.partner.relation" not in self.env:
+            self.skipTest("partner_multi_relation is not installed")
+
+    def _relation(self):
+        return self.env["res.partner.relation"].search([
+            ("left_partner_id", "=", self.partner.id),
+            ("right_partner_id", "=", self.company.partner_id.id),
+            ("type_id", "=", self.env["membership.membership"]._get_membership_relation_type().id),
+        ])
+
+    def _active_membership(self, **overrides):
+        membership = self._make_membership(**overrides)
+        membership.action_submit()
+        membership._do_transition("active")
+        return membership
+
+    def test_cancel_sets_the_end_date_and_reactivation_clears_it(self):
+        membership = self._active_membership()
+        self.assertFalse(self._relation().date_end)
+        year_end = date(date.today().year, 12, 31)
+        membership._do_transition("cancelled", date_end=year_end, cancel_reason="left")
+        self.assertEqual(self._relation().date_end, year_end)
+        membership._do_transition("active")
+        self.assertFalse(self._relation().date_end)
+
+    def test_relation_spans_all_live_memberships(self):
+        year = date.today().year
+        later = self._active_membership(date_start=date(year, 6, 1))
+        earlier = self._active_membership(
+            product_id=self.tier_small.id, date_start=date(year, 2, 1)
+        )
+        relation = self._relation()
+        self.assertEqual(len(relation), 1)
+        self.assertEqual(relation.date_start, date(year, 2, 1))
+        # One membership ends, the other is open-ended: the relation stays open.
+        earlier._do_transition("cancelled", date_end=date(year, 12, 31), cancel_reason="left")
+        self.assertFalse(relation.date_end)
+        later._do_transition("cancelled", date_end=date(year + 1, 12, 31), cancel_reason="left")
+        self.assertEqual(relation.date_end, date(year + 1, 12, 31))
+
+    def test_manual_change_is_overwritten_by_the_next_membership_change(self):
+        membership = self._active_membership()
+        relation = self._relation()
+        relation.date_start = date(2000, 1, 1)
+        membership._do_transition("cancelled", date_end=date(date.today().year, 12, 31), cancel_reason="left")
+        self.assertEqual(relation.date_start, membership.date_start)
+
+
+class TestMembershipCompanyVisibility(MembershipTestCommon):
+    """16.7: a membership makes its member visible to its company."""
+
+    def setUp(self):
+        super().setUp()
+        if "company_ids" not in self.env["res.partner"]._fields:
+            self.skipTest("partner_multi_company is not installed")
+        self.other_company = self.env["res.company"].create({"name": "Other Association"})
+        self.env.user.company_ids |= self.other_company
+        self.partner.sudo().company_ids = [(6, 0, [self.other_company.id])]
+
+    def test_new_membership_adds_its_company(self):
+        self._make_membership()
+        self.assertEqual(
+            set(self.partner.sudo().company_ids.ids), {self.other_company.id, self.company.id}
+        )
+
+    def test_company_is_added_on_the_commercial_partner(self):
+        person = self.env["res.partner"].create({"name": "Contact", "parent_id": self.partner.id})
+        self._make_membership(partner_id=person.id)
+        self.assertIn(self.company, self.partner.sudo().company_ids)

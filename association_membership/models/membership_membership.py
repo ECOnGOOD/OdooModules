@@ -180,7 +180,8 @@ class MembershipMembership(models.Model):
         for record in self:
             parts = [
                 record.partner_id.display_name,
-                record.product_id.display_name,
+                # Without the internal reference (16.4, D38).
+                record.product_id.with_context(display_default_code=False).display_name,
                 record.company_id.display_name,
             ]
             record.name = " - ".join(part for part in parts if part)
@@ -545,6 +546,7 @@ class MembershipMembership(models.Model):
                 raise ValidationError(_("The membership number must be globally unique.")) from exc
             raise
         records._sync_optional_partner_relations()
+        records._add_partner_to_company()
         return records
 
     def unlink(self):
@@ -574,7 +576,14 @@ class MembershipMembership(models.Model):
             "date_cancelled",
         } & set(vals):
             self._sync_optional_partner_relations()
+        if {"partner_id", "company_id"} & set(vals):
+            self._add_partner_to_company()
         return result
+
+    def _add_partner_to_company(self):
+        """The member becomes visible to the membership's company (16.7)."""
+        for record in self:
+            record.partner_id._add_membership_companies(record.company_id)
 
     def _get_allowed_transitions(self):
         """The state machine (15.12).
@@ -932,8 +941,10 @@ class MembershipMembership(models.Model):
     def _sync_optional_partner_relations(self):
         if "res.partner.relation" not in self.env or "res.partner.relation.type" not in self.env:
             return
+        # The relation is bookkeeping that follows the membership: whoever may
+        # change the membership may move it, without rights on relations.
         relation_type = self._get_membership_relation_type()
-        relation_model = self.env["res.partner.relation"]
+        relation_model = self.env["res.partner.relation"].sudo()
 
         pairs = []
         for record in self:
@@ -972,6 +983,19 @@ class MembershipMembership(models.Model):
             for sib in siblings:
                 sibling_map.setdefault((sib.partner_id.id, sib.company_id.id), []).append(sib)
 
+        # The relation spans every live membership of the pair (16.8, D37): from
+        # the earliest start, open-ended while one of them has no end date.
+        live_records = self.filtered(lambda r: r.state in BUSINESS_ACTIVE_STATES)
+        live_map = {}
+        if live_records:
+            for live in self.search([
+                ("partner_id", "in", live_records.partner_id.ids),
+                ("company_id", "in", live_records.company_id.ids),
+                ("state", "in", BUSINESS_ACTIVE_STATES),
+            ]):
+                key = (live.partner_id.id, live.company_id.id)
+                live_map[key] = live_map.get(key, self.browse()) | live
+
         relations_to_create = []
         created_pairs = set()
 
@@ -984,12 +1008,15 @@ class MembershipMembership(models.Model):
             relation = relation_map.get(pair_key)
 
             if record.state in BUSINESS_ACTIVE_STATES:
+                live = live_map.get((record.partner_id.id, record.company_id.id), record)
+                starts = [day for day in live.mapped("date_start") if day]
+                ends = live.mapped("date_end")
                 values = {
                     "left_partner_id": record.partner_id.id,
                     "right_partner_id": company_partner.id,
                     "type_id": relation_type.id,
-                    "date_start": record.date_start,
-                    "date_end": False,
+                    "date_start": min(starts) if starts else False,
+                    "date_end": max(ends) if all(ends) else False,
                 }
                 if relation:
                     relation.write(values)
@@ -1020,13 +1047,14 @@ class MembershipMembership(models.Model):
     def _get_membership_relation_type(self):
         if "res.partner.relation.type" not in self.env:
             return self.env["res.partner.relation.type"]
-        relation_type = self.env["res.partner.relation.type"].search(
+        RelationType = self.env["res.partner.relation.type"].sudo()
+        relation_type = RelationType.search(
             [("name", "=", "Member Of"), ("name_inverse", "=", "Has Member")],
             limit=1,
         )
         if relation_type:
             return relation_type
-        return self.env["res.partner.relation.type"].create(
+        return RelationType.create(
             {
                 "name": "Member Of",
                 "name_inverse": "Has Member",

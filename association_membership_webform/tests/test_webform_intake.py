@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from unittest.mock import patch
 
 from odoo import fields
@@ -399,6 +400,27 @@ class TestChapterRelation(WebformTestCommon):
         result = self.intake.process(payload)
         self.intake.process(payload)
         self.assertEqual(len(self._relations(result["partner_id"])), 1)
+
+    def test_the_relation_starts_with_the_membership(self):
+        """16.5: the chapter relation gets the membership's start date."""
+        if not self.has_relations:
+            self.skipTest("partner_multi_relation is not installed")
+        result = self.intake.process(
+            self._individual_payload(econ_local_chapter="Hamburg")
+        )
+        membership = self.env["membership.membership"].browse(result["membership_id"])
+        self.assertTrue(membership.date_start)
+        self.assertEqual(self._relations(result["partner_id"]).date_start, membership.date_start)
+
+    def test_a_start_date_set_by_staff_is_kept(self):
+        if not self.has_relations:
+            self.skipTest("partner_multi_relation is not installed")
+        payload = self._individual_payload(econ_local_chapter="Hamburg")
+        result = self.intake.process(payload)
+        relation = self._relations(result["partner_id"])
+        relation.date_start = date(2020, 5, 1)
+        self.intake.process(payload)
+        self.assertEqual(relation.date_start, date(2020, 5, 1))
 
     def test_without_the_module_it_warns_instead_of_failing(self):
         if self.has_relations:
@@ -1129,3 +1151,51 @@ class TestWebformEndpoint(WebformFixtureMixin, HttpCase):
         self.assertFalse(
             self.env["res.partner"].search([("email", "=ilike", "ghost@example.org")])
         )
+
+
+class TestBirthDateAndGender(WebformTestCommon):
+    """16.9 (D36): birth date and gender reach the person's fields."""
+
+    def _partner(self, result):
+        return self.env["res.partner"].browse(result["partner_id"])
+
+    def test_individual_gets_birth_date_and_gender_from_salutation(self):
+        result = self.intake.process(
+            self._individual_payload(birthday="1980-04-15", salutation="Frau")
+        )
+        partner = self._partner(result)
+        self.assertEqual(partner.birthdate_date, date(1980, 4, 15))
+        self.assertEqual(partner.gender, "female")
+
+    def test_an_explicit_gender_wins_over_the_salutation(self):
+        result = self.intake.process(
+            self._individual_payload(salutation="Herr", gender="divers")
+        )
+        self.assertEqual(self._partner(result).gender, "other")
+
+    def test_an_unknown_salutation_leaves_the_gender_empty(self):
+        result = self.intake.process(self._individual_payload(salutation="Hallo"))
+        self.assertFalse(self._partner(result).gender)
+
+    def test_a_gender_set_by_staff_is_not_overwritten_by_the_salutation(self):
+        payload = self._individual_payload(salutation="Herr")
+        partner = self._partner(self.intake.process(payload))
+        partner.gender = "other"
+        self.intake.process(payload)
+        self.assertEqual(partner.gender, "other")
+
+    def test_contact_person_gets_birth_date_and_gender(self):
+        result = self.intake.process(
+            self._company_payload(contact_birthday="02.03.1975", contact_salutation="Herr")
+        )
+        contact = self._partner(result).child_ids.filtered(lambda c: c.type == "contact")
+        self.assertEqual(contact.birthdate_date, date(1975, 3, 2))
+        self.assertEqual(contact.gender, "male")
+
+    def test_a_parsed_birthday_leaves_the_note_and_an_unreadable_one_stays(self):
+        partner = self._partner(self.intake.process(self._individual_payload(birthday="1980-04-15")))
+        self.assertFalse(partner.message_ids.filtered(lambda m: "1980-04-15" in (m.body or "")))
+        other = self._partner(self.intake.process(self._individual_payload(
+            entry_id="5099", email="other@example.com", first_name="Other", birthday="sometime",
+        )))
+        self.assertTrue(other.message_ids.filtered(lambda m: "sometime" in (m.body or "")))

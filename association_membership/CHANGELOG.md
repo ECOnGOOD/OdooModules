@@ -1,5 +1,33 @@
 # Changelog
 
+## 18.0.6.7.0 — membership and partner consistency (WP17)
+
+- **Membership names without the product reference (16.4, D38).** A name is member –
+  product – company, and the product no longer brings its `[MEM_…]` reference. The
+  migration recomputes existing names.
+- **"Member Of" follows the membership (16.8, D37).** The relation spans every live
+  membership of the member with that association: it starts with the earliest one and
+  ends when the last one ends, so a cancelled membership's relation now carries its end
+  date. Manual changes to the relation are overwritten on the next membership change.
+  The migration re-syncs the relations of active and cancelled memberships.
+- **The relation sync runs as superuser.** A membership manager without rights on
+  relation types could not create a membership while the "Member Of" type did not exist
+  yet (found once `partner_multi_relation` was installed in the test database).
+- **A membership makes its member visible to its company (16.7).** With OCA
+  `partner_multi_company`, the membership's company is added to the commercial partner's
+  companies on create and when member or company change; companies are only ever added.
+  Without that module nothing is written. Existing memberships are not touched.
+  `res.partner._add_membership_companies` is the one helper; the webform uses it as well.
+
+Elsewhere in the same work package:
+- `association_membership_webform` 18.0.1.3.0: birth date and gender of the individual and of
+  the contact person (16.9, D36); the local chapter relation starts on the membership's
+  start date (16.5).
+- `econgood_extra_fields` 18.0.2.11.0: "Contacts & Addresses" only for organisations
+  (16.3a).
+- Importer: local chapter relations get the member's join date, also on existing
+  relations without a start date (16.5).
+
 ## 18.0.6.6.1 — membership products with `product_multi_company`
 
 - **Membership products no longer sort or group by company.** With OCA

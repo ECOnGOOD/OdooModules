@@ -15,6 +15,11 @@
                 <attribute name="groups">base.group_system</attribute>
             </xpath>
 
+            <!-- Individuals have no contacts or addresses of their own (16.3a) -->
+            <xpath expr="//page[@name='contact_addresses']" position="attributes">
+                <attribute name="invisible">not is_company</attribute>
+            </xpath>
+
             <xpath expr="//field[@name='partner_company_type_id']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
