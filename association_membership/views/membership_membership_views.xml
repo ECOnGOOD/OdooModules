@@ -209,6 +209,7 @@
                             name="action_view_invoices"
                             string="Invoices"
                             type="object"
+                            groups="account.group_account_invoice,account.group_account_readonly"
                             class="oe_stat_button"
                             icon="fa-file-text-o"
                         />

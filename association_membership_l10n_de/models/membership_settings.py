@@ -1,8 +1,8 @@
 from odoo import fields, models
 
 
-class ResConfigSettings(models.TransientModel):
-    _inherit = "res.config.settings"
+class MembershipSettings(models.TransientModel):
+    _inherit = "membership.settings"
 
     de_finanzamt_name = fields.Char(
         related="company_id.de_finanzamt_name",

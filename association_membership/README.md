@@ -231,7 +231,7 @@ Neither the creator of a membership nor the sender of a welcome or cancellation 
 
 ## Configuration (per company)
 
-`Settings > Membership`. The settings apply to the company selected in the company switcher (shown at the top of the page in multi-company); a membership follows the settings of its own company.
+`Members > Configuration > Association Settings` (`membership.settings`, for Membership Managers). The settings apply to the company selected in the company switcher; a membership follows the settings of its own company. The same form holds the association's address, email, phone, logo, document layout and default invoice terms; name, country, tax ID and registry stay with administrators (General Settings / company form).
 
 | Setting | Field | Default |
 | --- | --- | --- |
@@ -259,10 +259,11 @@ The **Members** menu opens the per-membership kanban (one card per membership re
 
 | Group | Can |
 | --- | --- |
-| `group_membership_manager` | full CRUD on memberships and periods, run wizards, edit settings |
-| `group_membership_viewer` | read-only memberships and periods, incl. on partner forms |
+| `group_membership_viewer` | read memberships and periods (on partner forms too), open the Members app and its reports |
+| `group_membership_manager` | create and change memberships and periods, run the wizards, membership products, the Association Settings; delete a membership only while it is an empty draft |
+| `base.group_system` | additionally delete periods |
 
-Creating invoices and tax receipts additionally needs the accounting rights of `account` / `donation_base`.
+Creating invoices and tax receipts additionally needs the accounting rights of `account` / `donation_base`; "Create Invoice" and the invoice links are shown only to users with them. Record visibility follows the user's allowed companies. How these groups are bundled into roles: `docs/membership/roles_and_views.md` in the main repository.
 
 ## Dependencies
 

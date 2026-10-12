@@ -73,6 +73,7 @@
                     <button
                         name="action_create_invoice"
                         type="object"
+                        groups="account.group_account_invoice"
                         string="Create Invoice"
                         class="oe_highlight"
                         invisible="is_free or invoice_id or refund_move_id or billing_status != 'to_invoice'"
@@ -80,12 +81,14 @@
                     <button
                         name="action_mark_as_paid"
                         type="object"
+                        groups="association_membership.group_membership_manager"
                         string="Mark as Paid"
                         invisible="invoice_id or billing_status == 'paid' or membership_invoicing_strategy != 'manual'"
                     />
                     <button
                         name="action_unmark_as_paid"
                         type="object"
+                        groups="association_membership.group_membership_manager"
                         string="Unmark as Paid"
                         confirm="Undo the recorded payment for this period?"
                         invisible="invoice_id or billing_status != 'paid' or membership_invoicing_strategy != 'manual'"
@@ -157,6 +160,7 @@
         <field name="name">Mark as Paid</field>
         <field name="model_id" ref="association_membership.model_membership_period" />
         <field name="binding_model_id" ref="association_membership.model_membership_period" />
+        <field name="groups_id" eval="[(4, ref('association_membership.group_membership_manager'))]" />
         <field name="state">code</field>
         <field name="code">records.filtered(lambda period: not period.invoice_id).action_mark_as_paid()</field>
     </record>
@@ -165,6 +169,7 @@
         <field name="name">Create Invoice</field>
         <field name="model_id" ref="association_membership.model_membership_period" />
         <field name="binding_model_id" ref="association_membership.model_membership_period" />
+        <field name="groups_id" eval="[(4, ref('account.group_account_invoice'))]" />
         <field name="state">code</field>
         <field name="code">action = records.filtered(lambda period: period.billing_status == 'to_invoice' and not period.is_free and not period.invoice_id).action_create_invoice()</field>
     </record>

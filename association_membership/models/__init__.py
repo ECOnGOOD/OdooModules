@@ -7,4 +7,4 @@ from . import account_partial_reconcile  # noqa: F401
 from . import account_move_line  # noqa: F401
 from . import donation_tax_receipt  # noqa: F401
 from . import res_company  # noqa: F401
-from . import res_config_settings  # noqa: F401
+from . import membership_settings  # noqa: F401

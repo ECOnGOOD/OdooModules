@@ -22,16 +22,19 @@ class ResPartner(models.Model):
     # Organization classification
     is_econgood_ou = fields.Boolean(
         string="ECOnGOOD OU",
+        tracking=True,
         help="Enable this for ECOnGOOD organizational units such as national, regional, local chapter, or hub records.",
         default=False,
     )
     organization_kind_id = fields.Many2one(
         comodel_name="res.partner.organization.kind",
         string="Organization Kind",
+        tracking=True,
     )
     ou_type_id = fields.Many2one(
         comodel_name="res.partner.ou.type",
         string="OU Type",
+        tracking=True,
     )
     nonprofit_status = fields.Selection(
         selection=[
@@ -41,16 +44,12 @@ class ResPartner(models.Model):
         ],
         string="Nonprofit Status",
         default="unknown",
+        tracking=True,
         required=True,
     )
 
     is_municipality = fields.Boolean(
         compute="_compute_is_municipality",
-        store=False,
-    )
-
-    is_admin_user = fields.Boolean(
-        compute="_compute_is_admin_user",
         store=False,
     )
 
@@ -95,11 +94,6 @@ class ResPartner(models.Model):
                 partner.organization_kind_id 
                 and partner.organization_kind_id.code == "municipality_public_body"
             )
-
-    def _compute_is_admin_user(self):
-        is_admin = self.env.user.has_group("base.group_system")
-        for partner in self:
-            partner.is_admin_user = is_admin
 
     @api.constrains("employee_count", "inhabitant_count")
     def _check_non_negative_counts(self):

@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- The association's own settings, for Membership Managers (D59). Name, country,
+         tax ID and registry stay with administrators. -->
+    <record id="view_membership_settings_form" model="ir.ui.view">
+        <field name="name">membership.settings.form</field>
+        <field name="model">membership.settings</field>
+        <field name="arch" type="xml">
+            <form string="Association Settings">
+                <!-- A header, not a footer: the form opens full-page, where footers are not shown. -->
+                <header>
+                    <button name="action_save" string="Save" type="object" class="btn-primary" />
+                </header>
+                <sheet>
+                    <!-- In the view so that the related fields load for this company. -->
+                    <field name="company_id" invisible="1" />
+                    <field name="logo" widget="image" class="oe_avatar" />
+                    <div class="oe_title">
+                        <h1><field name="company_name" readonly="1" /></h1>
+                        <!-- Settings apply to the company selected in the switcher, not to all (15.10). -->
+                        <div class="text-muted">These settings apply to this association only: the company selected in the company switcher.</div>
+                    </div>
+                    <notebook>
+                        <page string="Association" name="association">
+                            <group>
+                                <group string="Address">
+                                    <field name="street" />
+                                    <field name="street2" />
+                                    <field name="zip" />
+                                    <field name="city" />
+                                    <field
+                                        name="state_id"
+                                        domain="[('country_id', '=', company_country_id)]"
+                                        options="{'no_create': True}"
+                                    />
+                                    <field name="company_country_id" readonly="1" />
+                                </group>
+                                <group string="Contact">
+                                    <field name="email" widget="email" />
+                                    <field name="phone" widget="phone" />
+                                </group>
+                            </group>
+                            <div class="text-muted">The name, country, tax ID and company registry are changed by an administrator: signups find the association by its name, and German receipts follow the country.</div>
+                        </page>
+                        <page string="Membership" name="membership">
+                            <group>
+                                <group string="Membership">
+                                    <field
+                                        name="membership_company_mail_recipients"
+                                        string="Email Recipients for Organisation Members"
+                                        help="Who receives welcome and cancellation emails of organisation members. Individuals always receive their own emails. The contact person is the one set on the organisation, or the organisation itself."
+                                    />
+                                    <field
+                                        name="membership_default_period_year"
+                                        string="Period Year Override"
+                                        options="{'enable_formatting': false}"
+                                        placeholder="e.g. 2027 (0 = current year)"
+                                        help="Leave at 0 to always use the current year. Set a future year to default new periods to that year, e.g. for early renewals."
+                                    />
+                                    <field
+                                        name="membership_invoicing_strategy"
+                                        string="Invoicing Strategy"
+                                        help="Default for new memberships; a membership may override it. Manual: no invoice is created automatically - record payments with &quot;Mark as Paid&quot;, or create an invoice by hand when one is needed. Draft: activation and renewal create a draft invoice. Confirm: activation and renewal create and post the invoice."
+                                    />
+                                </group>
+                                <group string="Member Numbers">
+                                    <field
+                                        name="member_number_own_sequence"
+                                        string="Own Member Numbering"
+                                        help="Off (recommended): the default numbering, one counter shared by all companies, so numbers cannot collide. On: this company numbers on its own, starting where the default counter stands; its prefix must differ from every other company's."
+                                    />
+                                    <field
+                                        name="member_number_prefix"
+                                        readonly="not member_number_own_sequence"
+                                        help="Placeholders in prefix and suffix: %%(year)s, %%(y)s, %%(month)s, %%(day)s. The default format is changed by an administrator on its sequence (Technical → Sequences)."
+                                    />
+                                    <field name="member_number_suffix" readonly="not member_number_own_sequence" />
+                                    <field name="member_number_padding" readonly="not member_number_own_sequence" />
+                                    <field name="member_number_next" readonly="not member_number_own_sequence" />
+                                    <field name="member_number_preview" />
+                                </group>
+                            </group>
+                            <group string="Communications">
+                                <group>
+                                    <field
+                                        name="membership_activation_invoice_template_id"
+                                        string="Activation Invoice Email Template"
+                                        domain="[('model', '=', 'account.move')]"
+                                        invisible="membership_invoicing_strategy == 'manual'"
+                                        help="Used when an activation sends the membership invoice. Not used while the invoicing strategy is Manual."
+                                    />
+                                    <field
+                                        name="membership_welcome_template_id"
+                                        string="Welcome Email Template"
+                                        domain="[('model', '=', 'membership.membership')]"
+                                    />
+                                    <field
+                                        name="membership_cancellation_template_id"
+                                        string="Cancellation Email Template"
+                                        domain="[('model', '=', 'membership.membership')]"
+                                    />
+                                    <field
+                                        name="membership_tax_receipt_template_id"
+                                        string="Tax Receipt Email Template"
+                                        domain="[('model', '=', 'donation.tax.receipt')]"
+                                        help="Used when tax receipts are sent, one at a time or several from the list. Empty: the default template (the Zuwendungsbestätigung for German companies, when installed)."
+                                    />
+                                </group>
+                                <group>
+                                    <!-- Optional; empty means the general template (D30). -->
+                                    <field
+                                        name="membership_activation_invoice_org_template_id"
+                                        string="Activation Invoice (Organisations)"
+                                        domain="[('model', '=', 'account.move')]"
+                                        invisible="membership_invoicing_strategy == 'manual'"
+                                        help="Optional. When set, organisation members get these instead of the general templates; empty means the general template. A single template can also differ by member type with sections like t-if=&quot;object.partner_id.is_company&quot;."
+                                    />
+                                    <field
+                                        name="membership_welcome_org_template_id"
+                                        string="Welcome (Organisations)"
+                                        domain="[('model', '=', 'membership.membership')]"
+                                    />
+                                    <field
+                                        name="membership_cancellation_org_template_id"
+                                        string="Cancellation (Organisations)"
+                                        domain="[('model', '=', 'membership.membership')]"
+                                    />
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Invoices &amp; Documents" name="documents">
+                            <group>
+                                <group string="Layout">
+                                    <field name="external_report_layout_id" string="Document Layout" options="{'no_create': True, 'no_open': True}" />
+                                    <field name="font" />
+                                    <field name="primary_color" widget="color" />
+                                    <field name="secondary_color" widget="color" />
+                                    <field name="layout_background" widget="radio" />
+                                    <field
+                                        name="layout_background_image"
+                                        widget="image"
+                                        invisible="layout_background != 'Custom'"
+                                    />
+                                </group>
+                                <group string="Header and Footer">
+                                    <field name="report_header" string="Tagline" />
+                                    <field name="company_details" />
+                                    <field name="report_footer" string="Footer" />
+                                </group>
+                            </group>
+                            <group string="Default Terms on Invoices">
+                                <field name="terms_type" widget="radio" />
+                                <field name="invoice_terms" invisible="terms_type != 'plain'" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_membership_settings" model="ir.actions.act_window">
+        <field name="name">Association Settings</field>
+        <field name="res_model">membership.settings</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+        <field name="context">{}</field>
+    </record>
+</odoo>

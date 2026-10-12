@@ -10,9 +10,9 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Hide Sales & Purchase for non-admins -->
+            <!-- Sales & Purchase only for accountants and administrators (roles concept) -->
             <xpath expr="//page[@name='sales_purchases']" position="attributes">
-                <attribute name="groups">base.group_system</attribute>
+                <attribute name="groups">account.group_account_manager,base.group_system</attribute>
             </xpath>
 
             <!-- Individuals have no contacts or addresses of their own (16.3a) -->
@@ -26,20 +26,24 @@
 
             <!-- Organisation fields in their own labelled group: inserted after the
                  Tax ID they lost their labels. The OU flag and OU type are set by
-                 administrators; others only see them once they are set. -->
+                 administrators; others see them read-only, and only once they are set
+                 (each field twice, split by groups). -->
             <xpath expr="//sheet/notebook" position="before">
                 <group name="econgood_organisation" string="Organisation" invisible="not is_company">
                     <group>
-                        <field name="is_admin_user" invisible="1"/>
+                        <field name="is_econgood_ou" groups="base.group_system"/>
                         <field
                             name="is_econgood_ou"
-                            readonly="not is_admin_user"
-                            invisible="not is_admin_user and not is_econgood_ou"
+                            groups="!base.group_system"
+                            readonly="1"
+                            invisible="not is_econgood_ou"
                         />
+                        <field name="ou_type_id" groups="base.group_system" invisible="not is_econgood_ou"/>
                         <field
                             name="ou_type_id"
-                            readonly="not is_admin_user"
-                            invisible="not is_econgood_ou or (not is_admin_user and not ou_type_id)"
+                            groups="!base.group_system"
+                            readonly="1"
+                            invisible="not is_econgood_ou or not ou_type_id"
                         />
                         <field name="organization_kind_id" invisible="is_econgood_ou"/>
                     </group>
@@ -68,7 +72,6 @@
                     <group string="Sales" name="sale">
                         <field name="user_id"/>
                         <field name="property_payment_term_id"/>
-                        <field name="customer_payment_mode_id"/>
                     </group>
                     <group string="Fiscal Information" name="fiscal_information">
                         <field name="property_account_position_id"/>
@@ -95,8 +98,13 @@
 
                         <group string="Misc">
                             <field name="ref"/>
+                            <!-- Here, not under Accounting: membership staff record the
+                                 member's choice without accounting rights. -->
+                            <field name="customer_payment_mode_id"/>
                             <field name="company_registry" invisible="not is_company"/>
-                            <field name="company_ids" widget="many2many_tags" groups="base.group_multi_company" options="{'no_create': True}"/>
+                            <!-- Administrators only: an edit could drop another association's access (D54). -->
+                            <field name="company_ids" widget="many2many_tags" groups="base.group_system" options="{'no_create': True}"/>
+                            <field name="company_ids" widget="many2many_tags" groups="base.group_multi_company,!base.group_system" readonly="1"/>
                             <field name="industry_id" invisible="not is_company"/>
                             <field name="legacy_id_smartwe"/>
                             <field name="legacy_id_formidable"/>

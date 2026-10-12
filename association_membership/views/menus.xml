@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <!-- The app starts from the members (15.15). -->
+    <!-- The app starts from the members (15.15). Viewers get the read menus;
+         configuration, including the association's settings (D59), is for
+         managers (docs/membership/roles_and_views.md). -->
     <menuitem
         id="menu_membership_root"
         name="Members"
         action="association_membership.action_membership_members"
         web_icon="association_membership,static/description/icon.png"
         sequence="40"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -16,7 +18,7 @@
         parent="association_membership.menu_membership_root"
         action="association_membership.action_membership_members"
         sequence="5"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -25,7 +27,7 @@
         parent="association_membership.menu_membership_root"
         action="association_membership.action_members_overview"
         sequence="10"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -34,7 +36,7 @@
         parent="association_membership.menu_membership_root"
         action="association_membership.action_membership_period_default_year"
         sequence="20"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -42,7 +44,7 @@
         name="Reporting"
         parent="association_membership.menu_membership_root"
         sequence="30"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -51,7 +53,7 @@
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_current_memberships"
         sequence="10"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -60,7 +62,7 @@
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_unpaid_memberships"
         sequence="20"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -69,7 +71,7 @@
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_period_history"
         sequence="30"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -78,7 +80,7 @@
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_renewal_candidates"
         sequence="40"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -87,7 +89,7 @@
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_cancellations"
         sequence="50"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
     <menuitem
         id="menu_membership_report_former_members"
@@ -95,7 +97,7 @@
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_former_members"
         sequence="55"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -104,7 +106,7 @@
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_new_members"
         sequence="60"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <menuitem
@@ -113,7 +115,7 @@
         parent="association_membership.menu_membership_reporting"
         action="association_membership.action_report_company_member_list"
         sequence="70"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 
     <!-- donation_base ships the actions but no menus. -->
@@ -159,7 +161,7 @@
 
     <menuitem
         id="menu_membership_settings"
-        name="Settings"
+        name="Association Settings"
         parent="association_membership.menu_membership_configuration"
         action="association_membership.action_membership_settings"
         sequence="10"

@@ -8,7 +8,7 @@ Adds a legally-formatted German `Zuwendungsbestätigung` PDF report on top of OC
 - For companies in Germany (country of the company's address), the Zuwendungsbestätigung is the default: *Print Receipts* prints it, and the email template "Zuwendungsbestätigung: per E-Mail senden" (German text, PDF attached) is used when receipts are sent, unless the company picks another template in the settings.
 - Renders the BMF-compliant German layout: issuer, donor, amount in numbers + words, day of donation, waiver flag, charitable purpose, Finanzamt and tax-number reference, signature block.
 - Annual receipts (type "Annual") print as **Sammelbestätigung**: total amount, period, the statement that no further receipts were or will be issued for the contained amounts, and an **Anlage** listing each period (payment date, Mitgliedsbeitrag, waiver "nein", amount). The rows come from the periods linked to the receipt.
-- Adds per-company configuration in `Settings > Membership > Zuwendungsbestätigung (DE)`:
+- Adds per-company configuration in `Members > Configuration > Association Settings`, page *Zuwendungsbestätigung (DE)*:
   - Finanzamt name
   - Steuernummer
   - Date and assessment period of the latest Freistellungsbescheid

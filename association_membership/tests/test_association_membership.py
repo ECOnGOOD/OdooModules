@@ -1,9 +1,9 @@
 import importlib.util
 from datetime import date
 
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.modules.module import get_module_path
-from odoo.tests import TransactionCase
+from odoo.tests import TransactionCase, new_test_user
 from odoo.tools.safe_eval import safe_eval
 
 
@@ -792,9 +792,8 @@ class TestMembershipPeriodYear(MembershipTestCommon):
     def test_settings_year_can_be_cleared(self):
         # The Char shadow field is gone: settings edit the integer directly.
         self.company.membership_default_period_year = date.today().year + 2
-        settings = self.env["res.config.settings"].create({})
+        settings = self.env["membership.settings"].create({})
         settings.membership_default_period_year = 0
-        settings.execute()
         self.assertEqual(self.company.membership_default_period_year, 0)
         self.assertEqual(self.company._membership_period_year(), date.today().year)
 
@@ -823,7 +822,7 @@ class TestMembershipPeriodYear(MembershipTestCommon):
         self.assertNotIn("membership_year_display", period_fields)
         self.assertNotIn(
             "membership_default_period_year_text",
-            self.env["res.config.settings"]._fields,
+            self.env["membership.settings"]._fields,
         )
 
 
@@ -927,7 +926,7 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
 
     def test_settings_member_number_preview(self):
         sequence = self.company._get_membership_number_sequence()
-        settings = self.env["res.config.settings"].create({})
+        settings = self.env["membership.settings"].create({})
         expected = "MEM/%d/%s" % (
             date.today().year,
             str(sequence.number_next_actual).zfill(5),
@@ -936,31 +935,29 @@ class TestMembershipDefaultTemplates(MembershipTestCommon):
 
     def test_settings_edit_the_own_format_only(self):
         default = self.company._default_membership_number_sequence()
-        settings = self.env["res.config.settings"].create({
+        settings = self.env["membership.settings"].create({
             "member_number_prefix": "IGNORED/",
         })
-        settings.execute()
         self.assertEqual(default.prefix, "MEM/%(year)s/")
-        settings = self.env["res.config.settings"].create({
+        settings = self.env["membership.settings"].create({
             "member_number_own_sequence": True,
             "member_number_prefix": "OWN/",
             "member_number_padding": 3,
         })
-        settings.execute()
         own = self.company._get_membership_number_sequence()
         self.assertEqual(own.company_id, self.company)
         self.assertEqual((own.prefix, own.padding), ("OWN/", 3))
         self.assertEqual(default.prefix, "MEM/%(year)s/")
 
     def test_settings_next_number_follows_the_shared_counter_while_sharing(self):
-        settings = self.env["res.config.settings"].create({})
+        settings = self.env["membership.settings"].create({})
         shared = self.company._default_membership_number_sequence()
         self.assertFalse(shared.company_id)
         self.assertEqual(settings.member_number_next, shared.number_next_actual)
 
     def test_settings_next_number_follows_the_own_counter_when_opted_in(self):
         self.company.member_number_own_sequence = True
-        settings = self.env["res.config.settings"].create({})
+        settings = self.env["membership.settings"].create({})
         own = self.company._get_membership_number_sequence()
         self.assertEqual(own.company_id, self.company)
         self.assertEqual(settings.member_number_next, own.number_next_actual)
@@ -2236,3 +2233,108 @@ class TestMembershipCompanyVisibility(MembershipTestCommon):
         person = self.env["res.partner"].create({"name": "Contact", "parent_id": self.partner.id})
         self._make_membership(partner_id=person.id)
         self.assertIn(self.company, self.partner.sudo().company_ids)
+
+
+class TestMembershipAccess(MembershipTestCommon):
+    """Roles concept (docs/membership/roles_and_views.md)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.viewer = new_test_user(
+            cls.env, login="membership_viewer", groups="association_membership.group_membership_viewer"
+        )
+        cls.manager = new_test_user(
+            cls.env,
+            login="membership_manager",
+            groups="association_membership.group_membership_manager,base.group_partner_manager",
+        )
+        cls.admin = new_test_user(
+            cls.env,
+            login="membership_admin",
+            groups="base.group_system,association_membership.group_membership_manager",
+        )
+
+    def test_viewer_reads_but_does_not_write(self):
+        membership = self._make_membership()
+        self.assertEqual(membership.with_user(self.viewer).read(["state"])[0]["state"], "draft")
+        with self.assertRaises(AccessError):
+            membership.with_user(self.viewer).write({"date_end": date(date.today().year, 12, 31)})
+
+    def test_viewer_sees_the_read_menus(self):
+        visible = self.env["ir.ui.menu"].with_user(self.viewer)._visible_menu_ids()
+        for xmlid in (
+            "association_membership.menu_membership_root",
+            "association_membership.menu_membership_memberships",
+            "association_membership.menu_membership_periods",
+            "association_membership.menu_membership_reporting",
+        ):
+            self.assertIn(self.env.ref(xmlid).id, visible, xmlid)
+        self.assertNotIn(
+            self.env.ref("association_membership.menu_membership_configuration").id, visible
+        )
+
+    def test_settings_are_for_managers(self):
+        """D59: managers change their association's settings."""
+        settings = self.env.ref("association_membership.menu_membership_settings").id
+        self.assertIn(settings, self.env["ir.ui.menu"].with_user(self.manager)._visible_menu_ids())
+        self.assertNotIn(settings, self.env["ir.ui.menu"].with_user(self.viewer)._visible_menu_ids())
+
+    def test_manager_saves_the_association_settings(self):
+        """The form writes exactly its company fields, without company write rights."""
+        self.manager.company_ids = [(4, self.company.id)]
+        self.manager.company_id = self.company
+        self.env["membership.settings"].with_user(self.manager).create({
+            "membership_company_mail_recipients": "invoice_contact",
+            "city": "Musterstadt",
+            "report_footer": "<p>Footer text</p>",
+        })
+        self.assertEqual(self.company.membership_company_mail_recipients, "invoice_contact")
+        self.assertEqual(self.company.city, "Musterstadt")
+        self.assertIn("Footer text", self.company.report_footer)
+
+    def test_settings_keep_name_country_and_identifiers_away(self):
+        """Name, country, tax ID and registry stay with administrators (D59)."""
+        fields_ = self.env["membership.settings"]._fields
+        self.assertTrue(fields_["company_name"].readonly)
+        self.assertTrue(fields_["company_country_id"].readonly)
+        for name in ("name", "country_id", "vat", "company_registry"):
+            self.assertNotIn(name, fields_)
+
+    def test_settings_refuse_another_company(self):
+        other = self.env["res.company"].create({"name": "Other Association"})
+        with self.assertRaises(AccessError):
+            self.env["membership.settings"].with_user(self.manager).create({
+                "company_id": other.id,
+                "city": "Elsewhere",
+            })
+        self.assertFalse(other.city)
+
+    def test_viewer_cannot_change_settings(self):
+        with self.assertRaises(AccessError):
+            self.env["membership.settings"].with_user(self.viewer).create({"city": "Nowhere"})
+
+    def test_manager_deletes_an_empty_draft_but_no_period(self):
+        """D54 as amended: the code already limits deletion to empty drafts."""
+        self._make_membership().with_user(self.manager).unlink()
+        period = self._make_period(self._make_membership())
+        with self.assertRaises(AccessError):
+            period.with_user(self.manager).unlink()
+        period.with_user(self.admin).unlink()
+
+    def test_regional_user_sees_only_its_company(self):
+        """Scope = allowed companies (D47, D52)."""
+        region = self.env["res.company"].create({"name": "Regional Association"})
+        regional_manager = new_test_user(
+            self.env,
+            login="regional_manager",
+            groups="association_membership.group_membership_manager",
+            company_id=region.id,
+            company_ids=[(6, 0, region.ids)],
+        )
+        national = self._make_membership()
+        regional = self._make_membership(company_id=region.id)
+        visible = self.env["membership.membership"].with_user(regional_manager).search(
+            [("id", "in", (national | regional).ids)]
+        )
+        self.assertEqual(visible, regional)

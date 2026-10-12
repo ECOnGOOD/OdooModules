@@ -70,6 +70,6 @@
         parent="association_membership.menu_membership_reporting"
         action="econgood_chapter_member_report_action"
         sequence="80"
-        groups="association_membership.group_membership_manager"
+        groups="association_membership.group_membership_viewer"
     />
 </odoo>

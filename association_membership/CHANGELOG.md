@@ -1,5 +1,38 @@
 # Changelog
 
+## 18.0.6.8.0 — roles and access (WP20)
+
+Concept: `docs/membership/roles_and_views.md` (D47–D59).
+
+- **Viewers get the Members app.** The Members, Memberships, Periods and Reporting menus are
+  open to Membership Viewer (they were manager-only); Configuration stays with managers.
+  The "Local Chapter Members" report follows (`econgood_relationships` 18.0.1.1.0).
+- **Association Settings for managers (D59).** The Membership block leaves General Settings
+  (which only administrators can save) for a form of its own, `membership.settings`, under
+  Members > Configuration > Association Settings. Besides the membership settings it holds
+  the association's address, email, phone, logo, document layout and default invoice terms;
+  `association_membership_l10n_de` 18.0.2.2.0 adds its German receipt data as a page. The
+  form writes exactly these company fields as superuser, limited by its access row and the
+  user's allowed companies. Name, country, tax ID and registry stay with administrators. The
+  managers' access row on `res.config.settings` and the `account_peppol_migration_key`
+  workaround field are gone; with it the "Access Rights Inconsistency" warning on upgrade
+  (15.44).
+- **Periods are deleted by administrators only (D58).** Managers keep deleting a membership
+  while it is an empty draft (the existing code guard).
+- **Accounting buttons for accounting users.** "Create Invoice" (button and list action)
+  needs Billing rights, the Invoices button on the membership needs accounting read rights;
+  "Mark as Paid" and "Unmark as Paid" need Membership Manager.
+- `econgood_extra_fields` 18.0.2.12.0: Sales & Purchase is shown to accountants and
+  administrators (was administrators only); Payment Method moves to Additional Information,
+  so membership staff record it without accounting rights; `company_ids` is read-only for
+  non-administrators (D54); the OU flag, OU type, organisation kind and nonprofit status are
+  tracked in the chatter (17.3); the computed `is_admin_user` flag is gone: administrator-only
+  fields appear twice in the view, editable with `groups="base.group_system"` and read-only
+  with `groups="!base.group_system"`.
+- Roles (OCA `base_user_role`) are created by the bootstrap (`ensure_user_roles`);
+  `scripts/create_role_users.py` creates local test users per role and scope, and
+  `tests/roles.spec.ts` checks the partner form and menus per role in the browser (15.46).
+
 ## WP18 and WP19 — addresses, language, local chapter report (this module unchanged)
 
 - `association_membership_webform` 18.0.1.4.0: a new member gets its association's default
