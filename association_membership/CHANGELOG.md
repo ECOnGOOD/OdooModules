@@ -1,5 +1,20 @@
 # Changelog
 
+## WP18 and WP19 — addresses, language, local chapter report (this module unchanged)
+
+- `association_membership_webform` 18.0.1.4.0: a new member gets its association's default
+  language through the company default (D46); an optional `lang` key (`de_DE` or `de`) sets
+  the member's language, an unknown one gives the warning `lang_unknown`. Existing members
+  keep their language unless the form states one.
+- `econgood_relationships` 18.0.1.0.0, new: the "Local Chapter Members" report (16.6, D39,
+  D40), under Membership > Reporting.
+- Bootstrap: sets a default language for new contacts per association company
+  (company-specific `ir.default`, D46); no longer writes the removed `member_number_padding`
+  (15.41).
+- Importer: the association is the current company of a row, so a new contact gets its
+  default language.
+- `scripts/geonames_to_csv.py`: German cities and zips for the standard import (16.1, D41).
+
 ## 18.0.6.7.0 — membership and partner consistency (WP17)
 
 - **Membership names without the product reference (16.4, D38).** A name is member –

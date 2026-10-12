@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="econgood_chapter_member_report_view_list" model="ir.ui.view">
+        <field name="name">econgood.chapter.member.report.list</field>
+        <field name="model">econgood.chapter.member.report</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false">
+                <field name="chapter_id"/>
+                <field name="parent_ou_id" optional="show"/>
+                <field name="member_id"/>
+                <field name="member_is_company" optional="show"/>
+                <field name="type_id" optional="hide"/>
+                <field name="date_start" optional="show"/>
+                <field name="date_end" optional="show"/>
+                <field name="is_current" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="econgood_chapter_member_report_view_pivot" model="ir.ui.view">
+        <field name="name">econgood.chapter.member.report.pivot</field>
+        <field name="model">econgood.chapter.member.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Local Chapter Members" sample="1">
+                <field name="parent_ou_id" type="row"/>
+                <field name="chapter_id" type="row"/>
+                <field name="member_is_company" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="econgood_chapter_member_report_view_search" model="ir.ui.view">
+        <field name="name">econgood.chapter.member.report.search</field>
+        <field name="model">econgood.chapter.member.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="chapter_id"/>
+                <field name="parent_ou_id"/>
+                <field name="member_id"/>
+                <filter name="current" string="Current" domain="[('is_current', '=', True)]"/>
+                <filter name="ended" string="Ended or Future" domain="[('is_current', '=', False)]"/>
+                <separator/>
+                <filter name="organisations" string="Organisations" domain="[('member_is_company', '=', True)]"/>
+                <filter name="individuals" string="Individuals" domain="[('member_is_company', '=', False)]"/>
+                <group>
+                    <filter name="group_parent_ou" string="Parent OU" context="{'group_by': 'parent_ou_id'}"/>
+                    <filter name="group_chapter" string="Local Chapter" context="{'group_by': 'chapter_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="econgood_chapter_member_report_action" model="ir.actions.act_window">
+        <field name="name">Local Chapter Members</field>
+        <field name="res_model">econgood.chapter.member.report</field>
+        <field name="view_mode">pivot,list</field>
+        <field name="search_view_id" ref="econgood_chapter_member_report_view_search"/>
+        <field name="context">{'search_default_current': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No members linked to a local chapter yet</p>
+            <p>A contact counts as a member of a local chapter while it has a relation to the
+                chapter. The chapter is a contact marked as ECOnGOOD OU with the OU type Local
+                Chapter.</p>
+        </field>
+    </record>
+
+    <menuitem
+        id="menu_econgood_chapter_member_report"
+        name="Local Chapter Members"
+        parent="association_membership.menu_membership_reporting"
+        action="econgood_chapter_member_report_action"
+        sequence="80"
+        groups="association_membership.group_membership_manager"
+    />
+</odoo>

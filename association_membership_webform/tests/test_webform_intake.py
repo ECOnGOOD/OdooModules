@@ -1199,3 +1199,49 @@ class TestBirthDateAndGender(WebformTestCommon):
             entry_id="5099", email="other@example.com", first_name="Other", birthday="sometime",
         )))
         self.assertTrue(other.message_ids.filtered(lambda m: "sometime" in (m.body or "")))
+
+
+class TestLanguage(WebformTestCommon):
+    """16.2 (D42): the association's default language, or the one stated on the form."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["res.lang"]._activate_lang("de_DE")
+        cls.env["res.lang"]._activate_lang("fr_FR")
+        # What the bootstrap sets for each association.
+        cls.env["ir.default"].set("res.partner", "lang", "de_DE", company_id=cls.company.id)
+
+    def _partner(self, result):
+        return self.env["res.partner"].browse(result["partner_id"])
+
+    def test_a_new_member_gets_the_association_default(self):
+        self.assertEqual(self._partner(self.intake.process(self._individual_payload())).lang, "de_DE")
+
+    def test_contact_person_and_invoice_contact_follow_the_organisation(self):
+        partner = self._partner(self.intake.process(
+            self._company_payload(invoice_email="rechnung@techsolutions.example", lang="fr")
+        ))
+        self.assertEqual(partner.lang, "fr_FR")
+        self.assertEqual(len(partner.child_ids), 2)
+        self.assertEqual(set(partner.child_ids.mapped("lang")), {"fr_FR"})
+
+    def test_an_existing_member_keeps_its_language(self):
+        payload = self._individual_payload()
+        partner = self._partner(self.intake.process(payload))
+        partner.lang = "fr_FR"
+        self.intake.process(payload)
+        self.assertEqual(partner.lang, "fr_FR")
+
+    def test_a_stated_language_wins(self):
+        payload = self._individual_payload(lang="fr_FR")
+        partner = self._partner(self.intake.process(payload))
+        self.assertEqual(partner.lang, "fr_FR")
+        partner.lang = "de_DE"
+        self.intake.process(payload)
+        self.assertEqual(partner.lang, "fr_FR")
+
+    def test_an_unknown_language_is_a_warning(self):
+        result = self.intake.process(self._individual_payload(lang="xx"))
+        self.assertIn("lang_unknown", result["warnings"])
+        self.assertEqual(self._partner(result).lang, "de_DE")

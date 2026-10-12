@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- D40: a row is visible where its local chapter is. The bootstrap gives a chapter the
+         companies of its regional, national and international associations; a chapter
+         without companies is visible to all, as the partner itself is. -->
+    <record id="econgood_chapter_member_report_company_rule" model="ir.rule">
+        <field name="name">Local Chapter Members: chapter companies</field>
+        <field name="model_id" ref="model_econgood_chapter_member_report"/>
+        <field name="domain_force">['|', ('chapter_id.company_ids', '=', False), ('chapter_id.company_ids', 'in', company_ids)]</field>
+    </record>
+</odoo>

@@ -264,6 +264,8 @@ class MembershipWebformIntake(models.AbstractModel):
 
         self._check_duplicate_signup(payload, national, type_code)
         partner = self._upsert_partner(payload, national, type_code)
+        # Before the children: a new child contact takes its parent's language.
+        self._apply_stated_lang(payload, partner, warnings)
         self._scope_partner(partner, [national, regional])
         contact = self._upsert_contact_person(payload, partner, national)
         self._link_communication_contact(partner, contact, warnings)
@@ -754,6 +756,27 @@ class MembershipWebformIntake(models.AbstractModel):
             except ValueError:
                 continue
         return None
+
+    @api.model
+    def _apply_stated_lang(self, payload, partner, warnings):
+        """A language stated on the form becomes the member's (16.2, D42).
+
+        Without one, nothing is written: a new member has its association's default language
+        (a company default the bootstrap sets, applied because the intake runs in that
+        company), and an existing member keeps theirs. Takes a language code (``de_DE``) or an
+        ISO code (``de``) of an active language.
+        """
+        value = str(payload.get("lang") or "").strip()
+        if not value:
+            return
+        Lang = self.env["res.lang"]
+        lang = Lang.search([("code", "=ilike", value)], limit=1) or Lang.search(
+            [("iso_code", "=ilike", value)], limit=1
+        )
+        if not lang:
+            warnings.append("lang_unknown")
+            return
+        partner.lang = lang.code
 
     @api.model
     def _upsert_invoice_contact(self, payload, partner):
