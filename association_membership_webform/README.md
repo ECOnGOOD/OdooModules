@@ -71,7 +71,10 @@ Archiving the user closes the endpoint (`500`), which is a blunt but effective o
 - **Member** — an individual, company or association partner, per the form's "I am a" block.
   Consent dates, employee count, the stated payment method and the Formidable entry id land on
   the `econgood_extra_fields` partner fields. The member is **scoped to the associations they
-  joined** rather than left visible to the whole federation.
+  joined** rather than left visible to the whole federation. Its zip is linked to the imported
+  zips (`base_location`) when zip, country (an English name, `USA`, `UK` or a code) and city
+  identify one location; the partner then
+  gets the official city, state and country (D60). Otherwise zip and city stay as submitted.
 - **Contact person** — a child partner for organisations. When the optional OCA
   `partner_contact_address_default` is installed, it also becomes `partner_contact_id`, which is
   what `membership._get_communication_partners()` resolves to — so member emails reach the named

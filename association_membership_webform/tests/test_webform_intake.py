@@ -1245,3 +1245,98 @@ class TestLanguage(WebformTestCommon):
         result = self.intake.process(self._individual_payload(lang="xx"))
         self.assertIn("lang_unknown", result["warnings"])
         self.assertEqual(self._partner(result).lang, "de_DE")
+
+
+class TestZipLocation(WebformTestCommon):
+    """D60: a submitted zip is linked to the imported zips, with the official city.
+
+    Made-up zips, so the cities imported into the test database never interfere.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.bavaria = cls.env.ref("base.state_de_by")
+        City = cls.env["res.city"]
+        Zip = cls.env["res.city.zip"]
+
+        def location(zip_code, city_name):
+            city = City.create({
+                "name": city_name,
+                "state_id": cls.bavaria.id,
+                "country_id": cls.bavaria.country_id.id,
+            })
+            return Zip.create({"name": zip_code, "city_id": city.id})
+
+        cls.moenchsdorf = location("00101", "Mönchsdorf")
+        cls.frankenfeld = location("00102", "Frankenfeld am See")
+        cls.adorf = location("00103", "Adorf")
+        cls.bdorf = location("00103", "Bdorf")
+        cls.nienstadt = location("00104", "Nienstadt (See)")
+        location("00104", "Nienstadt (See) Ost")
+
+    def _partner(self, **overrides):
+        payload = self._individual_payload(country="Germany", **overrides)
+        return self.env["res.partner"].browse(self.intake.process(payload)["partner_id"])
+
+    def test_the_official_spelling_replaces_the_submitted_one(self):
+        partner = self._partner(zip="00101", city="moenchsdorf")
+        self.assertEqual(partner.zip_id, self.moenchsdorf)
+        self.assertEqual(partner.city, "Mönchsdorf")
+        self.assertEqual(partner.city_id, self.moenchsdorf.city_id)
+        self.assertEqual(partner.state_id, self.bavaria)
+
+    def test_the_leading_words_of_a_city_are_enough(self):
+        partner = self._partner(zip="00102", city="Frankenfeld")
+        self.assertEqual(partner.zip_id, self.frankenfeld)
+        self.assertEqual(partner.city, "Frankenfeld am See")
+
+    def test_a_shared_zip_is_decided_by_the_city(self):
+        self.assertEqual(self._partner(zip="00103", city="Bdorf").zip_id, self.bdorf)
+
+    def test_a_town_is_chosen_over_its_districts(self):
+        partner = self._partner(zip="00104", city="Nienstadt")
+        self.assertEqual(partner.zip_id, self.nienstadt)
+        self.assertEqual(partner.city, "Nienstadt (See)")
+
+    def test_an_unknown_city_stays_as_submitted(self):
+        partner = self._partner(zip="00103", city="Cdorf")
+        self.assertFalse(partner.zip_id)
+        self.assertEqual(partner.city, "Cdorf")
+
+    def test_the_invoice_contact_gets_the_same_location(self):
+        result = self.intake.process(self._company_payload(
+            company_zip="00101",
+            company_city="Mönchsdorf",
+            company_country="Germany",
+            invoice_email="rechnung@techsolutions.example",
+        ))
+        child = self.env["res.partner"].search([
+            ("parent_id", "=", result["partner_id"]), ("type", "=", "invoice"),
+        ])
+        self.assertEqual(child.zip_id, self.moenchsdorf)
+        self.assertEqual(child.state_id, self.bavaria)
+
+
+class TestCountry(WebformTestCommon):
+    """The form sends English country names ("Germany", "United Kingdom", "USA")."""
+
+    def test_english_names_codes_and_aliases(self):
+        for value, xmlid in (
+            ("Germany", "base.de"),
+            ("germany", "base.de"),
+            ("United Kingdom", "base.uk"),
+            ("USA", "base.us"),
+            ("DE", "base.de"),
+            ("Niger", "base.ne"),
+        ):
+            self.assertEqual(self.intake._country_id(value), self.env.ref(xmlid).id, value)
+
+    def test_a_partial_name_counts_only_when_it_names_one_country(self):
+        self.assertFalse(self.intake._country_id("Korea"))
+        self.assertEqual(self.intake._country_id("Liechten"), self.env.ref("base.li").id)
+
+    def test_the_users_language_does_not_matter(self):
+        self.env["res.lang"]._activate_lang("de_DE")
+        intake = self.intake.with_context(lang="de_DE")
+        self.assertEqual(intake._country_id("Germany"), self.env.ref("base.de").id)

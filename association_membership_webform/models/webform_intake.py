@@ -1,5 +1,6 @@
 import logging
 import re
+import unicodedata
 from datetime import datetime
 
 from markupsafe import Markup
@@ -63,6 +64,9 @@ GENDER_BY_SALUTATION = {
     "frau": "female", "ms": "female", "mrs": "female", "ms.": "female", "mrs.": "female",
     "herr": "male", "mr": "male", "mr.": "male",
 }
+
+# Country names the form uses where Odoo's English name differs.
+COUNTRY_CODE_BY_ALIAS = {"usa": "US", "uk": "GB"}
 
 # Warnings that mean "the membership was not inferred cleanly" — worth saying so
 # in the chatter, not just in the response.
@@ -213,6 +217,49 @@ def escape_like(value):
 
 def normalize_name(value):
     return re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+
+
+def normalize_city(value):
+    """A city name reduced for comparison: "Halle (Saale)" -> "halle saale",
+    "München" and "Muenchen" -> "muenchen". The same rule as the importer's (D60)."""
+    text = str(value or "").casefold()
+    for umlaut, spelled in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        text = text.replace(umlaut, spelled)
+    text = "".join(
+        char for char in unicodedata.normalize("NFKD", text) if not unicodedata.combining(char)
+    )
+    return " ".join(re.sub(r"[^0-9a-z]+", " ", text).split())
+
+
+def pick_zip_location(zips, city):
+    """The one ``res.city.zip`` of ``zips`` the given city means, or an empty recordset.
+
+    Without a city, the zip must have one city only. With one, the city must equal a
+    candidate's name or be its leading words ("Frankfurt" for "Frankfurt am Main", and
+    the other way round). Among a town and its districts ("Nienburg (Weser)", "Nienburg
+    (Weser) Holtorf") the leading words mean the town. Otherwise a zip shared by several
+    cities is never guessed (D60).
+    """
+    wanted = normalize_city(city)
+    if not wanted:
+        return zips if len(zips) == 1 else zips[:0]
+    exact = zips.filtered(lambda z: normalize_city(z.city_id.name) == wanted)
+    if exact:
+        return exact if len(exact) == 1 else zips[:0]
+    leading = zips.filtered(
+        lambda z: f"{normalize_city(z.city_id.name)} ".startswith(f"{wanted} ")
+        or f"{wanted} ".startswith(f"{normalize_city(z.city_id.name)} ")
+    )
+    if len(leading) > 1:
+        leading = leading.filtered(
+            lambda z: all(
+                f"{normalize_city(other.city_id.name)} ".startswith(
+                    f"{normalize_city(z.city_id.name)} "
+                )
+                for other in leading
+            )
+        )
+    return leading if len(leading) == 1 else zips[:0]
 
 
 def looks_like_opaque_id(value):
@@ -546,6 +593,7 @@ class MembershipWebformIntake(models.AbstractModel):
         if truthy(payload.get("code_of_conduct")):
             extra["code_of_conduct_signed_date"] = today
         vals.update(self._filter_fields("res.partner", extra))
+        vals.update(self._zip_location_values(vals))
 
         return {key: value for key, value in vals.items() if value not in (None, "")}
 
@@ -819,6 +867,7 @@ class MembershipWebformIntake(models.AbstractModel):
             # Never is_company: address_get skips children flagged as companies,
             # which would make the invoice contact invisible to the resolver.
         }
+        vals.update(self._zip_location_values(vals))
         vals = {key: value for key, value in vals.items() if value not in (None, "")}
 
         # Matched on the slot, not the email: there is at most one invoice
@@ -1459,16 +1508,51 @@ class MembershipWebformIntake(models.AbstractModel):
 
     @api.model
     def _country_id(self, name):
-        if not name:
+        """The country the form names, in English ("Germany", "USA"), or by its code.
+
+        Searched in English whatever the intake user's language. A partial name only
+        counts when it names one country, so "Niger" never becomes "Nigeria".
+        """
+        text = str(name or "").strip()
+        if not text:
             return False
-        country = self.env["res.country"].search(
-            [("name", "ilike", escape_like(name))], limit=1
+        Country = self.env["res.country"].with_context(lang="en_US")
+        country = Country.search([("name", "=ilike", escape_like(text))], limit=1)
+        code = COUNTRY_CODE_BY_ALIAS.get(text.casefold()) or (
+            text.upper() if len(text) == 2 else None
         )
-        if not country and len(str(name).strip()) == 2:
-            country = self.env["res.country"].search(
-                [("code", "=", str(name).strip().upper())], limit=1
-            )
+        if not country and code:
+            country = Country.search([("code", "=", code)], limit=1)
+        if not country:
+            country = Country.search([("name", "ilike", escape_like(text))], limit=2)
+            if len(country) > 1:
+                country = Country
         return country.id or False
+
+    @api.model
+    def _zip_location_values(self, vals):
+        """``vals``' address linked to the imported zips (base_location), or {} (D60).
+
+        On a match the partner gets the zip location and its official city, state and
+        country; otherwise the submitted zip and city stay as they are, unlinked.
+        """
+        zip_code = str(vals.get("zip") or "").strip()
+        if not zip_code or not vals.get("country_id"):
+            return {}
+        zips = self.env["res.city.zip"].search(
+            [("name", "=", zip_code), ("city_id.country_id", "=", vals["country_id"])]
+        )
+        location = pick_zip_location(zips, vals.get("city"))
+        if not location:
+            return {}
+        return {
+            "zip_id": location.id,
+            "zip": location.name,
+            "city_id": location.city_id.id,
+            "city": location.city_id.name,
+            "state_id": location.city_id.state_id.id,
+            "country_id": location.city_id.country_id.id,
+        }
 
     @api.model
     def _title_id(self, value):
