@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Visibility only, no access rights: who sees the standard Odoo contact fields that
+         membership staff do not need (Sales & Purchase, D28 fields). Accounting staff and
+         administrators get it through their groups; another role can be given it directly. -->
+    <record id="group_partner_full_form" model="res.groups">
+        <field name="name">Contacts: all standard fields</field>
+        <field name="category_id" ref="base.module_category_usability"/>
+    </record>
+
+    <record id="account.group_account_manager" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_partner_full_form'))]"/>
+    </record>
+    <record id="account.group_account_readonly" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_partner_full_form'))]"/>
+    </record>
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_partner_full_form'))]"/>
+    </record>
+</odoo>

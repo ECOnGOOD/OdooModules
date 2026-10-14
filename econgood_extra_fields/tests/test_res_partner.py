@@ -172,17 +172,48 @@ class TestEcongoodExtraFields(TransactionCase):
         arch = self.env["res.partner"].with_user(user).get_view(view_type="form")["arch"]
         return etree.fromstring(arch)
 
-    def test_sales_purchase_page_is_for_accountants(self):
-        """Roles concept: membership staff do not see Sales & Purchase."""
-        staff = self._form_arch("base.group_user,base.group_partner_manager")
-        self.assertFalse(staff.xpath("//page[@name='sales_purchases']"))
-        accountant = self._form_arch("base.group_user,account.group_account_manager")
-        self.assertTrue(accountant.xpath("//page[@name='sales_purchases']"))
+    def test_sales_purchase_page_is_for_the_full_form(self):
+        """Roles: membership staff and Billing do not see Sales & Purchase."""
+        for groups in (
+            "base.group_user,base.group_partner_manager",
+            "base.group_user,account.group_account_invoice",
+        ):
+            self.assertFalse(self._form_arch(groups).xpath("//page[@name='sales_purchases']"), groups)
+        for groups in (
+            "base.group_user,account.group_account_manager",
+            "base.group_user,account.group_account_readonly",
+            "base.group_system",
+        ):
+            self.assertTrue(self._form_arch(groups).xpath("//page[@name='sales_purchases']"), groups)
 
-    def test_payment_method_is_reachable_without_accounting(self):
-        """Membership staff record the member's payment method."""
+    def test_full_form_group_is_implied(self):
+        group = "econgood_extra_fields.group_partner_full_form"
+        for groups, expected in (
+            ("base.group_user,account.group_account_manager", True),
+            ("base.group_user,account.group_account_readonly", True),
+            ("base.group_system", True),
+            ("base.group_user,account.group_account_invoice", False),
+            ("base.group_user,base.group_partner_manager", False),
+        ):
+            user = new_test_user(self.env, login=f"full_{groups.replace(',', '_')}", groups=groups)
+            self.assertEqual(user.has_group(group), expected, groups)
+
+    def test_payment_mode_once_under_invoicing(self):
+        """Membership staff record the member's payment mode under Invoicing."""
+        for groups in (
+            "base.group_user,base.group_partner_manager",
+            "base.group_user,account.group_account_manager",
+        ):
+            arch = self._form_arch(groups)
+            fields = arch.xpath("//field[@name='customer_payment_mode_id']")
+            self.assertEqual(len(fields), 1, groups)
+            self.assertTrue(fields[0].xpath("ancestor::page[@name='accounting']"), groups)
+
+    def test_invoicing_page_shows_staff_only_the_payment(self):
         staff = self._form_arch("base.group_user,base.group_partner_manager")
-        self.assertTrue(staff.xpath("//field[@name='customer_payment_mode_id']"))
+        self.assertTrue(staff.xpath("//page[@name='accounting']"))
+        self.assertFalse(staff.xpath("//group[@name='accounting_automation']"))
+        self.assertFalse(staff.xpath("//page[@name='accounting']//field[@name='bank_ids']"))
 
     def _arch_for(self, login, groups, **kwargs):
         user = new_test_user(self.env, login=login, groups=groups, **kwargs)
@@ -202,6 +233,26 @@ class TestEcongoodExtraFields(TransactionCase):
             "companies_admin", "base.group_system,base.group_multi_company", company_ids=companies
         ).xpath(xpath)
         self.assertEqual([field.get("readonly") for field in admin], [None])
+
+    def test_only_admins_can_edit_companies_anywhere(self):
+        """D54: no editable company list on the form for non-administrators."""
+        second = self.env["res.company"].create({"name": "Third Association"})
+        companies = [(6, 0, (self.env.company | second).ids)]
+        main_form = (
+            "//field[@name='company_ids'][not(ancestor::field[@name='child_ids'])]"
+            "[not(@readonly='1')][not(@invisible='1')]"
+        )
+        child_form = "//field[@name='child_ids']//field[@name='company_ids']"
+        for login, groups in (
+            ("d54_staff", "base.group_user,base.group_partner_manager,base.group_multi_company"),
+            ("d54_finance", "account.group_account_manager,base.group_multi_company"),
+        ):
+            arch = self._arch_for(login, groups, company_ids=companies)
+            self.assertFalse(arch.xpath(main_form), login)
+            # OCA's copy in the child contact form: read-only, the parent being set.
+            self.assertEqual(
+                [f.get("readonly") for f in arch.xpath(child_form)], ["parent_id != False"], login
+            )
 
     def test_ou_fields_are_read_only_for_non_admins(self):
         """15.31: the OU flag and type are set by administrators."""

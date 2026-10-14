@@ -10,11 +10,6 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Sales & Purchase only for accountants and administrators (roles concept) -->
-            <xpath expr="//page[@name='sales_purchases']" position="attributes">
-                <attribute name="groups">account.group_account_manager,base.group_system</attribute>
-            </xpath>
-
             <!-- Individuals have no contacts or addresses of their own (16.3a) -->
             <xpath expr="//page[@name='contact_addresses']" position="attributes">
                 <attribute name="invisible">not is_company</attribute>
@@ -66,19 +61,6 @@
                 <field name="email_econgood" widget="email"/>
             </xpath>
 
-            <!-- Reorganize Notebook -->
-            <xpath expr="//notebook/page[@name='accounting']" position="inside">
-                <group>
-                    <group string="Sales" name="sale">
-                        <field name="user_id"/>
-                        <field name="property_payment_term_id"/>
-                    </group>
-                    <group string="Fiscal Information" name="fiscal_information">
-                        <field name="property_account_position_id"/>
-                    </group>
-                </group>
-            </xpath>
-
             <xpath expr="//notebook/page[@name='accounting']" position="after">
                 <page string="Additional Information">
                     <group>
@@ -98,9 +80,6 @@
 
                         <group string="Misc">
                             <field name="ref"/>
-                            <!-- Here, not under Accounting: membership staff record the
-                                 member's choice without accounting rights. -->
-                            <field name="customer_payment_mode_id"/>
                             <field name="company_registry" invisible="not is_company"/>
                             <!-- Administrators only: an edit could drop another association's access (D54). -->
                             <field name="company_ids" widget="many2many_tags" groups="base.group_system" options="{'no_create': True}"/>
@@ -114,6 +93,45 @@
             </xpath>
         </field>
     </record>
+
+    <!-- Fields by role (roles_and_views.md §4). Accounting staff and administrators see the
+         full standard form (group_partner_full_form); membership staff see what they need.
+         A field to hide from membership staff gets the group here. Late priority: runs
+         after the OCA extensions it moves and hides. -->
+    <record id="view_partner_form_econgood_roles" model="ir.ui.view">
+        <field name="name">res.partner.form.econgood.roles</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='sales_purchases']" position="attributes">
+                <attribute name="groups">econgood_extra_fields.group_partner_full_form</attribute>
+            </xpath>
+
+            <!-- Invoicing for every internal user: its contents keep Odoo's own groups, and
+                 membership staff record the member's payment mode here. -->
+            <xpath expr="//page[@name='accounting']" position="attributes">
+                <attribute name="groups"></attribute>
+            </xpath>
+            <xpath expr="//page[@name='accounting']/group" position="before">
+                <group name="payment" string="Payment"/>
+            </xpath>
+            <xpath expr="//group[@name='payment']" position="inside">
+                <xpath expr="//page[@name='sales_purchases']//field[@name='customer_payment_mode_id']" position="move"/>
+            </xpath>
+            <!-- Its fields are all for accounting staff: no empty heading for others. -->
+            <xpath expr="//group[@name='accounting_automation']" position="attributes">
+                <attribute name="groups">econgood_extra_fields.group_partner_full_form</attribute>
+            </xpath>
+
+            <!-- The companies are shown under Additional Information, editable only for
+                 administrators (D54); OCA's editable copy here would bypass that. -->
+            <xpath expr="//page[@name='sales_purchases']//field[@name='company_ids']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
     <!-- OCA partner_contact_address_default: only the contact person is used
          (delivery addresses moved here from association_membership). -->
     <record id="view_partner_form_hide_delivery" model="ir.ui.view">
