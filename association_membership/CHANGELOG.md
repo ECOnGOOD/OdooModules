@@ -1,5 +1,11 @@
 # Changelog
 
+## Local chapter report with one total (this module unchanged)
+
+- `econgood_relationships` 18.0.1.2.0: the "Local Chapter Members" pivot has one Total
+  column; the unlabelled "No / Yes" split by organisation is gone (the *Organisations* and
+  *Individuals* filters remain).
+
 ## 18.0.6.9.0 — product names without the reference (16.15)
 
 - **Products are named without their internal reference (D61, extends D38).** The membership

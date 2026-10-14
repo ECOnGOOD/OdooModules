@@ -24,7 +24,6 @@
             <pivot string="Local Chapter Members" sample="1">
                 <field name="parent_ou_id" type="row"/>
                 <field name="chapter_id" type="row"/>
-                <field name="member_is_company" type="col"/>
             </pivot>
         </field>
     </record>
