@@ -265,6 +265,13 @@ class MembershipPeriod(models.Model):
                 record.billing_status = "to_invoice"
 
     @api.model
+    def read_group(self, domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True):
+        # "Group by Product" and the pivot label products without their reference (D38).
+        return super(MembershipPeriod, self.with_context(display_default_code=False)).read_group(
+            domain, fields, groupby, offset=offset, limit=limit, orderby=orderby, lazy=lazy
+        )
+
+    @api.model
     def action_open_default_year_periods(self):
         action = self.env.ref(
             "association_membership.action_membership_period"
@@ -413,7 +420,7 @@ class MembershipPeriod(models.Model):
                 invoice_vals["invoice_line_ids"].append(
                     Command.create(
                         {
-                            "name": period.product_id.display_name,
+                            "name": period.product_id.with_context(display_default_code=False).display_name,
                             "product_id": period.product_id.id,
                             "quantity": 1.0,
                             "price_unit": period.amount,

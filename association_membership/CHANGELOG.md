@@ -1,5 +1,15 @@
 # Changelog
 
+## 18.0.6.9.0 — product names without the reference (16.15)
+
+- **Products are named without their internal reference (D61, extends D38).** The membership
+  app shows "Annual Membership" instead of "[MEM_IND] Annual Membership": in the membership
+  and period lists, kanban and forms, the renewal wizard, the contact's Memberships tab, and
+  the "Group by Product" and pivot labels. Search fields keep the reference, so a product is
+  still found by it.
+- **New membership invoices** name the product without the reference on the invoice line;
+  invoices already issued keep their text.
+
 ## 18.0.6.8.0 — roles and access (WP20)
 
 Concept: `docs/membership/roles_and_views.md` (D47–D59).

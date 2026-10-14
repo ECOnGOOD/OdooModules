@@ -13,6 +13,7 @@
                             name="product_ids"
                             widget="many2many_tags"
                             domain="[('membership_ok', '=', True)]"
+                            context="{'display_default_code': False}"
                         />
                     </group>
                     <group>

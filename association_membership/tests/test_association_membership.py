@@ -2158,6 +2158,29 @@ class TestMembershipName(MembershipTestCommon):
         self.assertNotIn("MEM_TEST_COMP", membership.name)
         self.assertIn("1-10", membership.name)
 
+    def test_invoice_line_has_no_product_reference(self):
+        """16.15 (D61): the member's invoice names the product without the reference."""
+        self.product.default_code = "MEM_TEST_IND"
+        self.company.membership_invoicing_strategy = "manual"
+        period = self._make_period(self._make_membership(), amount=50.0)
+        period.action_create_invoice()
+        line = period.invoice_id.invoice_line_ids
+        self.assertNotIn("MEM_TEST_IND", line.name)
+        self.assertIn("Annual Membership", line.name)
+
+    def test_group_by_product_has_no_product_reference(self):
+        """16.15 (D61): "Group by Product" labels the groups without the reference."""
+        self.product.default_code = "MEM_TEST_IND"
+        membership = self._make_membership()
+        for model, record in (("membership.membership", membership),
+                              ("membership.period", self._make_period(membership))):
+            groups = self.env[model].read_group(
+                [("id", "=", record.id)], ["product_id"], ["product_id"]
+            )
+            label = groups[0]["product_id"][1]
+            self.assertNotIn("MEM_TEST_IND", label)
+            self.assertIn("Annual Membership", label)
+
 
 class TestMemberOfRelation(MembershipTestCommon):
     """16.8 (D37): the "Member Of" relation follows the membership's dates."""

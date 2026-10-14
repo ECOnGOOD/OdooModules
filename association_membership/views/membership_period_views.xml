@@ -9,7 +9,7 @@
                 <field name="partner_id" />
                 <field name="invoice_partner_id" optional="hide" />
                 <field name="company_id" />
-                <field name="product_id" />
+                <field name="product_id" context="{'display_default_code': False}" />
                 <field name="membership_year" string="Year" options="{'enable_formatting': false}" />
                 <field name="date_start" optional="hide" />
                 <field name="date_end" optional="hide" />
@@ -111,7 +111,7 @@
                             <!-- Taken from the member when the invoice is created. -->
                             <field name="invoice_partner_id" readonly="1" />
                             <field name="company_id" readonly="1" />
-                            <field name="product_id" readonly="1" />
+                            <field name="product_id" readonly="1" context="{'display_default_code': False}" />
                             <field name="note" />
                         </group>
                         <group>

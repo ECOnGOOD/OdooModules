@@ -308,6 +308,13 @@ class MembershipMembership(models.Model):
         return [value for value, _label in MEMBERSHIP_STATE_SELECTION]
 
     @api.model
+    def read_group(self, domain, fields, groupby, offset=0, limit=None, orderby=False, lazy=True):
+        # "Group by Product" and the pivot label products without their reference (D38).
+        return super(MembershipMembership, self.with_context(display_default_code=False)).read_group(
+            domain, fields, groupby, offset=offset, limit=limit, orderby=orderby, lazy=lazy
+        )
+
+    @api.model
     def _resolve_default_invoice_partner(self, partner):
         if not partner:
             return self.env["res.partner"]
