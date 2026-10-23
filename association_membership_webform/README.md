@@ -32,7 +32,8 @@ so the endpoint must be served over HTTPS.
 `rejected_by_odoo` (a model constraint refused it; the message carries Odoo's own text).
 
 Warnings on a `200` (the submission was accepted, but something needs a human):
-`tier_clamped`, `employee_count_missing`, `product_ref_unknown`, `fee_mismatch`,
+`tier_clamped`, `employee_count_missing`, `inhabitant_count_missing`, `tier_price_on_request`,
+`product_ref_unknown`, `fee_mismatch`,
 `payment_frequency_not_yearly`, `contact_person_not_linked`, `payment_mode_unavailable`,
 `mandate_module_missing`, `mandate_without_iban`, `regional_association_unresolved`,
 `regional_association_mismatch`, `regional_product_missing`, `regional_product_not_free`,
@@ -127,6 +128,9 @@ structural inference.
 no range covers takes the nearest tier, reports `tier_clamped` and says so in the chatter, rather
 than losing the signup. Clamping upward bills at the next published tier, so a clamped signup is
 a pricing decision someone should confirm — which is why it is a warning and not silent.
+
+Municipalities are tiered by inhabitants (`inhabitants`, attribute `EW`), everyone else by
+employees. A free tier among paid ones is a fee on request and reports `tier_price_on_request`.
 
 ## Idempotency
 

@@ -35,8 +35,9 @@ TYPE_CODE_TOKENS = {
     "MUN": ("municipality", "gemeinde", "kommune", "public", "behörde", "behoerde"),
 }
 
-# Attribute names that carry the employee-count tier.
-TIER_ATTRIBUTE_NAMES = {"Variant", "Mitarbeiterzahl", "MA", "FTE", "EPU"}
+# Attribute names that carry the size tier: the employee count, or for
+# municipalities the inhabitants ("EW", Einwohner).
+TIER_ATTRIBUTE_NAMES = {"Variant", "Mitarbeiterzahl", "MA", "FTE", "EPU", "EW"}
 
 OPEN_ENDED_HIGH = 10**9
 
@@ -73,7 +74,9 @@ COUNTRY_CODE_BY_ALIAS = {"usa": "US", "uk": "GB"}
 INFERENCE_WARNINGS = frozenset({
     "product_ref_unknown",
     "employee_count_missing",
+    "inhabitant_count_missing",
     "tier_clamped",
+    "tier_price_on_request",
     "fee_mismatch",
 })
 
@@ -579,6 +582,7 @@ class MembershipWebformIntake(models.AbstractModel):
             "employee_count": to_int(
                 payload.get("company_employees") or payload.get("assoc_employees_fte")
             ),
+            "inhabitant_count": to_int(payload.get("inhabitants")),
             "legacy_id_formidable": self._entry_reference(payload),
         }
         if truthy(payload.get("assoc_is_charitable")):
@@ -910,7 +914,9 @@ class MembershipWebformIntake(models.AbstractModel):
 
     @api.model
     def _resolve_product(self, payload, company, partner, type_code, warnings, notes):
-        """Infer the membership product from association, type and employee count.
+        """Infer the membership product from association, type and size.
+
+        The size is the employee count, for a municipality the inhabitants.
 
         The CRM's own type label is only a last resort: matching a foreign label
         string against an Odoo product name is the weakest link in the write-only
@@ -956,12 +962,31 @@ class MembershipWebformIntake(models.AbstractModel):
         if len(templates) > 1:
             pool = self._narrow_by_fee(pool, templates, payload, company)
 
-        employee_count = to_int(
-            payload.get("company_employees") or payload.get("assoc_employees_fte")
-        )
-        variant = self._pick_tier(pool, employee_count, warnings)
+        if type_code == "MUN":
+            size = to_int(payload.get("inhabitants"))
+            missing_warning = "inhabitant_count_missing"
+        else:
+            size = to_int(
+                payload.get("company_employees") or payload.get("assoc_employees_fte")
+            )
+            missing_warning = "employee_count_missing"
+        variant = self._pick_tier(pool, size, warnings, missing_warning)
+        self._check_price_on_request(pool, variant, company, warnings)
         self._cross_check_fee(payload, variant, company, warnings, notes)
         return variant
+
+    @api.model
+    def _check_price_on_request(self, pool, variant, company, warnings):
+        """Flag a free top tier among paid ones: its price is on request.
+
+        The largest municipalities (and nonprofits) pay a negotiated fee, which
+        the data models as a tier priced 0. Staff set the amount by hand.
+        """
+        if not variant or variant._get_membership_price(company):
+            return
+        tiered = pool.filtered(lambda p: self._tier_range(p))
+        if variant in tiered and any(p._get_membership_price(company) for p in tiered):
+            warnings.append("tier_price_on_request")
 
     @api.model
     def _narrow_by_fee(self, pool, templates, payload, company):
@@ -1015,7 +1040,7 @@ class MembershipWebformIntake(models.AbstractModel):
 
     @api.model
     def _tier_range(self, variant):
-        """The employee range a variant covers, or ``None`` if it carries no tier."""
+        """The size range a variant covers, or ``None`` if it carries no tier."""
         for ptav in variant.product_template_attribute_value_ids:
             if ptav.attribute_id.name and ptav.attribute_id.name not in TIER_ATTRIBUTE_NAMES:
                 continue
@@ -1025,12 +1050,13 @@ class MembershipWebformIntake(models.AbstractModel):
         return None
 
     @api.model
-    def _pick_tier(self, variants, employee_count, warnings):
+    def _pick_tier(self, variants, employee_count, warnings, missing_warning="employee_count_missing"):
         """Pick the variant covering ``employee_count``, clamping when none does.
 
         Tier ranges are data, and data can have gaps: a count that no range
         covers clamps to the nearest tier and reports ``tier_clamped`` rather
-        than losing the signup.
+        than losing the signup. ``employee_count`` is the inhabitants for a
+        municipality, with ``missing_warning`` named to match.
         """
         ranged = []
         for variant in variants:
@@ -1043,7 +1069,7 @@ class MembershipWebformIntake(models.AbstractModel):
             return variants[0]
 
         if employee_count is None:
-            warnings.append("employee_count_missing")
+            warnings.append(missing_warning)
             return min(ranged, key=lambda item: item[0][0])[1]
 
         covering = [

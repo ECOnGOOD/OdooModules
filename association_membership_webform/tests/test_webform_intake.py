@@ -746,6 +746,93 @@ class TestTierClamping(WebformTestCommon):
         self.assertEqual(caught.exception.code, "product_unresolved")
 
 
+class TestMunicipalityTiers(WebformTestCommon):
+    """Municipalities pay by inhabitants (attribute "EW"); the top tier is on request."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        attribute = cls.env["product.attribute"].create({
+            "name": "EW",
+            "value_ids": [
+                (0, 0, {"name": "1-1000"}),
+                (0, 0, {"name": "1001-2000"}),
+                (0, 0, {"name": "2001+"}),
+            ],
+        })
+        template = cls.env["product.template"].create({
+            "name": "Membership Municipality TL",
+            "membership_ok": True,
+            "membership_partner_type": "company",
+            "company_id": cls.company.id,
+            "list_price": 0.0,
+            "attribute_line_ids": [(0, 0, {
+                "attribute_id": attribute.id,
+                "value_ids": [(6, 0, attribute.value_ids.ids)],
+            })],
+        })
+        variants = template.product_variant_ids.sorted(
+            lambda v: int(v.product_template_attribute_value_ids.name.split("-")[0].rstrip("+"))
+        )
+        cls.mun_small, cls.mun_mid, cls.mun_on_request = variants
+        for variant, code, price in (
+            (cls.mun_small, "MEM_TL_MUN_1-1000", 150.0),
+            (cls.mun_mid, "MEM_TL_MUN_1001-2000", 250.0),
+            (cls.mun_on_request, "MEM_TL_MUN_2001+", 0.0),
+        ):
+            variant.default_code = code
+            variant.product_template_attribute_value_ids.price_extra = price
+
+    def _municipality_payload(self, **overrides):
+        payload = {
+            "entry_id": "5003",
+            "type": "Gemeinde",
+            "assoc_name": "Gemeinde Musterdorf",
+            "assoc_email": "rathaus@musterdorf.example",
+            "inhabitants": "1.500",
+            "econ_assoc_select": "63219893D7E43C1499727C6DAFF07",
+            "econ_main_assoc": "ECOnGOOD Testland e.V.",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_inhabitants_pick_the_covering_tier(self):
+        result = self.intake.process(self._municipality_payload())
+        membership = self.env["membership.membership"].browse(result["membership_id"])
+        self.assertEqual(membership.product_id, self.mun_mid)
+        self.assertEqual(membership.amount, 250.0)
+        self.assertNotIn("tier_price_on_request", result["warnings"])
+
+    def test_the_employee_count_does_not_pick_a_municipality_tier(self):
+        result = self.intake.process(self._municipality_payload(
+            inhabitants="800", assoc_employees_fte="1500",
+        ))
+        membership = self.env["membership.membership"].browse(result["membership_id"])
+        self.assertEqual(membership.product_id, self.mun_small)
+
+    def test_the_partner_carries_the_inhabitants(self):
+        result = self.intake.process(self._municipality_payload())
+        partner = self.env["res.partner"].browse(result["partner_id"])
+        self.assertEqual(partner.inhabitant_count, 1500)
+
+    def test_missing_inhabitants_take_the_lowest_tier_and_warn(self):
+        payload = self._municipality_payload()
+        payload.pop("inhabitants")
+        result = self.intake.process(payload)
+        membership = self.env["membership.membership"].browse(result["membership_id"])
+        self.assertEqual(membership.product_id, self.mun_small)
+        self.assertIn("inhabitant_count_missing", result["warnings"])
+        self.assertNotIn("employee_count_missing", result["warnings"])
+
+    def test_the_top_tier_is_flagged_as_price_on_request(self):
+        result = self.intake.process(self._municipality_payload(inhabitants="250000"))
+        membership = self.env["membership.membership"].browse(result["membership_id"])
+        self.assertEqual(membership.product_id, self.mun_on_request)
+        self.assertIn("tier_price_on_request", result["warnings"])
+        bodies = " ".join(membership.message_ids.mapped("body"))
+        self.assertIn("tier_price_on_request", bodies)
+
+
 class TestExplicitProductReference(WebformTestCommon):
     def test_an_internal_reference_wins_over_inference(self):
         result = self.intake.process(self._company_payload(
