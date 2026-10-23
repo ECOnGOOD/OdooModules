@@ -1,5 +1,48 @@
 # Changelog
 
+## 18.0.7.0.0 — payment frequency (WP23)
+
+- **Payment frequency on the membership (18.1, D65).** Yearly (default), half-yearly,
+  quarterly or monthly, tracked, with a list column, a filter field and a group-by. Each
+  period keeps its own frequency like its product: a frequency change reaches unbilled
+  periods only, and their amount follows unless it was set by hand.
+- **Installments of the yearly invoice.** One period and one invoice per year stay. A
+  sub-yearly invoice gets one of three shipped payment terms (Half-yearly / Quarterly /
+  Monthly installments, shared by all companies) and its receivable lines fall due on the 1st
+  of each half-year, quarter or month; an installment already due on the invoice date is due
+  on that date, and the rounding rest goes to the last one. Without periods (a credit note,
+  an invoice made by hand) the term means a single due date. Invoices group by frequency.
+- **Pro-rata for sub-yearly joiners (D66, amends decision 3).** In the joining year a
+  member owes the installments from the joining month on (monthly from 15 October: 3/12 of
+  the fee). Yearly payers pay the full fee as before. Activation, "Create Period" and the
+  renewal wizard all use the same rule.
+- Billing status follows the invoice as before: `partial` after the first installments,
+  `paid` after the last. A per-payment tax receipt comes once the invoice is fully paid
+  (18.7).
+- `association_membership_webform` 18.0.1.7.0: `payment_frequency` from the form is stored
+  on the membership (`monatlich`, `vierteljährlich`, `halbjährlich`, `jährlich`, or English);
+  an unknown value stays yearly and warns `payment_frequency_unknown`, which replaces
+  `payment_frequency_not_yearly`. The frequency is no longer a chatter line.
+- Importer: the `Zahlungsrhythmus` column sets the membership's frequency with the same rule;
+  only an unknown value still goes into the period note.
+
+## 18.0.6.10.0 — membership UX, free periods (WP22)
+
+- **One way to create a membership from the contact (18.2, D67).** The Memberships tab keeps
+  its "Create Membership" button, now a normal button above the list. The memberships and
+  periods lists lose "Add a line" and delete; a row opens the membership or period in a
+  dialog, editable for managers (workflow buttons such as Cancel Membership work there) and
+  read-only for viewers.
+- **Activate on a new membership (18.3).** A draft offered Activate only once saved; now
+  also before (D27). Odoo saves it when the button is clicked.
+- **Free memberships keep their period (18.4, D68).** Activation always creates the period
+  of the default year; the wizard's "Create Period" checkbox is gone. Its notice for a fee of
+  0 now shows in every invoicing strategy. The billing status `waived` reads "Free"
+  ("Beitragsfrei"), and the memberships list shows the last status by its label instead of
+  its key (`last_billing_status` is a selection now; same column, no migration).
+- `econgood_relationships` 18.0.1.3.0: German translation of the Local Chapter Members report
+  ("Mitglieder der Regionalgruppen", 18.5).
+
 ## Local chapter report with one total (this module unchanged)
 
 - `econgood_relationships` 18.0.1.2.0: the "Local Chapter Members" pivot has one Total

@@ -1,7 +1,7 @@
 # __manifest__.py
 {
     'name': 'ECOnGOOD Relationships',
-    'version': '18.0.1.2.0',
+    'version': '18.0.1.3.0',
     'category': 'ECOnGOOD',
     'summary': 'ECOnGOOD specifics of partner relations: members per local chapter.',
     'author': 'ECOnGOOD',

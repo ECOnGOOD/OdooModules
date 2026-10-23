@@ -68,6 +68,7 @@
                 <field name="date_end" />
                 <field name="last_period_year" options="{'enable_formatting': false}" optional="hide" />
                 <field name="last_billing_status" />
+                <field name="payment_frequency" optional="hide" />
                 <field name="invoice_partner_id" optional="hide" />
             </list>
         </field>
@@ -104,6 +105,7 @@
                 <field name="state" />
                 <field name="date_start" />
                 <field name="date_end" />
+                <field name="payment_frequency" />
                 <filter
                     name="open_memberships"
                     string="Waiting + Current"
@@ -133,6 +135,7 @@
                     <filter string="Company" name="group_by_company" context="{'group_by': 'company_id'}" />
                     <filter string="Product" name="group_by_product" context="{'group_by': 'product_id'}" />
                     <filter string="State" name="group_by_state" context="{'group_by': 'state'}" />
+                    <filter string="Payment Frequency" name="group_by_payment_frequency" context="{'group_by': 'payment_frequency'}" />
                 </group>
             </search>
         </field>
@@ -157,7 +160,7 @@
                         type="object"
                         class="oe_highlight"
                         groups="association_membership.group_membership_manager"
-                        invisible="not id or state not in ('draft', 'waiting')"
+                        invisible="state not in ('draft', 'waiting')"
                     />
                     <button
                         name="action_activate"
@@ -250,6 +253,7 @@
                         <group>
                             <field name="date_start" />
                             <field name="amount" groups="association_membership.group_membership_manager" />
+                            <field name="payment_frequency" />
                             <label for="invoicing_strategy" groups="association_membership.group_membership_manager" />
                             <!-- Which one applies: the company's or this override (15.10). -->
                             <div class="o_row" groups="association_membership.group_membership_manager">

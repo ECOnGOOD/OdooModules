@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Installments of the yearly membership invoice (D65). The due dates come
+         from the membership periods (account.move._compute_needed_terms); the
+         single line only applies to invoices without periods. Shared by all
+         companies. -->
+    <record id="payment_term_membership_half_yearly" model="account.payment.term">
+        <field name="name">Half-yearly installments</field>
+        <field name="sequence">90</field>
+        <field name="membership_payment_frequency">half_yearly</field>
+        <field name="line_ids" eval="[Command.clear(), Command.create({'value': 'percent', 'value_amount': 100.0, 'nb_days': 0})]"/>
+    </record>
+    <record id="payment_term_membership_quarterly" model="account.payment.term">
+        <field name="name">Quarterly installments</field>
+        <field name="sequence">91</field>
+        <field name="membership_payment_frequency">quarterly</field>
+        <field name="line_ids" eval="[Command.clear(), Command.create({'value': 'percent', 'value_amount': 100.0, 'nb_days': 0})]"/>
+    </record>
+    <record id="payment_term_membership_monthly" model="account.payment.term">
+        <field name="name">Monthly installments</field>
+        <field name="sequence">92</field>
+        <field name="membership_payment_frequency">monthly</field>
+        <field name="line_ids" eval="[Command.clear(), Command.create({'value': 'percent', 'value_amount': 100.0, 'nb_days': 0})]"/>
+    </record>
+</odoo>

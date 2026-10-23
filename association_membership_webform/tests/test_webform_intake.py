@@ -904,15 +904,28 @@ class TestBankAndPayment(WebformTestCommon):
         # The gap is still reported: it is a configuration problem, not noise.
         self.assertIn("payment_mode_unavailable", result["warnings"])
 
-    def test_a_non_yearly_frequency_is_flagged(self):
-        # Billing is one period per calendar year, so anything else needs a human.
-        result = self.intake.process(self._individual_payload(payment_frequency="monatlich"))
-        self.assertIn("payment_frequency_not_yearly", result["warnings"])
+    def test_the_stated_frequency_is_stored(self):
+        # D65: the frequency is a field of the membership, not a chatter line.
+        for value, expected in (
+            ("monatlich", "monthly"),
+            ("vierteljährlich", "quarterly"),
+            ("halbjährlich", "half_yearly"),
+            ("jährlich", "yearly"),
+            ("annual", "yearly"),
+        ):
+            with self.subTest(value=value):
+                result = self.intake.process(self._individual_payload(
+                    payment_frequency=value, email=f"{expected}.{len(value)}@example.com",
+                ))
+                membership = self.env["membership.membership"].browse(result["membership_id"])
+                self.assertEqual(membership.payment_frequency, expected)
+                self.assertNotIn("payment_frequency_unknown", result["warnings"])
 
-    def test_yearly_is_accepted_in_either_language(self):
-        for value in ("yearly", "jährlich", "annual"):
-            result = self.intake.process(self._individual_payload(payment_frequency=value))
-            self.assertNotIn("payment_frequency_not_yearly", result["warnings"])
+    def test_an_unknown_frequency_stays_yearly_and_warns(self):
+        result = self.intake.process(self._individual_payload(payment_frequency="wöchentlich"))
+        membership = self.env["membership.membership"].browse(result["membership_id"])
+        self.assertEqual(membership.payment_frequency, "yearly")
+        self.assertIn("payment_frequency_unknown", result["warnings"])
 
 
 class TestChatter(WebformTestCommon):

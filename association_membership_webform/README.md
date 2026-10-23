@@ -34,7 +34,7 @@ so the endpoint must be served over HTTPS.
 Warnings on a `200` (the submission was accepted, but something needs a human):
 `tier_clamped`, `employee_count_missing`, `inhabitant_count_missing`, `tier_price_on_request`,
 `product_ref_unknown`, `fee_mismatch`,
-`payment_frequency_not_yearly`, `contact_person_not_linked`, `payment_mode_unavailable`,
+`payment_frequency_unknown`, `contact_person_not_linked`, `payment_mode_unavailable`,
 `mandate_module_missing`, `mandate_without_iban`, `regional_association_unresolved`,
 `regional_association_mismatch`, `regional_product_missing`, `regional_product_not_free`,
 `regional_membership_failed`, `chapter_unresolved`, `relation_module_missing`,

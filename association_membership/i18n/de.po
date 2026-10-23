@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 18.0-20260324\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-12 19:44+0000\n"
-"PO-Revision-Date: 2026-10-12 19:44+0000\n"
+"POT-Creation-Date: 2026-10-23 00:00+0000\n"
+"PO-Revision-Date: 2026-10-23 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -395,6 +395,7 @@ msgid "Cancellation Template"
 msgstr "Vorlage Kündigung"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__last_billing_status__cancelled
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__state__cancelled
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__cancelled
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
@@ -549,7 +550,6 @@ msgid "Create Membership"
 msgstr "Mitgliedschaft anlegen"
 
 #. module: association_membership
-#: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__create_period
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Create Period"
 msgstr "Beitragszeitraum erstellen"
@@ -569,6 +569,11 @@ msgstr "Erstellt"
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__create_uid
 msgid "Created by"
 msgstr "Erstellt von"
+
+#. module: association_membership
+#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
+msgid "Created for"
+msgstr "Wird angelegt für"
 
 #. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__create_date
@@ -846,6 +851,12 @@ msgid "Former Members"
 msgstr "Ehemalige Mitglieder"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__last_billing_status__waived
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__waived
+msgid "Free"
+msgstr "Beitragsfrei"
+
+#. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__free_period_warning
 msgid "Free Period Warning"
 msgstr "Warnung zu kostenlosem Beitrag"
@@ -868,6 +879,18 @@ msgstr "Jährliche Zuwendungsbestätigungen erstellen"
 #: model_terms:ir.ui.view,arch_db:association_membership.view_product_template_membership_search
 msgid "Group By"
 msgstr "Gruppieren nach"
+
+#. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__account_payment_term__membership_payment_frequency__half_yearly
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__payment_frequency__half_yearly
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__payment_frequency__half_yearly
+msgid "Half-yearly"
+msgstr "Halbjährlich"
+
+#. module: association_membership
+#: model:account.payment.term,name:association_membership.payment_term_membership_half_yearly
+msgid "Half-yearly installments"
+msgstr "Halbjährliche Raten"
 
 #. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_membership__has_message
@@ -942,6 +965,19 @@ msgid "Individuals and Organisations"
 msgstr "Einzelpersonen und Organisationen"
 
 #. module: association_membership
+#: model:ir.model.fields,help:association_membership.field_membership_membership__payment_frequency
+msgid ""
+"Installments of the yearly invoice, due on the 1st of each month, quarter or"
+" half-year. In the year the member joins, the fee covers the installments "
+"from the joining month on; a yearly payer always pays the full fee. A change "
+"reaches periods that are not billed yet."
+msgstr ""
+"Raten der Jahresrechnung, fällig jeweils am 1. eines Monats, Quartals oder "
+"Halbjahres. Im Eintrittsjahr umfasst der Beitrag die Raten ab dem "
+"Eintrittsmonat; bei jährlicher Zahlung gilt immer der volle Beitrag. Eine "
+"Änderung wirkt auf noch nicht abgerechnete Beitragszeiträume."
+
+#. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_settings.py:0
 msgid "Invalid format"
@@ -995,6 +1031,7 @@ msgid "Invoice sent."
 msgstr "Rechnung versendet."
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__last_billing_status__invoiced
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__invoiced
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
 msgid "Invoiced"
@@ -1226,6 +1263,11 @@ msgid "Membership For"
 msgstr "Mitgliedschaft für"
 
 #. module: association_membership
+#: model:ir.model.fields,field_description:association_membership.field_account_payment_term__membership_payment_frequency
+msgid "Membership Installments"
+msgstr "Mitgliedsbeitrag in Raten"
+
+#. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
 #: code:addons/association_membership/models/membership_period.py:0
@@ -1386,6 +1428,18 @@ msgstr "Nachrichten"
 #: code:addons/association_membership/models/donation_tax_receipt.py:0
 msgid "Missing email on: %s."
 msgstr "Fehlende E-Mail-Adresse bei: %s."
+
+#. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__account_payment_term__membership_payment_frequency__monthly
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__payment_frequency__monthly
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__payment_frequency__monthly
+msgid "Monthly"
+msgstr "Monatlich"
+
+#. module: association_membership
+#: model:account.payment.term,name:association_membership.payment_term_membership_monthly
+msgid "Monthly installments"
+msgstr "Monatliche Raten"
 
 #. module: association_membership
 #. odoo-python
@@ -1597,6 +1651,7 @@ msgid "Own Member Numbering"
 msgstr "Eigene Mitgliedsnummernvergabe"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__last_billing_status__paid
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__paid
 msgid "Paid"
 msgstr "Bezahlt"
@@ -1607,6 +1662,7 @@ msgid "Partial Reconcile"
 msgstr "Teilausgleich"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__last_billing_status__partial
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__partial
 msgid "Partially Paid"
 msgstr "Teilweise bezahlt"
@@ -1620,6 +1676,18 @@ msgstr "Partner"
 #: model:ir.model.fields,field_description:association_membership.field_membership_period__date_paid
 msgid "Payment Date"
 msgstr "Zahlungsdatum"
+
+#. module: association_membership
+#: model:ir.model.fields,field_description:association_membership.field_membership_membership__payment_frequency
+#: model:ir.model.fields,field_description:association_membership.field_membership_period__payment_frequency
+#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_search
+msgid "Payment Frequency"
+msgstr "Zahlungsrhythmus"
+
+#. module: association_membership
+#: model:ir.model,name:association_membership.model_account_payment_term
+msgid "Payment Terms"
+msgstr "Zahlungsbedingungen"
 
 #. module: association_membership
 #: model:ir.actions.act_window,name:association_membership.action_report_company_member_list
@@ -1782,6 +1850,18 @@ msgid "Product Variant"
 msgstr "Produktvariante"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__account_payment_term__membership_payment_frequency__quarterly
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__payment_frequency__quarterly
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__payment_frequency__quarterly
+msgid "Quarterly"
+msgstr "Vierteljährlich"
+
+#. module: association_membership
+#: model:account.payment.term,name:association_membership.payment_term_membership_quarterly
+msgid "Quarterly installments"
+msgstr "Vierteljährliche Raten"
+
+#. module: association_membership
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Reactivate"
 msgstr "Reaktivieren"
@@ -1810,6 +1890,7 @@ msgid "Refund Move"
 msgstr "Gutschrift"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__last_billing_status__refunded
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__refunded
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_period_search
 msgid "Refunded"
@@ -2134,12 +2215,12 @@ msgstr "Die Mitgliedsnummernvergabe ist nicht eingerichtet."
 #. odoo-python
 #: code:addons/association_membership/wizard/membership_activate_wizard.py:0
 msgid ""
-"The membership fee is 0, so no invoice will be created. Set an amount on the"
-" membership first if one is owed."
+"The membership fee is 0, so the period is free and no invoice will be "
+"created. Set an amount on the membership first if one is owed."
 msgstr ""
-"Der Mitgliedsbeitrag beträgt 0, daher wird keine Rechnung erstellt. "
-"Hinterlegen Sie zuerst einen Betrag auf der Mitgliedschaft, sofern ein "
-"Betrag offen ist."
+"Der Mitgliedsbeitrag beträgt 0, daher ist der Beitragszeitraum beitragsfrei "
+"und es wird keine Rechnung erstellt. Hinterlegen Sie zuerst einen Betrag auf"
+" der Mitgliedschaft, sofern ein Betrag offen ist."
 
 #. module: association_membership
 #. odoo-python
@@ -2275,6 +2356,7 @@ msgid "Tiers"
 msgstr "Stufen"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__last_billing_status__to_invoice
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__to_invoice
 msgid "To Invoice"
 msgstr "Zu berechnen"
@@ -2380,11 +2462,6 @@ msgid "Waiting + Current"
 msgstr "Wartend + laufend"
 
 #. module: association_membership
-#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__billing_status__waived
-msgid "Waived"
-msgstr "Nicht zu berechnen"
-
-#. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_membership__website_message_ids
 msgid "Website Messages"
 msgstr "Website-Nachrichten"
@@ -2463,6 +2540,12 @@ msgstr "Würde einen Beitragszeitraum erstellen."
 #: model_terms:ir.ui.view,arch_db:association_membership.view_partner_form_membership
 msgid "Year"
 msgstr "Jahr"
+
+#. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_membership__payment_frequency__yearly
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_period__payment_frequency__yearly
+msgid "Yearly"
+msgstr "Jährlich"
 
 #. module: association_membership
 #. odoo-python

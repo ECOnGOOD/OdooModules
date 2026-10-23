@@ -12,8 +12,9 @@
                 </group>
                 <group string="Period" invisible="has_period">
                     <field name="has_period" invisible="1" />
-                    <field name="period_year" options="{'enable_formatting': false}" readonly="1" />
-                    <field name="create_period" />
+                    <!-- Always created on activation, also for a free membership (D68). -->
+                    <label for="period_year" string="Created for" />
+                    <field name="period_year" nolabel="1" options="{'enable_formatting': false}" readonly="1" />
                 </group>
                 <field name="free_period_warning" invisible="1" />
                 <div
@@ -25,7 +26,7 @@
                 </div>
                 <group
                     string="Invoice"
-                    invisible="invoicing_strategy != 'confirm' or (not invoice_id and not create_period and not has_period)"
+                    invisible="invoicing_strategy != 'confirm'"
                 >
                     <field name="invoice_id" readonly="1" invisible="not invoice_id" />
                     <field name="send_invoice_email" />

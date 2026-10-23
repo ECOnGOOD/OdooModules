@@ -1272,7 +1272,7 @@ class TestActivationPeriod(MembershipTestCommon):
         membership = self._make_membership()
         membership.action_submit()
         wizard = self._activation_wizard(membership)
-        self.assertTrue(wizard.create_period)
+        self.assertFalse(wizard.has_period)
         wizard.action_confirm()
         self.assertEqual(membership.state, "active")
         self.assertEqual(len(membership.period_ids), 1)
@@ -1285,9 +1285,209 @@ class TestActivationPeriod(MembershipTestCommon):
         self._make_period(membership, membership_year=membership._default_period_year())
         wizard = self._activation_wizard(membership)
         self.assertTrue(wizard.has_period)
-        self.assertFalse(wizard.create_period)
         wizard.action_confirm()
         self.assertEqual(len(membership.period_ids), 1)
+
+
+    def test_free_membership_gets_its_period(self):
+        # No checkbox: a free membership gets its period like any other (D68).
+        membership = self._make_membership()
+        membership.amount = 0.0
+        membership.action_submit()
+        wizard = self._activation_wizard(membership)
+        self.assertTrue(wizard.free_period_warning)
+        wizard.action_confirm()
+        self.assertEqual(membership.period_ids.billing_status, "waived")
+        self.assertEqual(membership.last_billing_status, "waived")
+
+
+class TestMembershipViews(MembershipTestCommon):
+    """Arch checks for 18.2 and 18.3: the client is not exercised by these tests."""
+
+    def _arch(self, xmlid):
+        from lxml import etree
+
+        return etree.fromstring(self.env.ref(xmlid).arch)
+
+    def test_activate_offered_on_a_new_draft(self):
+        # D27: a draft offers Submit and Activate, also before the first save.
+        arch = self._arch("association_membership.view_membership_membership_form")
+        button = arch.xpath("//header/button[@name='action_activate'][@string='Activate']")[0]
+        self.assertNotIn("id", button.get("invisible").replace("'", " ").split())
+
+    def test_contact_tab_lists_neither_create_nor_delete(self):
+        # D67: one way to create, the "Create Membership" button.
+        arch = self._arch("association_membership.view_partner_form_membership")
+        for name in ("membership_ids", "membership_period_ids"):
+            tree = arch.xpath("//field[@name='%s']/list" % name)[0]
+            self.assertEqual(tree.get("create"), "0")
+            self.assertEqual(tree.get("delete"), "0")
+        self.assertTrue(arch.xpath("//button[@name='action_create_membership']"))
+
+
+class TestPaymentFrequency(MembershipTestCommon):
+    """Installments within the calendar year (D65) and pro-rata joiners (D66)."""
+
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+
+    def _frequency_module(self):
+        from odoo.addons.association_membership.models import payment_frequency
+
+        return payment_frequency
+
+    def _joiner(self, frequency, start, amount=120.0, **overrides):
+        membership = self._make_membership(date_start=start, **overrides)
+        membership.write({"amount": amount, "payment_frequency": frequency})
+        return membership
+
+    def _receivable(self, invoice):
+        return invoice.line_ids.filtered(
+            lambda line: line.account_id.account_type == "asset_receivable"
+        ).sorted("date_maturity")
+
+    def test_installment_slices(self):
+        starts = self._frequency_module().installment_starts
+        self.assertEqual(
+            starts(2027, "monthly", date(2027, 10, 15)),
+            [date(2027, 10, 1), date(2027, 11, 1), date(2027, 12, 1)],
+        )
+        self.assertEqual(starts(2027, "quarterly", date(2027, 11, 15)), [date(2027, 10, 1)])
+        self.assertEqual(
+            starts(2027, "half_yearly", date(2027, 1, 1)),
+            [date(2027, 1, 1), date(2027, 7, 1)],
+        )
+        self.assertEqual(starts(2027, "yearly", date(2027, 10, 15)), [date(2027, 1, 1)])
+        self.assertEqual(starts(2027, "monthly", date(2027, 12, 31)), [date(2027, 12, 1)])
+        self.assertEqual(len(starts(2028, "monthly", date(2028, 2, 29))), 11)
+        self.assertEqual(
+            starts(2027, "monthly", date(2027, 1, 1), date(2027, 3, 10)),
+            [date(2027, 1, 1), date(2027, 2, 1), date(2027, 3, 1)],
+        )
+
+    def test_normalize_stated_frequency(self):
+        normalize = self._frequency_module().normalize_payment_frequency
+        self.assertEqual(normalize("monatlich"), "monthly")
+        self.assertEqual(normalize("halbjährlich"), "half_yearly")
+        self.assertEqual(normalize("vierteljährlich"), "quarterly")
+        self.assertEqual(normalize("jährlich"), "yearly")
+        self.assertEqual(normalize("Quarterly"), "quarterly")
+        self.assertEqual(normalize("half_yearly"), "half_yearly")
+        self.assertFalse(normalize("wöchentlich"))
+        self.assertFalse(normalize(""))
+
+    def test_sub_yearly_joiner_pays_the_remaining_installments(self):
+        monthly = self._joiner("monthly", date(2027, 10, 15))
+        self.assertEqual(self._make_period(monthly, membership_year=2027).amount, 30.0)
+        self.assertEqual(self._make_period(monthly, membership_year=2028).amount, 120.0)
+        quarterly = self._joiner(
+            "quarterly",
+            date(2027, 11, 15),
+            partner_id=self.env["res.partner"].create({"name": "Quarterly"}).id,
+        )
+        self.assertEqual(self._make_period(quarterly, membership_year=2027).amount, 30.0)
+
+    def test_yearly_joiner_pays_the_full_fee(self):
+        yearly = self._joiner("yearly", date(2027, 10, 15))
+        period = self._make_period(yearly, membership_year=2027)
+        self.assertEqual(period.amount, 120.0)
+        self.assertEqual(period.payment_frequency, "yearly")
+
+    def test_installment_invoice_due_dates(self):
+        membership = self._joiner("monthly", date(2027, 10, 15))
+        period = self._make_period(membership, membership_year=2027)
+        invoice = period._apply_invoicing_strategy(invoice_date=date(2027, 10, 20), force=True)
+        self.assertEqual(
+            invoice.invoice_payment_term_id,
+            self.env.ref("association_membership.payment_term_membership_monthly"),
+        )
+        invoice.action_post()
+        lines = self._receivable(invoice)
+        # October is already due when the invoice is issued, so on its date.
+        self.assertEqual(
+            lines.mapped("date_maturity"),
+            [date(2027, 10, 20), date(2027, 11, 1), date(2027, 12, 1)],
+        )
+        self.assertAlmostEqual(sum(lines.mapped("balance")), invoice.amount_total)
+        for line in lines:
+            self.assertAlmostEqual(line.balance, invoice.amount_total / 3, places=2)
+
+    def test_installments_round_on_the_last(self):
+        membership = self._joiner("monthly", date(2026, 1, 1), amount=100.0)
+        period = self._make_period(membership, membership_year=2027)
+        invoice = period._apply_invoicing_strategy(invoice_date=date(2026, 12, 15), force=True)
+        lines = self._receivable(invoice)
+        self.assertEqual(len(lines), 12)
+        self.assertEqual(lines[0].date_maturity, date(2027, 1, 1))
+        self.assertEqual(lines[-1].date_maturity, date(2027, 12, 1))
+        self.assertAlmostEqual(sum(lines.mapped("balance")), invoice.amount_total)
+        self.assertEqual(len(set(lines[:-1].mapped("balance"))), 1)
+
+    def test_yearly_invoice_keeps_one_due_date(self):
+        membership = self._joiner("yearly", date(2026, 1, 1))
+        period = self._make_period(membership, membership_year=2027)
+        invoice = period._apply_invoicing_strategy(invoice_date=date(2027, 1, 5), force=True)
+        self.assertFalse(invoice.invoice_payment_term_id.membership_payment_frequency)
+        self.assertEqual(len(self._receivable(invoice)), 1)
+
+    def test_paid_installment_by_installment(self):
+        membership = self._joiner("half_yearly", date(2026, 1, 1))
+        period = self._make_period(membership, membership_year=2027)
+        invoice = period._apply_invoicing_strategy(invoice_date=date(2027, 1, 1), force=True)
+        invoice.action_post()
+        first = self._receivable(invoice)[0]
+        self.env["account.payment.register"].with_context(
+            active_model="account.move",
+            active_ids=invoice.ids,
+        ).create({"amount": first.balance}).action_create_payments()
+        self.assertEqual(period.billing_status, "partial")
+        self.env["account.payment.register"].with_context(
+            active_model="account.move",
+            active_ids=invoice.ids,
+        ).create({}).action_create_payments()
+        self.assertEqual(period.billing_status, "paid")
+
+    def test_frequency_change_reaches_unbilled_periods_only(self):
+        membership = self._joiner("yearly", date(2027, 10, 15))
+        unbilled = self._make_period(membership, membership_year=2027)
+        billed = self._make_period(membership, membership_year=2028)
+        billed._apply_invoicing_strategy(invoice_date=date(2028, 1, 1), force=True)
+        membership.payment_frequency = "monthly"
+        self.assertEqual(unbilled.payment_frequency, "monthly")
+        self.assertEqual(unbilled.amount, 30.0)
+        self.assertEqual(billed.payment_frequency, "yearly")
+        self.assertEqual(billed.amount, 120.0)
+
+    def test_frequency_change_keeps_an_amount_set_by_hand(self):
+        membership = self._joiner("yearly", date(2027, 10, 15))
+        period = self._make_period(membership, membership_year=2027)
+        period.amount = 80.0
+        membership.payment_frequency = "monthly"
+        self.assertEqual(period.payment_frequency, "monthly")
+        self.assertEqual(period.amount, 80.0)
+
+    def test_credit_note_has_a_single_due_date(self):
+        membership = self._joiner("monthly", date(2026, 1, 1))
+        period = self._make_period(membership, membership_year=2027)
+        invoice = period._apply_invoicing_strategy(invoice_date=date(2027, 1, 1), force=True)
+        invoice.action_post()
+        refund = invoice._reverse_moves()
+        self.assertEqual(len(self._receivable(refund)), 1)
+
+    def test_renewal_bills_the_full_year(self):
+        membership = self._joiner("monthly", date(2026, 3, 1))
+        membership.action_activate_direct()
+        wizard = self.env["membership.renewal.wizard"].create({
+            "target_year": date.today().year + 1,
+            "company_ids": [(6, 0, self.company.ids)],
+        })
+        wizard.action_run()
+        period = membership.period_ids.filtered(
+            lambda record: record.membership_year == date.today().year + 1
+        )
+        self.assertEqual(period.amount, 120.0)
+        self.assertEqual(period.payment_frequency, "monthly")
 
 
 class TestMembershipCreation(MembershipTestCommon):

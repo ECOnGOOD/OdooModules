@@ -1,6 +1,6 @@
 {
     "name": "Association Membership",
-    "version": "18.0.6.9.0",
+    "version": "18.0.7.0.0",
     "category": "Association",
     "summary": "Multi-company membership management for associations",
     "author": "ECOnGOOD",
@@ -20,6 +20,7 @@
         "data/membership_data.xml",
         "data/membership_templates.xml",
         "data/membership_cron.xml",
+        "data/membership_payment_terms.xml",
         "views/membership_membership_views.xml",
         "views/membership_period_views.xml",
         "views/product_membership_views.xml",

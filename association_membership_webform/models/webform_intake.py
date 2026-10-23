@@ -6,6 +6,9 @@ from datetime import datetime
 from markupsafe import Markup
 
 from odoo import _, api, fields, models
+from odoo.addons.association_membership.models.payment_frequency import (
+    normalize_payment_frequency,
+)
 from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
@@ -1115,6 +1118,10 @@ class MembershipWebformIntake(models.AbstractModel):
         amount = self._requested_amount(payload, product, company)
         if amount is not None:
             vals["amount"] = amount
+        # The member's choice; unknown values stay yearly (warned in _apply_payment).
+        frequency = normalize_payment_frequency(payload.get("payment_frequency"))
+        if frequency:
+            vals["payment_frequency"] = frequency
 
         existing = Membership.search(
             [
@@ -1324,12 +1331,10 @@ class MembershipWebformIntake(models.AbstractModel):
         if self._is_direct_debit(payload):
             self._ensure_mandate(partner, company, bank, warnings)
 
-        frequency = str(payload.get("payment_frequency") or "").strip().lower()
-        if frequency and not any(
-            token in frequency for token in ("year", "jähr", "jaehr", "annual", "annu")
-        ):
-            # Billing is one period per calendar year; anything else needs a human.
-            warnings.append("payment_frequency_not_yearly")
+        stated_frequency = payload.get("payment_frequency")
+        if stated_frequency and not normalize_payment_frequency(stated_frequency):
+            # The membership stays yearly; staff ask the member (D65).
+            warnings.append("payment_frequency_unknown")
 
     @api.model
     def _upsert_partner_bank(self, payload, partner, company):
@@ -1452,7 +1457,6 @@ class MembershipWebformIntake(models.AbstractModel):
             ("company_sector", _("Sector")),
             ("assoc_sector", _("Sector")),
             ("payment_method", _("Payment method")),
-            ("payment_frequency", _("Payment frequency")),
         ):
             value = payload.get(key)
             if value not in (None, "", False):

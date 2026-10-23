@@ -111,7 +111,8 @@ class MembershipRenewalWizard(models.TransientModel):
         grouped_items = {}
 
         for membership in eligible_memberships:
-            amount = membership.amount or 0.0
+            # Pro-rata if the member joins in the target year (D66).
+            amount = membership._period_amount(self.target_year)
             is_free = float(amount or 0.0) == 0.0
             item = {
                 "membership": membership,
@@ -157,6 +158,7 @@ class MembershipRenewalWizard(models.TransientModel):
                 membership.company_id.id,
                 self.target_year,
                 membership.currency_id.id,
+                membership.payment_frequency,
             )
             grouped_items.setdefault(group_key, []).append(item)
 

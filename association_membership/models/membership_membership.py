@@ -6,6 +6,12 @@ from psycopg2 import IntegrityError
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from .membership_period import PERIOD_BILLING_STATUS
+from .payment_frequency import (
+    INSTALLMENTS_PER_YEAR,
+    PAYMENT_FREQUENCY_SELECTION,
+    installment_starts,
+)
 from .res_company import INVOICING_STRATEGY_SELECTION
 
 
@@ -131,6 +137,16 @@ class MembershipMembership(models.Model):
         readonly=False,
         tracking=True,
     )
+    payment_frequency = fields.Selection(
+        selection=PAYMENT_FREQUENCY_SELECTION,
+        default="yearly",
+        required=True,
+        tracking=True,
+        help="Installments of the yearly invoice, due on the 1st of each month,"
+             " quarter or half-year. In the year the member joins, the fee covers"
+             " the installments from the joining month on; a yearly payer always"
+             " pays the full fee. A change reaches periods that are not billed yet.",
+    )
     invoicing_strategy = fields.Selection(
         selection=INVOICING_STRATEGY_SELECTION,
         string="Invoicing Strategy",
@@ -156,7 +172,9 @@ class MembershipMembership(models.Model):
         compute="_compute_last_period_data",
         store=True,
     )
-    last_billing_status = fields.Char(
+    # A selection, so lists show the label rather than the key.
+    last_billing_status = fields.Selection(
+        selection=PERIOD_BILLING_STATUS,
         compute="_compute_last_period_data",
         store=True,
     )
@@ -519,6 +537,30 @@ class MembershipMembership(models.Model):
         self.ensure_one()
         return self.company_id._membership_period_year()
 
+    def _period_amount(self, year, frequency=False):
+        """The fee owed for `year`: the installments the membership overlaps (D66)."""
+        self.ensure_one()
+        frequency = frequency or self.payment_frequency
+        starts = installment_starts(year, frequency, self.date_start, self.date_end)
+        share = len(starts) / INSTALLMENTS_PER_YEAR[frequency]
+        return self.currency_id.round((self.amount or 0.0) * share)
+
+    def _apply_payment_frequency_to_unbilled_periods(self):
+        """A frequency change reaches the periods nothing was billed for yet.
+
+        Their amount follows only while it is still the one derived from the
+        old frequency: an amount set by hand stays.
+        """
+        for record in self:
+            for period in record.period_ids:
+                if period._is_billed() or period.payment_frequency == record.payment_frequency:
+                    continue
+                vals = {"payment_frequency": record.payment_frequency}
+                derived = record._period_amount(period.membership_year, period.payment_frequency)
+                if not record.currency_id.compare_amounts(period.amount, derived):
+                    vals["amount"] = record._period_amount(period.membership_year)
+                period.write(vals)
+
     def _prepare_period_create_values(self, membership_year=False, **overrides):
         self.ensure_one()
         vals = {"membership_id": self.id}
@@ -585,6 +627,8 @@ class MembershipMembership(models.Model):
             self._sync_optional_partner_relations()
         if {"partner_id", "company_id"} & set(vals):
             self._add_partner_to_company()
+        if "payment_frequency" in vals:
+            self._apply_payment_frequency_to_unbilled_periods()
         return result
 
     def _add_partner_to_company(self):

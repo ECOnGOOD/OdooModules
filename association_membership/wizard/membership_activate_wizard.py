@@ -21,7 +21,6 @@ class MembershipActivateWizard(models.TransientModel):
 
     period_year = fields.Integer(readonly=True)
     has_period = fields.Boolean(readonly=True)
-    create_period = fields.Boolean(string="Create Period")
     invoice_id = fields.Many2one("account.move", readonly=True)
     send_invoice_email = fields.Boolean(string="Send Invoice Email")
     free_period_warning = fields.Char(compute="_compute_free_period_warning")
@@ -54,7 +53,6 @@ class MembershipActivateWizard(models.TransientModel):
         has_period = period_year in membership.period_ids.mapped("membership_year")
         defaults["period_year"] = period_year
         defaults["has_period"] = has_period
-        defaults["create_period"] = not has_period
         strategy = membership._get_invoicing_strategy()
         defaults["invoicing_strategy"] = strategy
         invoice = self._get_current_year_invoice(membership)
@@ -139,20 +137,17 @@ class MembershipActivateWizard(models.TransientModel):
             self.mail_partner_ids = [Command.link(invoice_partner.id)]
         return True
 
-    @api.depends("invoicing_strategy", "create_period", "has_period", "membership_id.amount")
+    @api.depends("membership_id.amount")
     def _compute_free_period_warning(self):
-        """A zero fee cannot be invoiced - say so instead of doing nothing."""
+        """A zero fee gives a free period and no invoice - say so (D68)."""
         for wizard in self:
             wizard.free_period_warning = False
-            if wizard.invoicing_strategy == "manual" or not wizard.membership_id:
-                continue
-            if not wizard.create_period and not wizard.has_period:
-                continue
-            if wizard.membership_id.amount:
+            if not wizard.membership_id or wizard.membership_id.amount:
                 continue
             wizard.free_period_warning = _(
-                "The membership fee is 0, so no invoice will be created."
-                " Set an amount on the membership first if one is owed."
+                "The membership fee is 0, so the period is free and no invoice"
+                " will be created. Set an amount on the membership first if one"
+                " is owed."
             )
 
     def _send_invoice_email(self):
@@ -223,9 +218,9 @@ class MembershipActivateWizard(models.TransientModel):
             # click rather than Submit followed by Activate.
             membership._do_transition("waiting")
         membership._do_transition("active")
-        if self.create_period or self.has_period:
-            # Invoices an existing, never-billed period too, not only a new one.
-            membership._ensure_default_year_period()
+        # Always: an active membership has its period, also a free one (D68).
+        # Invoices an existing, never-billed period too, not only a new one.
+        membership._ensure_default_year_period()
         # The period may have just produced the invoice, so resolve it
         # again rather than trusting what default_get saw. The strategy alone
         # decides whether it is a draft or already posted.

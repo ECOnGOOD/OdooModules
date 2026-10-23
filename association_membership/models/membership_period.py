@@ -4,6 +4,7 @@ from datetime import date
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from .payment_frequency import PAYMENT_FREQUENCY_SELECTION, installment_starts
 from .res_company import INVOICING_STRATEGY_SELECTION, normalize_year_value
 
 
@@ -14,7 +15,8 @@ PERIOD_BILLING_STATUS = [
     ("paid", "Paid"),
     ("cancelled", "Cancelled"),
     ("refunded", "Refunded"),
-    ("waived", "Waived"),
+    # Fee 0: no invoice is owed (D68). The key predates the label.
+    ("waived", "Free"),
 ]
 
 
@@ -112,6 +114,14 @@ class MembershipPeriod(models.Model):
         readonly=True,
     )
     invoice_partner_id = fields.Many2one("res.partner", string="Invoice Contact")
+    # Own value like the product: a billed period keeps the frequency it was
+    # invoiced with; an unbilled one follows the membership (D65).
+    payment_frequency = fields.Selection(
+        selection=PAYMENT_FREQUENCY_SELECTION,
+        default="yearly",
+        required=True,
+        readonly=True,
+    )
 
     _sql_constraints = [
         (
@@ -290,8 +300,12 @@ class MembershipPeriod(models.Model):
         vals["membership_year"] = self._normalize_membership_year_value(
             vals.get("membership_year") or self._default_membership_year()
         )
+        vals.setdefault("payment_frequency", membership.payment_frequency)
         if "amount" not in vals:
-            vals["amount"] = membership.amount or 0.0
+            # Pro-rata for a sub-yearly payer in the joining year (D66).
+            vals["amount"] = membership._period_amount(
+                vals["membership_year"], vals["payment_frequency"]
+            )
         vals.setdefault("invoice_partner_id", membership._get_invoice_partner().id)
         vals.setdefault("product_id", membership.product_id.id)
         vals.setdefault(
@@ -369,6 +383,29 @@ class MembershipPeriod(models.Model):
             self._sync_accounting_links_from_lines()
         return result
 
+    def _installment_starts(self):
+        """First days of the installments this period is owed in (D65)."""
+        self.ensure_one()
+        return installment_starts(
+            self.membership_year,
+            self.payment_frequency,
+            self.date_start,
+            self.date_end,
+        )
+
+    def _installment_payment_term(self):
+        """The shipped payment term of this period's frequency, if it has installments."""
+        self.ensure_one()
+        if self.payment_frequency == "yearly":
+            return self.env["account.payment.term"]
+        return self.env["account.payment.term"].search(
+            [
+                ("membership_payment_frequency", "=", self.payment_frequency),
+                ("company_id", "in", (False, self.company_id.id)),
+            ],
+            limit=1,
+        )
+
     def _get_sale_journal(self, company):
         journal = self.env["account.journal"].with_company(company).search(
             [
@@ -402,6 +439,7 @@ class MembershipPeriod(models.Model):
                 period.company_id.id,
                 period.membership_year,
                 period.currency_id.id,
+                period.payment_frequency,
             )
             grouped[group_key] |= period
 
@@ -416,6 +454,10 @@ class MembershipPeriod(models.Model):
                 "invoice_date": invoice_date or fields.Date.context_today(self),
                 "invoice_line_ids": [],
             }
+            # Installments: the due dates come from the periods (AccountMove).
+            payment_term = periods[0]._installment_payment_term()
+            if payment_term:
+                invoice_vals["invoice_payment_term_id"] = payment_term.id
             for period in periods.sorted(key=lambda record: record.id):
                 invoice_vals["invoice_line_ids"].append(
                     Command.create(
@@ -426,6 +468,8 @@ class MembershipPeriod(models.Model):
                             "price_unit": period.amount,
                             "membership_id": period.membership_id.id,
                             "membership_year": period.membership_year,
+                            # Linked at once, so the installment dates see the period.
+                            "membership_period_id": period.id,
                         }
                     )
                 )

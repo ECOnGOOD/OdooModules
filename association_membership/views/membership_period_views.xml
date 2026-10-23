@@ -14,6 +14,7 @@
                 <field name="date_start" optional="hide" />
                 <field name="date_end" optional="hide" />
                 <field name="amount" />
+                <field name="payment_frequency" optional="hide" />
                 <field name="amount_paid" />
                 <field name="billing_status" />
                 <field name="invoice_id" />
@@ -119,6 +120,7 @@
                             <field name="invoice_line_id" readonly="1" />
                             <field name="refund_move_id" />
                             <field name="amount" />
+                            <field name="payment_frequency" />
                             <field name="amount_invoiced" readonly="invoice_id or membership_invoicing_strategy != 'manual'" />
                             <field name="amount_paid" readonly="invoice_id or membership_invoicing_strategy != 'manual'" />
                             <field name="billing_status" readonly="invoice_id or membership_invoicing_strategy != 'manual'" />
