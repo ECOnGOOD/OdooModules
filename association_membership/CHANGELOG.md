@@ -1,5 +1,12 @@
 # Changelog
 
+## 18.0.7.0.1 — Members list scope
+
+- **Members lists only the current companies' members.** Without the default "Current
+  Members" filter, a shared contact with a membership in another association (only) showed
+  up. The action domain `membership_ids != False` was checked without record rules; it is now
+  `membership_ids any []`, which applies the company rule.
+
 ## 18.0.7.0.0 — payment frequency (WP23)
 
 - **Payment frequency on the membership (18.1, D65).** Yearly (default), half-yearly,

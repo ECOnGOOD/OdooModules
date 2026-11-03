@@ -66,7 +66,9 @@
         <field name="name">Members</field>
         <field name="res_model">res.partner</field>
         <field name="view_mode">kanban,list,form</field>
-        <field name="domain">[('membership_ids', '!=', False)]</field>
+        <!-- `any`, not `!= False`: Odoo checks a bare one2many `!= False`
+             without record rules, so it would list members of every company. -->
+        <field name="domain">[('membership_ids', 'any', [])]</field>
         <field name="context">{'search_default_filter_current_members': 1}</field>
     </record>
     <record id="view_res_partner_filter_membership" model="ir.ui.view">

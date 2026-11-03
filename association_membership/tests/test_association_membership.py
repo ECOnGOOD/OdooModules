@@ -2561,3 +2561,24 @@ class TestMembershipAccess(MembershipTestCommon):
             [("id", "in", (national | regional).ids)]
         )
         self.assertEqual(visible, regional)
+
+    def test_members_action_lists_only_members_of_its_company(self):
+        """Without the default filter, a shared contact who is a member elsewhere stays out."""
+        region = self.env["res.company"].create({"name": "Regional Association"})
+        regional_viewer = new_test_user(
+            self.env,
+            login="regional_viewer",
+            groups="association_membership.group_membership_viewer",
+            company_id=region.id,
+            company_ids=[(6, 0, region.ids)],
+        )
+        self._make_membership()
+        if "company_ids" in self.env["res.partner"]._fields:
+            # A contact shared by both associations, like an imported company.
+            self.partner.sudo().company_ids = [(5, 0, 0)]
+        action = self.env.ref("association_membership.action_membership_members")
+        domain = [("id", "=", self.partner.id)] + safe_eval(action.domain)
+        partners = self.env["res.partner"].with_user(regional_viewer)
+        self.assertFalse(partners.search(domain))
+        self._make_membership(company_id=region.id)
+        self.assertEqual(partners.search(domain), self.partner)
