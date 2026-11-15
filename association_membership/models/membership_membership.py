@@ -1013,10 +1013,13 @@ class MembershipMembership(models.Model):
             pair_domain.insert(0, "|")
         domain.extend(pair_domain)
 
-        existing_relations = relation_model.search(domain)
+        relation_map = {}
+        for rel in relation_model.search(domain, order="id"):
+            pair_key = (rel.left_partner_id.id, rel.right_partner_id.id)
+            relation_map[pair_key] = relation_map.get(pair_key, relation_model) | rel
         relation_map = {
-            (rel.left_partner_id.id, rel.right_partner_id.id): rel
-            for rel in existing_relations
+            pair_key: self._merge_member_of_relations(relations)
+            for pair_key, relations in relation_map.items()
         }
 
         # A terminated membership, and one taken back to draft (2.7), no longer
@@ -1093,6 +1096,26 @@ class MembershipMembership(models.Model):
 
         if relations_to_create:
             relation_model.create(relations_to_create)
+
+    @api.model
+    def _merge_member_of_relations(self, relations):
+        """Keep one "Member Of" relation per pair, spanning all of them.
+
+        A second relation of the pair (left over from a partner merge, for
+        instance) would overlap as soon as the relation spans every live
+        membership, and partner_multi_relation refuses overlapping relations.
+        """
+        if len(relations) < 2:
+            return relations
+        kept, duplicates = relations[:1], relations[1:]
+        starts = relations.mapped("date_start")
+        ends = relations.mapped("date_end")
+        duplicates.unlink()
+        kept.write({
+            "date_start": min(starts) if all(starts) else False,
+            "date_end": max(ends) if all(ends) else False,
+        })
+        return kept
 
     @api.model
     def _get_membership_relation_type(self):

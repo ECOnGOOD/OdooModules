@@ -2427,6 +2427,24 @@ class TestMemberOfRelation(MembershipTestCommon):
         later._do_transition("cancelled", date_end=date(year + 1, 12, 31), cancel_reason="left")
         self.assertEqual(relation.date_end, date(year + 1, 12, 31))
 
+    def test_duplicate_relations_are_merged_instead_of_overlapping(self):
+        relation_type = self.env["membership.membership"]._get_membership_relation_type()
+        for start, end in ((date(2010, 1, 1), date(2010, 12, 31)),
+                           (date(2012, 1, 1), date(2012, 12, 31))):
+            self.env["res.partner.relation"].create({
+                "left_partner_id": self.partner.id,
+                "right_partner_id": self.company.partner_id.id,
+                "type_id": relation_type.id,
+                "date_start": start,
+                "date_end": end,
+            })
+        # Whichever relation spans from mid-2010 on would overlap the other one.
+        self._active_membership(date_start=date(2010, 6, 1))
+        relation = self._relation()
+        self.assertEqual(len(relation), 1)
+        self.assertEqual(relation.date_start, date(2010, 6, 1))
+        self.assertFalse(relation.date_end)
+
     def test_manual_change_is_overwritten_by_the_next_membership_change(self):
         membership = self._active_membership()
         relation = self._relation()

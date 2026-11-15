@@ -1,6 +1,6 @@
 {
     "name": "Association Membership",
-    "version": "18.0.7.0.1",
+    "version": "18.0.7.0.2",
     "category": "Association",
     "summary": "Multi-company membership management for associations",
     "author": "ECOnGOOD",
