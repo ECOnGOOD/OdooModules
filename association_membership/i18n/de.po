@@ -226,11 +226,6 @@ msgid "Activate"
 msgstr "Aktivieren"
 
 #. module: association_membership
-#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
-msgid "Activate (free)"
-msgstr "Aktivieren (beitragsfrei)"
-
-#. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form

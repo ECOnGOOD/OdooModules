@@ -172,14 +172,6 @@
                         groups="association_membership.group_membership_manager"
                         invisible="state not in ('draft', 'waiting')"
                     />
-                    <!-- One click, no emails (D80); Activate still offers the welcome email. -->
-                    <button
-                        name="action_activate_free"
-                        string="Activate (free)"
-                        type="object"
-                        groups="association_membership.group_membership_manager"
-                        invisible="amount or state not in ('draft', 'waiting')"
-                    />
                     <button
                         name="action_activate"
                         string="Reactivate"

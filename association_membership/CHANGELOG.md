@@ -1,6 +1,6 @@
 # Changelog
 
-## 18.0.8.0.0 — tester feedback 2026-11-25
+## 18.0.8.0.1 — tester feedback 2026-11-25
 
 - **Cancellation reason optional** (D82) in the cancellation wizard.
 - **Association Settings open on a saved record.** The menu opened an unsaved new record
@@ -16,9 +16,9 @@
   donation.tax.receipt". "Applies to" is read-only for non-administrators, who may not search
   models. The bootstrap gives each association its own copy of the shipped membership
   templates.
-- **One-click activation of free memberships (D80).** "Activate" on the kanban card and
-  "Activate (free)" in the form for draft or waiting memberships with fee 0: active, free
-  period, no invoice, no email.
+- **One-click activation of free memberships (D80).** "Activate" on the kanban card of a
+  draft or waiting membership with fee 0: active, free period, no invoice, no email. The form
+  keeps the Activate wizard.
 - **Bulk state change (D83).** "Change State" in the Actions menu of the memberships list
   (managers): Activate, Cancel or Revert to Draft for the selected memberships, each through
   the single wizard with its association's strategy and templates. Emails only when asked;
