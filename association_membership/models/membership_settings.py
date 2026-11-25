@@ -187,6 +187,22 @@ class MembershipSettings(models.TransientModel):
         vals.pop("company_id", None)
         return super(MembershipSettings, self.sudo()).write(vals)
 
+    @api.model
+    def action_open(self):
+        """Open the form on a saved record.
+
+        A new record would show "New" in the breadcrumb, and discarding it
+        leaves the app for the home page.
+        """
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Association Settings"),
+            "res_model": self._name,
+            "res_id": self.create({}).id,
+            "view_mode": "form",
+            "target": "current",
+        }
+
     def action_save(self):
         # The web client saves the record before calling this.
         return {"type": "ir.actions.client", "tag": "soft_reload"}

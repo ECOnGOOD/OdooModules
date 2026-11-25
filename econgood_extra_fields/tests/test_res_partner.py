@@ -5,6 +5,7 @@ from psycopg2 import IntegrityError
 
 from odoo import fields
 from odoo.exceptions import ValidationError
+from odoo.tests import Form
 from odoo.tests.common import TransactionCase, new_test_user
 
 
@@ -262,3 +263,48 @@ class TestEcongoodExtraFields(TransactionCase):
         for name in ("is_econgood_ou", "ou_type_id"):
             self.assertEqual([f.get("readonly") for f in staff.xpath(xpath.format(name))], ["1"], name)
             self.assertEqual([f.get("readonly") for f in admin.xpath(xpath.format(name))], [None], name)
+
+
+class TestLetterSalutation(TransactionCase):
+    """D81: the salutation follows the gender in the association's style."""
+
+    def _person(self, **vals):
+        vals.setdefault("lang", "de_DE")
+        return self.env["res.partner"].create({"name": "Erika Mustermann", **vals})
+
+    def setUp(self):
+        super().setUp()
+        if not self.env["res.lang"]._activate_lang("de_DE"):
+            self.skipTest("de_DE not available")
+
+    def test_informal_by_default(self):
+        self.env.company.letter_salutation_style = False
+        self.assertEqual(self._person(gender="female").letter_salutation, "Liebe Frau")
+
+    def test_formal_style(self):
+        self.env.company.letter_salutation_style = "formal"
+        self.assertEqual(self._person(gender="male").letter_salutation, "Sehr geehrter Herr")
+
+    def test_follows_a_gender_change_but_keeps_a_salutation_by_hand(self):
+        partner = self._person(gender="female")
+        partner.gender = "male"
+        self.assertEqual(partner.letter_salutation, "Lieber Herr")
+        partner.gender = "other"
+        self.assertFalse(partner.letter_salutation)
+        partner.letter_salutation = "Hallo Kim"
+        partner.gender = "female"
+        self.assertEqual(partner.letter_salutation, "Hallo Kim")
+
+    def test_explicit_value_wins(self):
+        partner = self._person(gender="female", letter_salutation="Sehr geehrte Frau Dr.")
+        self.assertEqual(partner.letter_salutation, "Sehr geehrte Frau Dr.")
+
+    def test_not_for_organisations_or_other_languages(self):
+        self.assertFalse(self._person(gender="female", lang="en_US").letter_salutation)
+        self.assertFalse(self._person(is_company=True, gender="female").letter_salutation)
+
+    def test_title_fills_an_empty_gender(self):
+        form = Form(self.env["res.partner"])
+        form.name = "Max Mustermann"
+        form.title = self.env.ref("base.res_partner_title_mister")
+        self.assertEqual(form.gender, "male")

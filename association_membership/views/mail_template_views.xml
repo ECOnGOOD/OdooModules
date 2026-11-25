@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Only administrators may search models, so "Applies to" fails for anybody
+         else. Managers create templates where the model is preset: from a template
+         field in the Association Settings, from Email Templates, or by duplicating. -->
+    <record id="view_mail_template_form_model_admin" model="ir.ui.view">
+        <field name="name">mail.template.form.model.admin</field>
+        <field name="model">mail.template</field>
+        <field name="inherit_id" ref="mail.email_template_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='model_id']" position="attributes">
+                <attribute name="groups">base.group_system</attribute>
+            </xpath>
+            <xpath expr="//field[@name='model_id']" position="after">
+                <field name="model_id" groups="!base.group_system" readonly="1" force_save="1" />
+            </xpath>
+        </field>
+    </record>
+
+    <!-- The templates of the membership emails (D79). New ones belong to the
+         current association and are for membership emails unless created
+         from a template field of another kind. -->
+    <record id="action_membership_mail_templates" model="ir.actions.act_window">
+        <field name="name">Email Templates</field>
+        <field name="res_model">mail.template</field>
+        <field name="view_mode">list,form</field>
+        <field
+            name="domain"
+        >[('model', 'in', ('membership.membership', 'account.move', 'donation.tax.receipt'))]</field>
+        <field
+            name="context"
+        >{'default_model': 'membership.membership', 'default_company_id': allowed_company_ids[0]}</field>
+    </record>
+</odoo>

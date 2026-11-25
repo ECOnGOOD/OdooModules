@@ -14,6 +14,10 @@
     <record id="group_membership_manager" model="res.groups">
         <field name="name">Membership Manager</field>
         <field name="category_id" ref="association_membership.module_category_membership_management" />
-        <field name="implied_ids" eval="[(4, ref('association_membership.group_membership_viewer'))]" />
+        <!-- Managers write the association's email templates (D79). -->
+        <field
+            name="implied_ids"
+            eval="[(4, ref('association_membership.group_membership_viewer')), (4, ref('mail.group_mail_template_editor'))]"
+        />
     </record>
 </odoo>

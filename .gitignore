@@ -23,3 +23,6 @@ Thumbs.db
 venv/
 .venv/
 env/
+
+# not needed modules / test code
+econgood_ui/

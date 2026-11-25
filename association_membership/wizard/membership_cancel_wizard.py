@@ -21,9 +21,8 @@ class MembershipCancelWizard(models.TransientModel):
         required=True,
         default=lambda self: date(fields.Date.context_today(self).year, 12, 31),
     )
-    # Required here, not on the membership: imported historical cancellations
-    # have no reason, and action_cancel_direct must keep accepting none.
-    cancel_reason = fields.Text(required=True)
+    # Optional (D82): members often leave without giving one.
+    cancel_reason = fields.Text()
     open_period_ids = fields.Many2many(
         "membership.period",
         string="Unpaid Periods",

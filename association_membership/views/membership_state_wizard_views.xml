@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_membership_state_wizard_form" model="ir.ui.view">
+        <field name="name">membership.state.wizard.form</field>
+        <field name="model">membership.state.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Change State">
+                <field name="membership_ids" invisible="1" />
+                <group>
+                    <field name="target_state" widget="radio" />
+                </group>
+                <div class="alert alert-info" role="status">
+                    <field name="summary" nolabel="1" readonly="1" />
+                </div>
+                <group invisible="target_state != 'active'">
+                    <field name="send_welcome_message" />
+                    <div colspan="2" class="text-muted">Each membership follows its own invoicing strategy: Draft and Confirm create its invoice, Manual and free memberships get none.</div>
+                </group>
+                <group invisible="target_state != 'cancelled'">
+                    <field name="date_cancelled" required="target_state == 'cancelled'" />
+                    <field name="date_end" required="target_state == 'cancelled'" />
+                    <field name="cancel_reason" />
+                    <field name="open_period_handling" widget="radio" />
+                    <field name="send_cancellation_message" />
+                </group>
+                <footer>
+                    <button name="action_confirm" string="Confirm" type="object" class="btn-primary" />
+                    <button string="Discard" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- In the Actions menu of the memberships list (D83). -->
+    <record id="action_membership_state_wizard" model="ir.actions.act_window">
+        <field name="name">Change State</field>
+        <field name="res_model">membership.state.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="association_membership.model_membership_membership" />
+        <field name="binding_view_types">list</field>
+        <field name="groups_id" eval="[(4, ref('association_membership.group_membership_manager'))]" />
+    </record>
+</odoo>

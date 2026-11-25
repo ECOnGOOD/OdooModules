@@ -5,6 +5,21 @@ from odoo.exceptions import ValidationError
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+# Letter salutations by the association's style (D81), in German like the
+# importers' values. A partner with any other salutation keeps it.
+LETTER_SALUTATIONS = {
+    "informal": {"female": "Liebe Frau", "male": "Lieber Herr"},
+    "formal": {"female": "Sehr geehrte Frau", "male": "Sehr geehrter Herr"},
+}
+GENERATED_LETTER_SALUTATIONS = {
+    salutation for by_gender in LETTER_SALUTATIONS.values() for salutation in by_gender.values()
+}
+GENDER_BY_TITLE = {
+    "base.res_partner_title_madam": "female",
+    "base.res_partner_title_miss": "female",
+    "base.res_partner_title_mister": "male",
+}
+
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
@@ -68,8 +83,37 @@ class ResPartner(models.Model):
 
     legacy_id_smartwe = fields.Char(string="Legacy ID SmartWe")
     legacy_id_formidable = fields.Char(string="Legacy ID Formidable")
-    letter_salutation = fields.Char(string="Letter Salutation")
+    letter_salutation = fields.Char(
+        string="Letter Salutation",
+        compute="_compute_letter_salutation",
+        store=True,
+        readonly=False,
+        help="Filled from the gender in the style of the current association while"
+        " empty or still filled that way; a salutation entered by hand is kept.",
+    )
     socials = fields.Char(string="Socials")
+
+    @api.depends("gender", "is_company")
+    def _compute_letter_salutation(self):
+        style = self.env.company.letter_salutation_style or "informal"
+        for partner in self:
+            current = partner.letter_salutation
+            if current and current not in GENERATED_LETTER_SALUTATIONS:
+                continue
+            # The wording is German; other languages are not filled yet.
+            if partner.is_company or not (partner.lang or "").startswith("de"):
+                continue
+            partner.letter_salutation = LETTER_SALUTATIONS[style].get(partner.gender) or False
+
+    @api.onchange("title")
+    def _onchange_title_set_gender(self):
+        for partner in self:
+            if partner.gender or not partner.title:
+                continue
+            for xmlid, gender in GENDER_BY_TITLE.items():
+                if partner.title == self.env.ref(xmlid, raise_if_not_found=False):
+                    partner.gender = gender
+                    break
 
     @api.onchange("company_type")
     def _onchange_company_type_clear_org_fields_for_people(self):

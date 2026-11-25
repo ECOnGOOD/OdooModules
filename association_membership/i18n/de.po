@@ -4,16 +4,28 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 18.0-20260324\n"
+"Project-Id-Version: Odoo Server 18.0-20261102\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-23 00:00+0000\n"
-"PO-Revision-Date: 2026-10-23 00:00+0000\n"
+"POT-Creation-Date: 2026-11-25 19:08+0000\n"
+"PO-Revision-Date: 2026-11-25 19:08+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: \n"
 "Plural-Forms: \n"
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_state_wizard.py:0
+msgid "%(count)s of %(total)s memberships will change."
+msgstr "%(count)s von %(total)s Mitgliedschaften werden geändert."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_state_wizard.py:0
+msgid "%(done)s of %(total)s memberships changed."
+msgstr "%(done)s von %(total)s Mitgliedschaften geändert."
 
 #. module: association_membership
 #. odoo-python
@@ -60,6 +72,13 @@ msgstr ""
 #: code:addons/association_membership/models/res_company.py:0
 msgid "%(template)s must use model %(model)s."
 msgstr "%(template)s muss das Modell %(model)s verwenden."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/models/membership_membership.py:0
+msgid "%s has a fee; activate it with the Activate button."
+msgstr ""
+"%s hat einen Beitrag; bitte mit der Schaltfläche Aktivieren aktivieren."
 
 #. module: association_membership
 #: model:mail.template,body_html:association_membership.mail_template_membership_activation_invoice
@@ -182,6 +201,12 @@ msgstr ""
 
 #. module: association_membership
 #. odoo-python
+#: code:addons/association_membership/wizard/membership_state_wizard.py:0
+msgid "A cancellation needs a cancellation date and an end date."
+msgstr "Eine Kündigung braucht ein Kündigungsdatum und ein Enddatum."
+
+#. module: association_membership
+#. odoo-python
 #: code:addons/association_membership/models/membership_period.py:0
 msgid "A refund was posted for period %(year)s via %(refund)s."
 msgstr ""
@@ -193,10 +218,17 @@ msgid "Action Needed"
 msgstr "Aktion erforderlich"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_state_wizard__target_state__active
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
+#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_kanban
 msgid "Activate"
 msgstr "Aktivieren"
+
+#. module: association_membership
+#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
+msgid "Activate (free)"
+msgstr "Aktivieren (beitragsfrei)"
 
 #. module: association_membership
 #. odoo-python
@@ -320,7 +352,9 @@ msgid "Association"
 msgstr "Verein"
 
 #. module: association_membership
-#: model:ir.actions.act_window,name:association_membership.action_membership_settings
+#. odoo-python
+#: code:addons/association_membership/models/membership_settings.py:0
+#: model:ir.actions.server,name:association_membership.action_membership_settings_open
 #: model:ir.model,name:association_membership.model_membership_settings
 #: model:ir.ui.menu,name:association_membership.menu_membership_settings
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_settings_form
@@ -348,6 +382,11 @@ msgid "Billing Status"
 msgstr "Abrechnungsstatus"
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_state_wizard__target_state__cancelled
+msgid "Cancel"
+msgstr "Kündigen"
+
+#. module: association_membership
 #. odoo-python
 #: code:addons/association_membership/models/membership_membership.py:0
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_cancel_wizard_form
@@ -358,11 +397,13 @@ msgstr "Mitgliedschaft kündigen"
 #. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__cancel_reason
 #: model:ir.model.fields,field_description:association_membership.field_membership_membership__cancel_reason
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__cancel_reason
 msgid "Cancel Reason"
 msgstr "Kündigungsgrund"
 
 #. module: association_membership
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_cancel_wizard__open_period_handling__drop
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_state_wizard__open_period_handling__drop
 msgid "Cancel draft invoices and delete the periods"
 msgstr "Rechnungsentwürfe stornieren und Beitragszeiträume löschen"
 
@@ -406,6 +447,24 @@ msgstr "Gekündigt"
 #: model_terms:ir.ui.view,arch_db:association_membership.view_product_membership_search
 msgid "Category"
 msgstr "Kategorie"
+
+#. module: association_membership
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__target_state
+msgid "Change"
+msgstr "Änderung"
+
+#. module: association_membership
+#: model:ir.model,name:association_membership.model_membership_state_wizard
+msgid "Change Membership State"
+msgstr "Status von Mitgliedschaften ändern"
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_state_wizard.py:0
+#: model:ir.actions.act_window,name:association_membership.action_membership_state_wizard
+#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_state_wizard_form
+msgid "Change State"
+msgstr "Status ändern"
 
 #. module: association_membership
 #: model:ir.model.fields,help:association_membership.field_membership_membership__partner_is_company
@@ -490,6 +549,7 @@ msgstr "Konfiguration"
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_period__membership_invoicing_strategy__confirm
 #: model:ir.model.fields.selection,name:association_membership.selection__res_company__membership_invoicing_strategy__confirm
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_cancel_wizard_form
+#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_state_wizard_form
 msgid "Confirm"
 msgstr "Bestätigen"
 
@@ -567,6 +627,7 @@ msgstr "Erstellt"
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__create_uid
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__create_uid
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__create_uid
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__create_uid
 msgid "Created by"
 msgstr "Erstellt von"
 
@@ -583,6 +644,7 @@ msgstr "Wird angelegt für"
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__create_date
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__create_date
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__create_date
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__create_date
 msgid "Created on"
 msgstr "Erstellt am"
 
@@ -631,6 +693,7 @@ msgstr "Aktuelles Jahr"
 #. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__date_cancelled
 #: model:ir.model.fields,field_description:association_membership.field_membership_membership__date_cancelled
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__date_cancelled
 msgid "Date Cancelled"
 msgstr "Kündigungsdatum"
 
@@ -638,6 +701,7 @@ msgstr "Kündigungsdatum"
 #: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__date_end
 #: model:ir.model.fields,field_description:association_membership.field_membership_membership__date_end
 #: model:ir.model.fields,field_description:association_membership.field_membership_period__date_end
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__date_end
 msgid "Date End"
 msgstr "Enddatum"
 
@@ -713,6 +777,7 @@ msgstr "Ziffern"
 #. module: association_membership
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_activate_wizard_form
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_cancel_wizard_form
+#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_state_wizard_form
 msgid "Discard"
 msgstr "Verwerfen"
 
@@ -724,6 +789,7 @@ msgstr "Verwerfen"
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__display_name
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__display_name
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__display_name
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__display_name
 msgid "Display Name"
 msgstr "Anzeigename"
 
@@ -768,6 +834,35 @@ msgid "Duplicate Period Year Warning"
 msgstr "Warnung doppeltes Beitragsjahr"
 
 #. module: association_membership
+#: model_terms:ir.ui.view,arch_db:association_membership.view_membership_state_wizard_form
+msgid ""
+"Each membership follows its own invoicing strategy: Draft and Confirm create"
+" its invoice, Manual and free memberships get none."
+msgstr ""
+"Jede Mitgliedschaft folgt ihrer eigenen Rechnungsstrategie: Entwurf und "
+"Bestätigen erstellen ihre Rechnung, Manuell und beitragsfreie "
+"Mitgliedschaften erhalten keine."
+
+#. module: association_membership
+#: model:ir.model.fields,help:association_membership.field_membership_state_wizard__send_cancellation_message
+msgid ""
+"Each membership's cancellation template of its association, unchanged, to "
+"its usual recipients."
+msgstr ""
+"Die Kündigungsvorlage des jeweiligen Vereins, unverändert, an die üblichen "
+"Empfänger jeder Mitgliedschaft."
+
+#. module: association_membership
+#: model:ir.model.fields,help:association_membership.field_membership_state_wizard__send_welcome_message
+msgid ""
+"Each membership's welcome template of its association, unchanged, to its "
+"usual recipients. Only on a first activation, as in the single wizard."
+msgstr ""
+"Die Willkommensvorlage des jeweiligen Vereins, unverändert, an die üblichen "
+"Empfänger jeder Mitgliedschaft. Nur bei einer ersten Aktivierung, wie im "
+"einzelnen Assistenten."
+
+#. module: association_membership
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Edit Cancellation"
 msgstr "Kündigung bearbeiten"
@@ -781,6 +876,12 @@ msgstr "E-Mail"
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_settings_form
 msgid "Email Recipients for Organisation Members"
 msgstr "E-Mail-Empfänger bei Organisationsmitgliedern"
+
+#. module: association_membership
+#: model:ir.actions.act_window,name:association_membership.action_membership_mail_templates
+#: model:ir.ui.menu,name:association_membership.menu_membership_mail_templates
+msgid "Email Templates"
+msgstr "E-Mail-Vorlagen"
 
 #. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__membership_company_mail_recipients
@@ -920,6 +1021,7 @@ msgstr "Kopfzeilentext, der oben in allen Berichten angezeigt wird."
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__id
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__id
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__id
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__id
 msgid "ID"
 msgstr "ID"
 
@@ -969,8 +1071,8 @@ msgstr "Einzelpersonen und Organisationen"
 msgid ""
 "Installments of the yearly invoice, due on the 1st of each month, quarter or"
 " half-year. In the year the member joins, the fee covers the installments "
-"from the joining month on; a yearly payer always pays the full fee. A change "
-"reaches periods that are not billed yet."
+"from the joining month on; a yearly payer always pays the full fee. A change"
+" reaches periods that are not billed yet."
 msgstr ""
 "Raten der Jahresrechnung, fällig jeweils am 1. eines Monats, Quartals oder "
 "Halbjahres. Im Eintrittsjahr umfasst der Beitrag die Raten ab dem "
@@ -1088,6 +1190,7 @@ msgstr "Buchungszeile"
 
 #. module: association_membership
 #: model:ir.model.fields.selection,name:association_membership.selection__membership_cancel_wizard__open_period_handling__keep
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_state_wizard__open_period_handling__keep
 msgid "Keep them"
 msgstr "Beibehalten"
 
@@ -1109,6 +1212,7 @@ msgstr "Letztes Beitragsjahr"
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__write_uid
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__write_uid
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__write_uid
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__write_uid
 msgid "Last Updated by"
 msgstr "Zuletzt aktualisiert von"
 
@@ -1120,6 +1224,7 @@ msgstr "Zuletzt aktualisiert von"
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard__write_date
 #: model:ir.model.fields,field_description:association_membership.field_membership_renewal_wizard_line__write_date
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__write_date
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__write_date
 msgid "Last Updated on"
 msgstr "Zuletzt aktualisiert am"
 
@@ -1385,6 +1490,7 @@ msgstr "Mitgliedschaft: Willkommen"
 
 #. module: association_membership
 #: model:ir.actions.act_window,name:association_membership.action_members_overview
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__membership_ids
 #: model:ir.model.fields,field_description:association_membership.field_res_partner__membership_ids
 #: model:ir.model.fields,field_description:association_membership.field_res_users__membership_ids
 #: model:ir.ui.menu,name:association_membership.menu_membership_memberships
@@ -1531,6 +1637,12 @@ msgstr ""
 #: code:addons/association_membership/models/membership_period.py:0
 msgid "No sales journal was found for company %s."
 msgstr "Für das Unternehmen %s wurde kein Verkaufsjournal gefunden."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_state_wizard.py:0
+msgid "Not changed:"
+msgstr "Nicht geändert:"
 
 #. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_period__note
@@ -1782,6 +1894,7 @@ msgstr "Beitragszeiträume"
 
 #. module: association_membership
 #: model:ir.model.fields,help:association_membership.field_membership_cancel_wizard__open_period_handling
+#: model:ir.model.fields,help:association_membership.field_membership_state_wizard__open_period_handling
 msgid ""
 "Periods of the cancellation year and later that are not paid. Posted "
 "invoices are never touched: reverse them with a credit note."
@@ -1939,6 +2052,7 @@ msgstr ""
 "sämtliche Kündigungsdaten werden gelöscht."
 
 #. module: association_membership
+#: model:ir.model.fields.selection,name:association_membership.selection__membership_state_wizard__target_state__draft
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_membership_form
 msgid "Revert to Draft"
 msgstr "Auf Entwurf zurücksetzen"
@@ -1986,6 +2100,11 @@ msgid "Send"
 msgstr "Senden"
 
 #. module: association_membership
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__send_cancellation_message
+msgid "Send Cancellation Email"
+msgstr "Kündigungs-E-Mail senden"
+
+#. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__send_cancellation_message
 msgid "Send Cancellation Message"
 msgstr "Kündigungsnachricht senden"
@@ -2006,6 +2125,11 @@ msgstr "Zuwendungsbestätigung senden"
 #: code:addons/association_membership/models/donation_tax_receipt.py:0
 msgid "Send Tax Receipts"
 msgstr "Zuwendungsbestätigungen senden"
+
+#. module: association_membership
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__send_welcome_message
+msgid "Send Welcome Email"
+msgstr "Willkommens-E-Mail senden"
 
 #. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_activate_wizard__send_welcome_message
@@ -2048,6 +2172,12 @@ msgid ""
 msgstr ""
 "Übersprungen, weil das Mitgliedschaftsprodukt %s archiviert ist. Wählen Sie "
 "zuerst eine aktuelle Stufe an der Mitgliedschaft."
+
+#. module: association_membership
+#. odoo-python
+#: code:addons/association_membership/wizard/membership_state_wizard.py:0
+msgid "Skipped, as their state does not allow it: %s."
+msgstr "Übersprungen, da ihr Status es nicht zulässt: %s."
 
 #. module: association_membership
 #. odoo-python
@@ -2119,6 +2249,11 @@ msgstr "Einreichen"
 #: model:ir.model.fields,field_description:association_membership.field_membership_settings__member_number_suffix
 msgid "Suffix"
 msgstr "Suffix"
+
+#. module: association_membership
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__summary
+msgid "Summary"
+msgstr "Zusammenfassung"
 
 #. module: association_membership
 #: model_terms:ir.ui.view,arch_db:association_membership.view_membership_settings_form
@@ -2408,6 +2543,7 @@ msgstr "Unbezahlte Beitragszeiträume"
 
 #. module: association_membership
 #: model:ir.model.fields,field_description:association_membership.field_membership_cancel_wizard__open_period_handling
+#: model:ir.model.fields,field_description:association_membership.field_membership_state_wizard__open_period_handling
 msgid "Unpaid periods"
 msgstr "Unbezahlte Beitragszeiträume"
 

@@ -85,24 +85,28 @@
                                     <field
                                         name="membership_activation_invoice_template_id"
                                         string="Activation Invoice Email Template"
-                                        domain="[('model', '=', 'account.move')]"
+                                        domain="[('model', '=', 'account.move'), ('company_id', 'in', [company_id, False])]"
+                                        context="{'default_model': 'account.move', 'default_company_id': company_id}"
                                         invisible="membership_invoicing_strategy == 'manual'"
                                         help="Used when an activation sends the membership invoice. Not used while the invoicing strategy is Manual."
                                     />
                                     <field
                                         name="membership_welcome_template_id"
                                         string="Welcome Email Template"
-                                        domain="[('model', '=', 'membership.membership')]"
+                                        domain="[('model', '=', 'membership.membership'), ('company_id', 'in', [company_id, False])]"
+                                        context="{'default_model': 'membership.membership', 'default_company_id': company_id}"
                                     />
                                     <field
                                         name="membership_cancellation_template_id"
                                         string="Cancellation Email Template"
-                                        domain="[('model', '=', 'membership.membership')]"
+                                        domain="[('model', '=', 'membership.membership'), ('company_id', 'in', [company_id, False])]"
+                                        context="{'default_model': 'membership.membership', 'default_company_id': company_id}"
                                     />
                                     <field
                                         name="membership_tax_receipt_template_id"
                                         string="Tax Receipt Email Template"
-                                        domain="[('model', '=', 'donation.tax.receipt')]"
+                                        domain="[('model', '=', 'donation.tax.receipt'), ('company_id', 'in', [company_id, False])]"
+                                        context="{'default_model': 'donation.tax.receipt', 'default_company_id': company_id}"
                                         help="Used when tax receipts are sent, one at a time or several from the list. Empty: the default template (the Zuwendungsbestätigung for German companies, when installed)."
                                     />
                                 </group>
@@ -111,19 +115,22 @@
                                     <field
                                         name="membership_activation_invoice_org_template_id"
                                         string="Activation Invoice (Organisations)"
-                                        domain="[('model', '=', 'account.move')]"
+                                        domain="[('model', '=', 'account.move'), ('company_id', 'in', [company_id, False])]"
+                                        context="{'default_model': 'account.move', 'default_company_id': company_id}"
                                         invisible="membership_invoicing_strategy == 'manual'"
                                         help="Optional. When set, organisation members get these instead of the general templates; empty means the general template. A single template can also differ by member type with sections like t-if=&quot;object.partner_id.is_company&quot;."
                                     />
                                     <field
                                         name="membership_welcome_org_template_id"
                                         string="Welcome (Organisations)"
-                                        domain="[('model', '=', 'membership.membership')]"
+                                        domain="[('model', '=', 'membership.membership'), ('company_id', 'in', [company_id, False])]"
+                                        context="{'default_model': 'membership.membership', 'default_company_id': company_id}"
                                     />
                                     <field
                                         name="membership_cancellation_org_template_id"
                                         string="Cancellation (Organisations)"
-                                        domain="[('model', '=', 'membership.membership')]"
+                                        domain="[('model', '=', 'membership.membership'), ('company_id', 'in', [company_id, False])]"
+                                        context="{'default_model': 'membership.membership', 'default_company_id': company_id}"
                                     />
                                 </group>
                             </group>
@@ -159,11 +166,13 @@
         </field>
     </record>
 
-    <record id="action_membership_settings" model="ir.actions.act_window">
+    <!-- A server action, so that the form opens on a saved record: discarding an
+         unsaved new one left the app for the home page. -->
+    <record id="action_membership_settings_open" model="ir.actions.server">
         <field name="name">Association Settings</field>
-        <field name="res_model">membership.settings</field>
-        <field name="view_mode">form</field>
-        <field name="target">current</field>
-        <field name="context">{}</field>
+        <field name="model_id" ref="association_membership.model_membership_settings" />
+        <field name="state">code</field>
+        <field name="code">action = model.action_open()</field>
+        <field name="groups_id" eval="[Command.link(ref('association_membership.group_membership_manager'))]" />
     </record>
 </odoo>

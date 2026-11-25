@@ -789,6 +789,24 @@ class MembershipMembership(models.Model):
             },
         }
 
+    def action_activate_free(self):
+        """Activate a free membership in one click (D80).
+
+        What the wizard does, without its emails: the free period, no invoice.
+        A membership with a fee goes through the wizard.
+        """
+        for record in self:
+            if record.amount:
+                raise UserError(
+                    _("%s has a fee; activate it with the Activate button.", record.display_name)
+                )
+            if record.state == "draft":
+                record._do_transition("waiting")
+            record._do_transition("active")
+            record._ensure_default_year_period()
+        # The kanban card would stay in its column otherwise.
+        return {"type": "ir.actions.client", "tag": "soft_reload"}
+
     def action_activate_direct(self):
         """Activate without the wizard and without sending any email.
 

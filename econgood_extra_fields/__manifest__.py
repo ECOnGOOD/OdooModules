@@ -1,7 +1,7 @@
 # __manifest__.py
 {
     'name': 'ECOnGOOD Extra Fields',
-    'version': '18.0.2.13.0',
+    'version': '18.0.2.14.0',
     'category': 'ECOnGOOD',
     'summary': 'Adds extra required fields (incl. dependencies) to contacts.',
     'author': 'ECOnGOOD',
@@ -22,6 +22,7 @@
         'security/ir.model.access.csv',
         'data/partner_taxonomy_data.xml',
         'views/res_partner_views.xml',
+        'views/res_company_views.xml',
     ],
     'installable': True,
     'application': False,

@@ -13,6 +13,7 @@
                 <field name="date_start" />
                 <field name="date_end" />
                 <field name="active" />
+                <field name="amount" />
                 <field name="partner_avatar_128" />
                 <templates>
                     <t t-name="card" class="flex-row">
@@ -47,6 +48,15 @@
                                 <span>End </span>
                                 <field name="date_end" />
                             </div>
+                            <!-- Free memberships, mostly regional ones, in one click (D80). -->
+                            <button
+                                name="action_activate_free"
+                                type="object"
+                                string="Activate"
+                                class="btn btn-sm btn-primary mt-2 align-self-start"
+                                groups="association_membership.group_membership_manager"
+                                invisible="amount or state not in ('draft', 'waiting')"
+                            />
                         </main>
                     </t>
                 </templates>
@@ -161,6 +171,14 @@
                         class="oe_highlight"
                         groups="association_membership.group_membership_manager"
                         invisible="state not in ('draft', 'waiting')"
+                    />
+                    <!-- One click, no emails (D80); Activate still offers the welcome email. -->
+                    <button
+                        name="action_activate_free"
+                        string="Activate (free)"
+                        type="object"
+                        groups="association_membership.group_membership_manager"
+                        invisible="amount or state not in ('draft', 'waiting')"
                     />
                     <button
                         name="action_activate"

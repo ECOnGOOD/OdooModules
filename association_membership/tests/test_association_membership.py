@@ -1,5 +1,6 @@
 import importlib.util
 from datetime import date
+from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.modules.module import get_module_path
@@ -1161,8 +1162,7 @@ class TestCommunicationPartners(MembershipTestCommon):
         membership.action_submit()
         for model, vals in (
             ("membership.activate.wizard", {}),
-            # A cancellation always has to say why.
-            ("membership.cancel.wizard", {"cancel_reason": "Moved away"}),
+            ("membership.cancel.wizard", {}),
         ):
             wizard = self.env[model].with_context(default_membership_id=membership.id).create(vals)
             self.assertEqual(wizard.mail_partner_ids, self.billing)
@@ -1299,6 +1299,24 @@ class TestActivationPeriod(MembershipTestCommon):
         wizard.action_confirm()
         self.assertEqual(membership.period_ids.billing_status, "waived")
         self.assertEqual(membership.last_billing_status, "waived")
+
+    def test_free_membership_in_one_click(self):
+        """D80: no wizard, no invoice, no email."""
+        self.company.membership_invoicing_strategy = "confirm"
+        membership = self._make_membership()
+        membership.amount = 0.0
+        membership.action_activate_free()
+        self.assertEqual(membership.state, "active")
+        self.assertEqual(membership.period_ids.billing_status, "waived")
+        self.assertFalse(membership.period_ids.invoice_id)
+        self.assertFalse(membership.date_welcome_sent)
+
+    def test_one_click_refuses_a_fee(self):
+        membership = self._make_membership()
+        membership.action_submit()
+        with self.assertRaises(UserError):
+            membership.action_activate_free()
+        self.assertEqual(membership.state, "waiting")
 
 
 class TestMembershipViews(MembershipTestCommon):
@@ -1736,11 +1754,13 @@ class TestCancellationHandling(MembershipTestCommon):
             default_membership_id=self.membership.id
         ).create(vals)
 
-    def test_cancellation_requires_a_reason(self):
-        with self.assertRaises(Exception):
-            self.env["membership.cancel.wizard"].with_context(
-                default_membership_id=self.membership.id
-            ).create({"date_end": date(date.today().year, 12, 31)})
+    def test_cancellation_without_a_reason(self):
+        """D82: the reason is optional."""
+        self.env["membership.cancel.wizard"].with_context(
+            default_membership_id=self.membership.id
+        ).create({"date_end": date(date.today().year + 1, 12, 31)}).action_confirm()
+        self.assertEqual(self.membership.state, "cancelled")
+        self.assertFalse(self.membership.cancel_reason)
 
     def test_end_date_can_be_corrected_while_cancelled(self):
         self._cancel_wizard(
@@ -2551,6 +2571,50 @@ class TestMembershipAccess(MembershipTestCommon):
             })
         self.assertFalse(other.city)
 
+    def test_settings_open_on_a_saved_record(self):
+        """Discarding a new record left the app for the home page."""
+        self.manager.company_ids = [(4, self.company.id)]
+        self.manager.company_id = self.company
+        action = self.env["membership.settings"].with_user(self.manager).action_open()
+        settings = self.env["membership.settings"].browse(action["res_id"])
+        self.assertEqual(settings.company_id, self.company)
+
+    def test_managers_edit_templates(self):
+        """D79: also templates with placeholders, which need the editor group."""
+        self.assertTrue(self.manager.has_group("mail.group_mail_template_editor"))
+        menu = self.env.ref("association_membership.menu_membership_mail_templates").id
+        self.assertIn(menu, self.env["ir.ui.menu"].with_user(self.manager)._visible_menu_ids())
+
+    def test_template_from_a_settings_field_gets_model_and_company(self):
+        """The tester's "must use model": a template created from the field had none."""
+        self.manager.company_ids = [(4, self.company.id)]
+        self.manager.company_id = self.company
+        template = (
+            self.env["mail.template"]
+            .with_user(self.manager)
+            .with_context(default_model="donation.tax.receipt", default_company_id=self.company.id)
+            .create({"name": "Our Receipt", "subject": "{{ object.number }}"})
+        )
+        self.assertEqual(template.model, "donation.tax.receipt")
+        self.assertEqual(template.company_id, self.company)
+        self.env["membership.settings"].with_user(self.manager).create(
+            {"membership_tax_receipt_template_id": template.id}
+        )
+        self.assertEqual(self.company.membership_tax_receipt_template_id, template)
+
+    def test_templates_stay_in_their_association(self):
+        other = self.env["res.company"].create({"name": "Other Association"})
+        template = self.env["mail.template"].create({
+            "name": "Other Welcome",
+            "model_id": self.env["ir.model"]._get_id("membership.membership"),
+            "company_id": other.id,
+        })
+        self.manager.company_ids = [(6, 0, self.company.ids)]
+        self.manager.company_id = self.company
+        self.assertFalse(
+            self.env["mail.template"].with_user(self.manager).search([("id", "=", template.id)])
+        )
+
     def test_viewer_cannot_change_settings(self):
         with self.assertRaises(AccessError):
             self.env["membership.settings"].with_user(self.viewer).create({"city": "Nowhere"})
@@ -2600,3 +2664,93 @@ class TestMembershipAccess(MembershipTestCommon):
         self.assertFalse(partners.search(domain))
         self._make_membership(company_id=region.id)
         self.assertEqual(partners.search(domain), self.partner)
+
+
+class TestBulkStateChange(MembershipTestCommon):
+    """D83: several memberships at once, each as the single wizard would."""
+
+    def setUp(self):
+        super().setUp()
+        self.company.membership_invoicing_strategy = "manual"
+
+    def _new(self):
+        # One member each: a member has one membership of a type at a time.
+        partner = self.env["res.partner"].create({"name": "Bulk Member", "email": "bulk@example.com"})
+        return self._make_membership(partner_id=partner.id)
+
+    def _wizard(self, memberships, **vals):
+        return (
+            self.env["membership.state.wizard"]
+            .with_context(active_model="membership.membership", active_ids=memberships.ids)
+            .create(vals)
+        )
+
+    def _active(self):
+        membership = self._new()
+        membership.action_activate_direct()
+        return membership
+
+    def test_activate_skips_what_cannot_change(self):
+        draft, waiting, active = self._new(), self._new(), self._active()
+        waiting.action_submit()
+        wizard = self._wizard(draft | waiting | active, target_state="active")
+        self.assertIn("2 of 3", wizard.summary)
+        wizard.action_confirm()
+        self.assertEqual((draft | waiting).mapped("state"), ["active", "active"])
+        # Like the single wizard: the period of the year, no email unless asked.
+        self.assertTrue(draft.period_ids)
+        self.assertFalse(draft.date_welcome_sent)
+
+    def test_activate_can_send_the_welcome_email(self):
+        membership = self._new()
+        self._wizard(membership, target_state="active", send_welcome_message=True).action_confirm()
+        self.assertTrue(membership.date_welcome_sent)
+
+    def test_cancel_applies_the_same_values(self):
+        first, second, draft = self._active(), self._active(), self._new()
+        end = date(date.today().year + 1, 6, 30)
+        result = self._wizard(
+            first | second | draft,
+            target_state="cancelled",
+            date_end=end,
+            cancel_reason="Bulk",
+        ).action_confirm()
+        for membership in first | second:
+            self.assertEqual(membership.state, "cancelled")
+            self.assertEqual(membership.date_end, end)
+            self.assertEqual(membership.cancel_reason, "Bulk")
+        self.assertEqual(draft.state, "draft")
+        self.assertEqual(result["params"]["type"], "success")
+
+    def test_revert_to_draft(self):
+        waiting, active = self._new(), self._active()
+        waiting.action_submit()
+        self._wizard(waiting | active, target_state="draft").action_confirm()
+        self.assertEqual(waiting.state, "draft")
+        self.assertEqual(active.state, "active")
+
+    def test_one_failure_does_not_stop_the_others(self):
+        good, bad = self._new(), self._new()
+        bad.action_submit()
+        model = type(bad)
+        original = model._ensure_default_year_period
+
+        def failing(record):
+            if record == bad:
+                raise UserError("No period")
+            return original(record)
+
+        with patch.object(model, "_ensure_default_year_period", failing):
+            result = self._wizard(good | bad, target_state="active").action_confirm()
+        self.assertEqual(good.state, "active")
+        # Rolled back as a whole, not left half-activated.
+        self.assertEqual(bad.state, "waiting")
+        self.assertEqual(result["params"]["type"], "warning")
+        self.assertIn("No period", result["params"]["message"])
+
+    def test_for_managers_only(self):
+        viewer = new_test_user(
+            self.env, login="bulk_viewer", groups="association_membership.group_membership_viewer"
+        )
+        with self.assertRaises(AccessError):
+            self.env["membership.state.wizard"].with_user(viewer).create({"target_state": "draft"})

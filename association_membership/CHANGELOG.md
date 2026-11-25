@@ -1,5 +1,34 @@
 # Changelog
 
+## 18.0.8.0.0 — tester feedback 2026-11-25
+
+- **Cancellation reason optional** (D82) in the cancellation wizard.
+- **Association Settings open on a saved record.** The menu opened an unsaved new record
+  (`/odoo/action-…/new`), and discarding it left the app for the home page. The menu now runs
+  a server action (`action_membership_settings_open`) that opens a saved one.
+- **Email templates for managers (D79).** Membership Manager implies Odoo's Template Editor;
+  without it a manager could not save a template with placeholders. New dependency on OCA
+  `mail_template_multi_company`: templates have a company, users see those of their
+  companies and those without one. New menu Members → Configuration → Email Templates; new
+  templates belong to the current association. The template fields of the Association
+  Settings list the association's templates and shared ones, and a template created there gets
+  the field's model and the association: a template without a model caused "… must use model
+  donation.tax.receipt". "Applies to" is read-only for non-administrators, who may not search
+  models. The bootstrap gives each association its own copy of the shipped membership
+  templates.
+- **One-click activation of free memberships (D80).** "Activate" on the kanban card and
+  "Activate (free)" in the form for draft or waiting memberships with fee 0: active, free
+  period, no invoice, no email.
+- **Bulk state change (D83).** "Change State" in the Actions menu of the memberships list
+  (managers): Activate, Cancel or Revert to Draft for the selected memberships, each through
+  the single wizard with its association's strategy and templates. Emails only when asked;
+  memberships whose state does not allow the change are skipped and counted, a failing one is
+  rolled back and listed.
+- One-click activation reloads the view, so the card moves to Active.
+- `econgood_extra_fields` 18.0.2.14.0: the letter salutation follows the gender in the
+  association's style (`res.company.letter_salutation_style`, set by the bootstrap); the title
+  Herr/Frau fills an empty gender (D81).
+
 ## 18.0.7.0.1 — Members list scope
 
 - **Members lists only the current companies' members.** Without the default "Current
